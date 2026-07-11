@@ -1,20 +1,39 @@
 :host {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
 }
 
-/* Шапка */
+/* Шапка — overlay с фейд-блюром, контент уходит под неё */
 .chat__top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
-  padding: 18px 18px 8px 20px;
+  padding: 16px 18px 22px 20px;
+}
+.chat__top::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-top) 72%, transparent 100%);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  -webkit-mask: linear-gradient(180deg, #000 0%, #000 74%, transparent 100%);
+  mask: linear-gradient(180deg, #000 0%, #000 74%, transparent 100%);
+  pointer-events: none;
 }
 
 .chat__brand {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -23,6 +42,7 @@
 /* Выбор количества блюд */
 .count {
   position: relative;
+  z-index: 1;
   flex-shrink: 0;
 }
 
@@ -122,7 +142,8 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 12px 16px 20px;
+  /* верх/низ — место под overlay-шапку и композер */
+  padding: 96px 16px 152px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -422,19 +443,37 @@
 .pastel-3 { background: var(--pastel-yellow); }
 .pastel-4 { background: var(--pastel-blue); }
 
-/* Композер */
+/* Композер — overlay с фейд-блюром снизу */
 .composer {
-  flex-shrink: 0;
-  padding: 10px 16px 12px;
-  background: linear-gradient(180deg, transparent, var(--bg-bottom) 40%);
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  padding: 26px 16px 12px;
+}
+.composer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 0%, var(--bg-bottom) 55%);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+  -webkit-mask: linear-gradient(180deg, transparent 0%, #000 52%);
+  mask: linear-gradient(180deg, transparent 0%, #000 52%);
+  pointer-events: none;
 }
 
 .chips {
   display: flex;
   gap: 8px;
   overflow-x: auto;
-  padding-bottom: 10px;
+  /* от края до края экрана с мягким затуханием по бокам */
+  margin: 0 -16px;
+  padding: 0 16px 10px;
   scrollbar-width: none;
+  -webkit-mask: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 26px), transparent 100%);
+  mask: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 26px), transparent 100%);
 }
 .chips::-webkit-scrollbar {
   display: none;
