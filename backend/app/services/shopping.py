@@ -60,8 +60,8 @@ def _present(base_unit: str, qty: float):
     return (round(qty, 2) if qty % 1 else int(qty)), base_unit
 
 
-def build_shopping_list(dishes: list[Dish]) -> list[ShoppingGroup]:
-    """Список покупок: объединяет формы одного продукта, всё весовое — в граммах."""
+def aggregate_ingredients(dishes: list[Dish]) -> list[dict]:
+    """База: объединяет формы одного продукта (canon), всё весовое — в граммах."""
     merged: dict[str, dict] = {}
     for dish in dishes:
         for ing in dish.ingredients:
@@ -72,21 +72,39 @@ def build_shopping_list(dishes: list[Dish]) -> list[ShoppingGroup]:
             else:
                 name = ing.name.strip()
                 merged[key] = {
-                    "name": name[:1].upper() + name[1:],  # первое написание — для показа
+                    "name": name[:1].upper() + name[1:],
                     "base_unit": base_unit,
                     "qty": base_qty,
                     "category": ing.category,
                 }
-
-    by_cat: dict[str, list[ShoppingItem]] = {}
+    items: list[dict] = []
     for m in merged.values():
         qty, unit = _present(m["base_unit"], m["qty"])
-        item = ShoppingItem(name=m["name"], qty=qty, unit=unit, category=m["category"])
-        by_cat.setdefault(item.category, []).append(item)
+        items.append({"name": m["name"], "qty": qty, "unit": unit, "category": m["category"]})
+    return items
 
+
+def group_items(items: list[dict]) -> list[ShoppingGroup]:
+    """Группирует позиции по категориям в заданном порядке."""
+    by_cat: dict[str, list[ShoppingItem]] = {}
+    for it in items:
+        cat = it.get("category") or "Прочее"
+        by_cat.setdefault(cat, []).append(
+            ShoppingItem(
+                name=str(it.get("name", "")).strip(),
+                qty=it.get("qty", 0),
+                unit=str(it.get("unit", "")).strip(),
+                category=cat,
+            )
+        )
     order = CATEGORY_ORDER + [c for c in by_cat if c not in CATEGORY_ORDER]
     return [
         ShoppingGroup(category=c, items=sorted(by_cat[c], key=lambda x: x.name.lower()))
         for c in order
         if c in by_cat
     ]
+
+
+def build_shopping_list(dishes: list[Dish]) -> list[ShoppingGroup]:
+    """Детерминированный список покупок (фолбэк, без модели)."""
+    return group_items(aggregate_ingredients(dishes))

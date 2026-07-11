@@ -34,10 +34,12 @@ from .prompt import (
     DETAILS_SCHEMA,
     DISH_SCHEMA,
     NAMES_SCHEMA,
+    SHOP_SCHEMA,
     VALIDATE_SCHEMA,
     build_details_messages,
     build_dish_messages,
     build_names_messages,
+    build_shop_normalize_messages,
     build_validate_messages,
 )
 
@@ -154,3 +156,16 @@ async def generate_details(name: str, ingredients: list[dict]) -> dict[str, list
         build_details_messages(name, ingredients), DETAILS_SCHEMA, max_tokens=700
     )
     return {"steps": parsed.get("steps") or [], "tips": parsed.get("tips") or []}
+
+
+async def normalize_shopping(items: list[dict]) -> list[dict]:
+    """Доводит детерминированную базу списка покупок моделью (mistral)."""
+    if not items:
+        return []
+    parsed, _ = await run_json(
+        build_shop_normalize_messages(items),
+        SHOP_SCHEMA,
+        model=settings.cf_model_judge,
+        max_tokens=1400,
+    )
+    return parsed.get("items") or items

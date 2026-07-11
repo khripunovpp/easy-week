@@ -1,4 +1,6 @@
 import asyncio
+import hashlib
+import json
 from datetime import datetime, timezone
 from typing import Annotated
 
@@ -6,12 +8,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
 from ..ai.cloudflare import CloudflareError
-from ..ai.planner import generate_details
+from ..ai.planner import generate_details, normalize_shopping
 from ..db import get_session
 from ..models import PlanRow
 from ..schemas import Dish, PlanSummary, ShoppingGroup, StatusRequest, WeekPlan
 from ..services.mapping import to_summary, to_week_plan
-from ..services.shopping import build_shopping_list
+from ..services.shopping import aggregate_ingredients, group_items
 
 router = APIRouter(prefix="/api/plans", tags=["plans"])
 
@@ -53,8 +55,28 @@ async def set_status(plan_id: str, req: StatusRequest, session: SessionDep) -> W
 
 @router.get("/{plan_id}/shopping-list")
 async def shopping_list(plan_id: str, session: SessionDep) -> list[ShoppingGroup]:
-    plan = to_week_plan(_get_plan(session, plan_id))
-    return build_shopping_list(plan.dishes)
+    row = _get_plan(session, plan_id)
+    plan = to_week_plan(row)
+    base = aggregate_ingredients(plan.dishes)
+    sig = hashlib.md5(
+        json.dumps(base, sort_keys=True, ensure_ascii=False).encode()
+    ).hexdigest()
+
+    # Один вызов модели на план; дальше — из кэша.
+    if row.shopping_sig == sig and row.shopping_cache:
+        return group_items(row.shopping_cache)
+
+    try:
+        items = await normalize_shopping(base)
+    except Exception:  # noqa: BLE001 — модель не критична, есть фолбэк
+        items = base
+    if not items:
+        items = base
+    row.shopping_cache = items
+    row.shopping_sig = sig
+    session.add(row)
+    session.commit()
+    return group_items(items)
 
 
 @router.post("/{plan_id}/full")

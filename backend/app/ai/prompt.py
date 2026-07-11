@@ -129,6 +129,50 @@ def build_validate_messages(dishes: list[dict]) -> list[dict[str, str]]:
     ]
 
 
+# Нормализатор списка покупок (mistral): доводит детерминированную базу.
+SHOP_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "items": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "qty": {"type": "number"},
+                    "unit": {"type": "string"},
+                    "category": {"type": "string"},
+                },
+                "required": ["name", "qty", "unit", "category"],
+            },
+        }
+    },
+    "required": ["items"],
+}
+
+SHOP_SYSTEM = (
+    "Ты приводишь список покупок к чистому виду. Правила: "
+    "1) ОБЪЕДИНИ позиции одного продукта (синонимы, ед./мн. число, «лук» и «лук репчатый» — "
+    "одно; просуммируй количества, если единицы совпадают). "
+    "2) Если один продукт указан и в граммах, и в штуках — оставь ДВЕ строки (не смешивай). "
+    "3) Не выдумывай новых продуктов, бери только из входа. "
+    "4) Единицы: весовое — 'г' (крупное — 'кг'), жидкости — 'мл'/'л', штучное — 'шт'. "
+    "5) Правильная category из: 'Мясо и птица','Рыба','Овощи','Молочное','Бакалея','Специи','Прочее' "
+    "(например лосось/треска — 'Рыба'). Название — короткое, с маленькой буквы."
+)
+
+
+def build_shop_normalize_messages(items: list[dict]) -> list[dict[str, str]]:
+    lines = [
+        f"{it.get('name')} — {it.get('qty')} {it.get('unit')} — {it.get('category')}"
+        for it in items
+    ]
+    return [
+        {"role": "system", "content": SHOP_SYSTEM},
+        {"role": "user", "content": "Список:\n" + "\n".join(lines)},
+    ]
+
+
 def build_names_messages(
     user_message: str, avoid_titles: list[str], count: int = 5
 ) -> list[dict[str, str]]:

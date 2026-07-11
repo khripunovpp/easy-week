@@ -21,6 +21,9 @@ class PlanRow(SQLModel, table=True):
     status: str = Field(default="draft", index=True)  # draft | accepted | rejected
     # Полный список блюд плана — как JSON (snake_case, см. schemas.Dish).
     dishes: list = Field(default_factory=list, sa_column=Column(JSON))
+    # Кэш нормализованного списка покупок (mistral) + подпись состава.
+    shopping_cache: list = Field(default_factory=list, sa_column=Column(JSON))
+    shopping_sig: str = ""
     created_at: datetime = Field(default_factory=_now)
     decided_at: datetime | None = None
 
