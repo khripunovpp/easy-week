@@ -7,9 +7,12 @@ class Settings(BaseSettings):
     # Cloudflare Workers AI
     cf_account_id: str = ""
     cf_api_token: str = ""
-    # 8b-fast: ~2с/запрос со structured output; 70b на этом аккаунте ~25с — не годится.
+    # 8b-fast: ~2с/запрос — спеки блюд, шаги, мелочи.
     cf_model: str = "@cf/meta/llama-3.1-8b-instruct-fast"
     cf_model_small: str = "@cf/meta/llama-3.2-3b-instruct"
+    # mistral-24b: ~6с, реалистичное меню без «небылиц» + строгий валидатор.
+    cf_model_menu: str = "@cf/mistralai/mistral-small-3.1-24b-instruct"
+    cf_model_judge: str = "@cf/mistralai/mistral-small-3.1-24b-instruct"
 
     # База и сеть
     db_path: str = "data/easy_week.db"

@@ -86,6 +86,49 @@ DETAILS_SCHEMA = {
 }
 
 
+# Валидатор: только вердикты (починку делает спекер 8b по подсказке).
+VALIDATE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "results": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "index": {"type": "integer"},
+                    "ok": {"type": "boolean"},
+                    "issues": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["index", "ok", "issues"],
+            },
+        }
+    },
+    "required": ["results"],
+}
+
+VALIDATE_SYSTEM = (
+    "Ты — придирчивый шеф-повар и валидатор рецептов. Для каждого блюда проверь: "
+    "1) ингредиенты подходят названию и блюду (без лишних/абсурдных/выдуманных); "
+    "2) количества реалистичны на указанное число порций; "
+    "3) единицы разумные (г, кг, мл, шт, ст.л.). "
+    "Верни для каждого блюда его index, ok (true/false) и краткие issues (что не так). "
+    "Если всё хорошо — ok=true, issues=[]. Ничего больше не пиши."
+)
+
+
+def build_validate_messages(dishes: list[dict]) -> list[dict[str, str]]:
+    lines = []
+    for i, d in enumerate(dishes):
+        ing = "; ".join(
+            f"{x.get('name')} {x.get('qty')}{x.get('unit')}" for x in d.get("ingredients", [])
+        )
+        lines.append(f"[{i}] {d.get('name')} ({d.get('servings')} порц.): {ing}")
+    return [
+        {"role": "system", "content": VALIDATE_SYSTEM},
+        {"role": "user", "content": "Проверь блюда:\n" + "\n".join(lines)},
+    ]
+
+
 def build_names_messages(
     user_message: str, avoid_titles: list[str], count: int = 5
 ) -> list[dict[str, str]]:

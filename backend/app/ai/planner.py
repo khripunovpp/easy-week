@@ -4,6 +4,7 @@ import re
 from datetime import date, timedelta
 from typing import Any
 
+from ..config import settings
 from .cloudflare import run_json
 
 _MONTHS_GEN = [
@@ -33,9 +34,11 @@ from .prompt import (
     DETAILS_SCHEMA,
     DISH_SCHEMA,
     NAMES_SCHEMA,
+    VALIDATE_SCHEMA,
     build_details_messages,
     build_dish_messages,
     build_names_messages,
+    build_validate_messages,
 )
 
 logger = logging.getLogger("easy_week.planner")
@@ -72,30 +75,76 @@ async def _gen_dish(i: int, name: str, emoji: str, user_message: str) -> dict[st
     }
 
 
+async def _validate_and_fix(dishes: list[dict], user_message: str) -> None:
+    """Валидатор (mistral) даёт вердикты; плохие блюда перегенерирует спекер (8b)."""
+    if not dishes:
+        return
+    try:
+        parsed, _ = await run_json(
+            build_validate_messages(dishes),
+            VALIDATE_SCHEMA,
+            model=settings.cf_model_judge,
+            max_tokens=500,
+        )
+    except Exception as exc:  # валидатор не критичен — не роняем генерацию
+        logger.warning("validator skipped: %s", str(exc)[:150])
+        return
+
+    bad: list[tuple[int, list[str]]] = []
+    for r in parsed.get("results", []):
+        i = r.get("index")
+        if isinstance(i, int) and 0 <= i < len(dishes) and not r.get("ok"):
+            bad.append((i, r.get("issues", [])))
+    if not bad:
+        return
+
+    logger.info("validator: перегенерируем %d блюд", len(bad))
+    fixes = await asyncio.gather(
+        *(
+            _gen_dish(
+                i,
+                dishes[i].get("name", ""),
+                dishes[i].get("emoji", ""),
+                f"{user_message}. Исправь ингредиенты/количества: {'; '.join(issues)}",
+            )
+            for i, issues in bad
+        ),
+        return_exceptions=True,
+    )
+    for (i, _), fixed in zip(bad, fixes):
+        if isinstance(fixed, dict):
+            dishes[i] = fixed
+
+
 async def generate_plan(
     user_message: str, avoid_titles: list[str], count: int = 5
 ) -> dict[str, Any]:
-    """Быстрая генерация: сначала названия, потом блюда параллельно."""
+    """Пайплайн: меню (mistral) → спеки блюд (8b, параллельно) → валидация+починка (mistral)."""
     names, _ = await run_json(
         build_names_messages(user_message, avoid_titles, count),
         NAMES_SCHEMA,
+        model=settings.cf_model_menu,
         max_tokens=120 + count * 110,
     )
     entries = (names.get("dishes") or [])[:count]  # держим ровно count блюд
 
-    dishes = await asyncio.gather(
-        *(
-            _gen_dish(i, _clean_name(d.get("name", f"Блюдо {i + 1}")), d.get("emoji", ""), user_message)
-            for i, d in enumerate(entries)
+    dishes = list(
+        await asyncio.gather(
+            *(
+                _gen_dish(i, _clean_name(d.get("name", f"Блюдо {i + 1}")), d.get("emoji", ""), user_message)
+                for i, d in enumerate(entries)
+            )
         )
     )
 
-    logger.info("plan generated: dishes=%d (parallel)", len(dishes))
+    await _validate_and_fix(dishes, user_message)
+
+    logger.info("plan generated: dishes=%d (menu+specs+validate)", len(dishes))
     return {
         "reply": names.get("reply") or "Готово — вот план на неделю.",
         "title": _clean_title(names.get("title") or "План на неделю"),
         "week_label": _week_label(),
-        "dishes": list(dishes),
+        "dishes": dishes,
     }
 
 

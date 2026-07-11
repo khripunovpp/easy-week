@@ -1,3 +1,5 @@
+import re
+
 from ..schemas import Dish, ShoppingGroup, ShoppingItem
 
 CATEGORY_ORDER = [
@@ -10,20 +12,21 @@ CATEGORY_ORDER = [
     "Прочее",
 ]
 
-# Приведение единиц к базовым, чтобы «1 кг» и «1400 г» суммировались вместе.
+# Единицы → базовые. Ложки/щепотки/стакан считаем весом (для покупок всё в граммах).
 _UNIT_BASE: dict[str, tuple[str, float]] = {
-    "г": ("г", 1),
-    "гр": ("г", 1),
-    "грамм": ("г", 1),
-    "g": ("г", 1),
-    "кг": ("г", 1000),
-    "kg": ("г", 1000),
-    "мл": ("мл", 1),
-    "ml": ("мл", 1),
-    "л": ("мл", 1000),
-    "l": ("мл", 1000),
-    "литр": ("мл", 1000),
+    "г": ("г", 1), "гр": ("г", 1), "грамм": ("г", 1), "g": ("г", 1),
+    "кг": ("г", 1000), "kg": ("г", 1000),
+    "мл": ("мл", 1), "ml": ("мл", 1),
+    "л": ("мл", 1000), "l": ("мл", 1000), "литр": ("мл", 1000),
+    "ч.л.": ("г", 5), "ч. л.": ("г", 5), "чл": ("г", 5), "ч л": ("г", 5),
+    "чайная ложка": ("г", 5), "ч. ложка": ("г", 5), "ч.ложка": ("г", 5),
+    "ст.л.": ("г", 15), "ст. л.": ("г", 15), "стл": ("г", 15), "ст л": ("г", 15),
+    "столовая ложка": ("г", 15), "ст. ложка": ("г", 15), "ст.ложка": ("г", 15),
+    "щепотка": ("г", 1), "щепоть": ("г", 1), "стакан": ("г", 200),
 }
+
+# Слова-шумы, которые не должны мешать объединению одинаковых продуктов.
+_NOISE = {"молотый", "молотая", "свежемолотый", "свежий", "свежая", "сушёный", "сушеный"}
 
 
 def _to_base(unit: str, qty: float) -> tuple[str, float]:
@@ -31,27 +34,45 @@ def _to_base(unit: str, qty: float) -> tuple[str, float]:
     return base, qty * factor
 
 
-def _present(base_unit: str, qty: float) -> tuple[float, str]:
-    # Крупные количества — в кг/л для читаемости.
+def _canon_name(name: str) -> str:
+    """Каноничный ключ: нижний регистр, ё→е, сортировка слов, без шумовых слов.
+
+    Так «Перец чёрный», «чёрный перец», «Чёрный перец молотый» сливаются в один.
+    """
+    s = name.lower().replace("ё", "е").strip()
+    s = re.sub(r"[^а-я0-9 ]", " ", s)
+    toks = []
+    for t in s.split():
+        if not t or t in _NOISE:
+            continue
+        # лёгкий стемминг ед./мн. числа: «помидоры»→«помидор», «бобы»→«боб»
+        if len(t) >= 4 and t[-1] in "ыи":
+            t = t[:-1]
+        toks.append(t)
+    return " ".join(sorted(toks))
+
+
+def _present(base_unit: str, qty: float):
     if base_unit == "г" and qty >= 1000:
         return round(qty / 1000, 2), "кг"
     if base_unit == "мл" and qty >= 1000:
         return round(qty / 1000, 2), "л"
-    return round(qty, 2) if qty % 1 else int(qty), base_unit
+    return (round(qty, 2) if qty % 1 else int(qty)), base_unit
 
 
 def build_shopping_list(dishes: list[Dish]) -> list[ShoppingGroup]:
-    """Суммирует ингредиенты по названию с нормализацией единиц, группирует по категориям."""
+    """Список покупок: объединяет формы одного продукта, всё весовое — в граммах."""
     merged: dict[str, dict] = {}
     for dish in dishes:
         for ing in dish.ingredients:
             base_unit, base_qty = _to_base(ing.unit, ing.qty)
-            key = f"{ing.name.strip().lower()}__{base_unit}"
+            key = f"{_canon_name(ing.name)}__{base_unit}"
             if key in merged:
                 merged[key]["qty"] += base_qty
             else:
+                name = ing.name.strip()
                 merged[key] = {
-                    "name": ing.name.strip(),
+                    "name": name[:1].upper() + name[1:],  # первое написание — для показа
                     "base_unit": base_unit,
                     "qty": base_qty,
                     "category": ing.category,
@@ -64,9 +85,8 @@ def build_shopping_list(dishes: list[Dish]) -> list[ShoppingGroup]:
         by_cat.setdefault(item.category, []).append(item)
 
     order = CATEGORY_ORDER + [c for c in by_cat if c not in CATEGORY_ORDER]
-    groups: list[ShoppingGroup] = []
-    for cat in order:
-        if cat in by_cat:
-            items = sorted(by_cat[cat], key=lambda x: x.name.lower())
-            groups.append(ShoppingGroup(category=cat, items=items))
-    return groups
+    return [
+        ShoppingGroup(category=c, items=sorted(by_cat[c], key=lambda x: x.name.lower()))
+        for c in order
+        if c in by_cat
+    ]
