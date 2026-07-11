@@ -35,7 +35,7 @@
     <section class="pv__dishes">
       @for (d of p.dishes; track d.id; let i = $index) {
         <a class="dish" [routerLink]="['/plan', p.id, 'dish', d.id]">
-          <div class="dish__emoji" [class]="pastel(i)">{{ d.emoji }}</div>
+          <div class="emoji-badge" [class]="pastel(i)">{{ d.emoji }}</div>
           <div class="dish__body">
             <h3 class="dish__name">{{ d.name }}</h3>
             <div class="dish__meta">

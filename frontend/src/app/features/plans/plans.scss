@@ -63,16 +63,6 @@
   color: inherit;
 }
 
-.prow__emoji {
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  width: 48px;
-  height: 48px;
-  font-size: 23px;
-  border-radius: 15px;
-}
-
 .prow__body {
   flex: 1;
   min-width: 0;
@@ -99,8 +89,3 @@
   height: 20px;
 }
 
-.pastel-0 { background: var(--pastel-peach); }
-.pastel-1 { background: var(--pastel-green); }
-.pastel-2 { background: var(--pastel-lilac); }
-.pastel-3 { background: var(--pastel-yellow); }
-.pastel-4 { background: var(--pastel-blue); }

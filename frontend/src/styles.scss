@@ -21,10 +21,17 @@
 
   --frost: #4a9cd6;      /* «заморозка» */
   --frost-soft: #e4f1fa;
+  --frost-ink: #3f6b88;  /* текст заметок о хранении */
   --done: #7c6ef0;       /* отмечено */
   --done-soft: #edeafd;
 
   --line: #efe9e4;
+  --dash: #e2d5cd;       /* пунктирные границы */
+
+  --ok: #4f8a3d;
+  --ok-soft: #e4f1de;
+  --no: #c0654a;
+  --no-soft: #f7e6e2;
 
   /* Пастельные фоны иконок-бейджей */
   --pastel-peach: #fce7de;
@@ -36,6 +43,7 @@
   /* Радиусы, тени, ритм */
   --r-card: 28px;
   --r-md: 18px;
+  --r-badge: 16px;   /* эмодзи-бейджи блюд */
   --r-sm: 12px;
   --r-pill: 999px;
 
@@ -165,16 +173,68 @@ ul {
   color: var(--ink-2);
 }
 .tag--ok {
-  background: #e4f1de;
-  color: #4f8a3d;
+  background: var(--ok-soft);
+  color: var(--ok);
 }
 .tag--no {
-  background: #f7e6e2;
-  color: #c0654a;
+  background: var(--no-soft);
+  color: var(--no);
 }
 .tag--draft {
   background: var(--accent-soft);
   color: var(--accent);
+}
+
+/* ===== Карточка ===== */
+.card {
+  background: var(--surface);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-card);
+}
+
+/* ===== Пастельные фоны эмодзи-бейджей ===== */
+.pastel-0 { background: var(--pastel-peach); }
+.pastel-1 { background: var(--pastel-green); }
+.pastel-2 { background: var(--pastel-lilac); }
+.pastel-3 { background: var(--pastel-yellow); }
+.pastel-4 { background: var(--pastel-blue); }
+
+/* ===== Эмодзи-бейдж блюда ===== */
+.emoji-badge {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 50px;
+  height: 50px;
+  font-size: 24px;
+  border-radius: var(--r-badge);
+}
+
+/* ===== Мета-чип блюда (время / порции) ===== */
+.meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+.meta-chip svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ===== Бейдж заморозки ===== */
+.badge-frost {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--frost);
+  background: var(--frost-soft);
+  padding: 3px 9px;
+  border-radius: var(--r-pill);
 }
 
 /* ===== Спиннер загрузки ===== */

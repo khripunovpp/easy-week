@@ -261,7 +261,7 @@
   margin-top: 4px;
   padding: 13px;
   border-radius: var(--r-md);
-  border: 1.5px dashed #e2d5cd;
+  border: 1.5px dashed var(--dash);
   color: var(--accent);
   font-weight: 600;
   font-size: 14.5px;
@@ -279,16 +279,6 @@
   text-align: center;
   font-size: 14px;
   padding: 14px 4px;
-}
-
-.dish__emoji {
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  width: 50px;
-  height: 50px;
-  font-size: 24px;
-  border-radius: 16px;
 }
 
 .dish__body {
@@ -309,31 +299,6 @@
   align-items: center;
   gap: 6px;
   margin-top: 5px;
-}
-
-.meta-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12.5px;
-  font-weight: 500;
-  color: var(--ink-2);
-}
-.meta-chip svg {
-  width: 14px;
-  height: 14px;
-}
-
-.badge-frost {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--frost);
-  background: var(--frost-soft);
-  padding: 3px 9px;
-  border-radius: var(--r-pill);
 }
 
 .dish__chev {
@@ -386,12 +351,6 @@
   height: 17px;
 }
 
-/* Пастельные фоны иконок */
-.pastel-0 { background: var(--pastel-peach); }
-.pastel-1 { background: var(--pastel-green); }
-.pastel-2 { background: var(--pastel-lilac); }
-.pastel-3 { background: var(--pastel-yellow); }
-.pastel-4 { background: var(--pastel-blue); }
 
 /* Композер — overlay с фейд-блюром снизу (класс .fade-bottom) */
 .composer {

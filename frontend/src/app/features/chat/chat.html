@@ -55,7 +55,7 @@
           @for (d of plan.dishes; track d.id; let i = $index) {
             <div class="dish">
               <a class="dish__main" [routerLink]="['/plan', plan.id, 'dish', d.id]">
-                <div class="dish__emoji" [class]="pastel(i)">{{ d.emoji }}</div>
+                <div class="emoji-badge" [class]="pastel(i)">{{ d.emoji }}</div>
                 <div class="dish__body">
                   <h3 class="dish__name">{{ d.name }}</h3>
                   <div class="dish__meta">
