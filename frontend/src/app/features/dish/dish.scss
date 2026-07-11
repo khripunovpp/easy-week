@@ -1,0 +1,226 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.d__top {
+  padding: 14px 18px 4px;
+}
+
+.d__back {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-soft);
+}
+.d__back svg {
+  width: 22px;
+  height: 22px;
+}
+
+.d__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px 18px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Заголовок блюда */
+.d__hero {
+  padding: 6px 4px 2px;
+}
+
+.d__emoji {
+  display: grid;
+  place-items: center;
+  width: 68px;
+  height: 68px;
+  font-size: 36px;
+  background: var(--surface);
+  border-radius: 22px;
+  box-shadow: var(--shadow-soft);
+}
+
+.d__hero h1 {
+  font-size: 28px;
+  margin: 14px 0 12px;
+}
+
+.d__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pill {
+  font-size: 13px;
+  color: var(--ink-2);
+  background: var(--surface);
+  padding: 7px 13px;
+  border-radius: var(--r-pill);
+  box-shadow: var(--shadow-soft);
+}
+.pill b {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* Карточки */
+.card {
+  background: var(--surface);
+  border-radius: var(--r-md);
+  padding: 16px;
+  box-shadow: var(--shadow-soft);
+}
+
+.card--frost {
+  background: var(--frost-soft);
+  box-shadow: none;
+}
+
+.card--tight {
+  padding: 4px 16px;
+}
+
+.card__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.card__ic {
+  font-size: 24px;
+}
+
+.card__title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 16px;
+  margin: 0;
+}
+.card__title--lead {
+  margin-bottom: 8px;
+}
+
+.card__sub {
+  font-size: 13px;
+  margin: 2px 0 0;
+}
+
+.card__note {
+  margin: 12px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #3f6b88;
+}
+
+.tips {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tips li {
+  position: relative;
+  padding-left: 16px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.tips li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 9px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* Блоки с заголовком */
+.block__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-3);
+  margin: 2px 0 10px 2px;
+}
+
+/* Шаги */
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.step {
+  display: flex;
+  gap: 13px;
+  background: var(--surface);
+  border-radius: var(--r-md);
+  padding: 14px 15px;
+  box-shadow: var(--shadow-soft);
+}
+
+.step__no {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.step__text {
+  font-size: 15px;
+  line-height: 1.45;
+  padding-top: 2px;
+}
+
+/* Ингредиенты */
+.ing {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--line);
+}
+.ing:last-child {
+  border-bottom: none;
+}
+.ing__name {
+  font-size: 15px;
+  font-weight: 500;
+}
+.ing__qty {
+  font-size: 15px;
+  color: var(--ink-2);
+}
+
+.d__missing {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 40px;
+}
+.d__missing .btn-primary {
+  width: auto;
+  padding: 14px 28px;
+  text-decoration: none;
+}

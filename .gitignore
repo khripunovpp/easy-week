@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+backend/.venv/
+backend/venv/
+__pycache__/
+*.py[cod]
+
+# Angular build
+frontend/dist/
+frontend/.angular/
+frontend/.nx/
+
+# Env / secrets
+.env
+backend/.env
+*.env.local
+
+# Database
+backend/data/
+*.sqlite
+*.sqlite3
+*.db
+
+# Installed agent skills (managed via npx skills)
+.agents/
+.claude/skills/
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+*.log
+
+# Misc tooling
+skills-lock.json

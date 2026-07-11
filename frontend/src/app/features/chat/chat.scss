@@ -1,0 +1,348 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Шапка */
+.chat__top {
+  padding: 18px 20px 8px;
+}
+
+.chat__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.chat__logo {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  font-size: 24px;
+  background: var(--surface);
+  border-radius: 15px;
+  box-shadow: var(--shadow-soft);
+}
+
+.chat__top h1 {
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.chat__sub {
+  font-size: 13px;
+  margin: 2px 0 0;
+}
+
+/* Лента сообщений */
+.chat__stream {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.msg {
+  max-width: 82%;
+  padding: 12px 16px;
+  border-radius: 20px;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.msg--bot {
+  align-self: flex-start;
+  background: var(--surface);
+  color: var(--ink);
+  border-bottom-left-radius: 7px;
+  box-shadow: var(--shadow-soft);
+}
+
+.msg--user {
+  align-self: flex-end;
+  background: var(--accent);
+  color: #fff;
+  border-bottom-right-radius: 7px;
+}
+
+/* Карточка плана */
+.plan {
+  align-self: stretch;
+  background: var(--surface);
+  border-radius: var(--r-card);
+  padding: 18px 16px 16px;
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.plan__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 4px 2px;
+}
+
+.plan__title {
+  font-size: 20px;
+  margin-top: 2px;
+}
+
+.plan__count {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 6px 11px;
+  border-radius: var(--r-pill);
+}
+
+/* Блюдо */
+.dish {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-top: 1px solid var(--line);
+}
+.dish:first-of-type {
+  border-top: none;
+}
+
+.dish__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 10px 4px 10px 6px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.dish__remove {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: var(--ink-3);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.dish__remove svg {
+  width: 17px;
+  height: 17px;
+}
+.dish__remove:active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.dish-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  margin-top: 4px;
+  padding: 13px;
+  border-radius: var(--r-md);
+  border: 1.5px dashed #e2d5cd;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 14.5px;
+  transition: background 0.15s ease;
+}
+.dish-add svg {
+  width: 18px;
+  height: 18px;
+}
+.dish-add:active {
+  background: var(--accent-soft);
+}
+
+.plan__empty {
+  text-align: center;
+  font-size: 14px;
+  padding: 14px 4px;
+}
+
+.dish__emoji {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 50px;
+  height: 50px;
+  font-size: 24px;
+  border-radius: 16px;
+}
+
+.dish__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.dish__name {
+  font-size: 16px;
+  font-weight: 700;
+  font-family: var(--font-body);
+  letter-spacing: 0;
+}
+
+.dish__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+}
+
+.meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+.meta-chip svg {
+  width: 14px;
+  height: 14px;
+}
+
+.badge-frost {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--frost);
+  background: var(--frost-soft);
+  padding: 3px 9px;
+  border-radius: var(--r-pill);
+}
+
+.dish__chev {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  color: var(--ink-3);
+}
+
+/* Действия по плану */
+.plan__actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+  padding-top: 4px;
+}
+
+.plan__accept {
+  flex: 1;
+  width: auto;
+}
+
+.btn-ghost {
+  padding: 15px 20px;
+  border-radius: var(--r-pill);
+  background: var(--surface-sunk);
+  color: var(--ink-2);
+  font-weight: 600;
+  font-size: 15px;
+  transition: background 0.15s ease;
+}
+.btn-ghost:active {
+  background: var(--line);
+}
+
+/* Пастельные фоны иконок */
+.pastel-0 { background: var(--pastel-peach); }
+.pastel-1 { background: var(--pastel-green); }
+.pastel-2 { background: var(--pastel-lilac); }
+.pastel-3 { background: var(--pastel-yellow); }
+.pastel-4 { background: var(--pastel-blue); }
+
+/* Композер */
+.composer {
+  flex-shrink: 0;
+  padding: 10px 16px 12px;
+  background: linear-gradient(180deg, transparent, var(--bg-bottom) 40%);
+}
+
+.chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 10px;
+  scrollbar-width: none;
+}
+.chips::-webkit-scrollbar {
+  display: none;
+}
+
+.chip {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: var(--shadow-soft);
+  transition: transform 0.12s ease;
+}
+.chip:active {
+  transform: scale(0.96);
+}
+
+.composer__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface);
+  border-radius: var(--r-pill);
+  padding: 6px 6px 6px 18px;
+  box-shadow: var(--shadow-card);
+}
+
+.composer__input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: none;
+  font-size: 15px;
+  color: var(--ink);
+  padding: 10px 0;
+}
+.composer__input::placeholder {
+  color: var(--ink-3);
+}
+
+.composer__send {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  transition: transform 0.12s ease, background 0.15s ease;
+}
+.composer__send svg {
+  width: 21px;
+  height: 21px;
+}
+.composer__send:active {
+  transform: scale(0.94);
+  background: var(--accent-press);
+}

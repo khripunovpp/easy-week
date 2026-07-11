@@ -1,0 +1,144 @@
+/* ===========================================================================
+   Easy Week — глобальная дизайн-система
+   Направление: тёплый off-white, коралловый акцент, мягкие карточки,
+   круглые бейджи/чекбоксы, нижний таб-бар. Домейн-акцент — «вакуум+заморозка».
+   =========================================================================== */
+
+:root {
+  /* Палитра */
+  --bg-top: #fbe9e1;
+  --bg-bottom: #f4f0ed;
+  --surface: #ffffff;
+  --surface-sunk: #f7f3f0;
+
+  --ink: #221d1a;
+  --ink-2: #8d857f;
+  --ink-3: #b8b0aa;
+
+  --accent: #ec6a47;
+  --accent-press: #d95a38;
+  --accent-soft: #fdece5;
+
+  --frost: #4a9cd6;      /* «заморозка» */
+  --frost-soft: #e4f1fa;
+  --done: #7c6ef0;       /* отмечено */
+  --done-soft: #edeafd;
+
+  --line: #efe9e4;
+
+  /* Пастельные фоны иконок-бейджей */
+  --pastel-peach: #fce7de;
+  --pastel-green: #e4f1de;
+  --pastel-lilac: #ece7fb;
+  --pastel-yellow: #fbf1d8;
+  --pastel-blue: #deebf5;
+
+  /* Радиусы, тени, ритм */
+  --r-card: 28px;
+  --r-md: 18px;
+  --r-sm: 12px;
+  --r-pill: 999px;
+
+  --shadow-card: 0 14px 34px -18px rgba(72, 45, 32, 0.28);
+  --shadow-soft: 0 6px 18px -10px rgba(72, 45, 32, 0.22);
+  --shadow-float: 0 18px 40px -14px rgba(72, 45, 32, 0.35);
+
+  --space: 16px;
+
+  /* Шрифты */
+  --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-body);
+  color: var(--ink);
+  background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 34%);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+input,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Утилиты */
+.muted {
+  color: var(--ink-2);
+}
+
+.eyebrow {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink-3);
+  text-transform: none;
+}
+
+/* Первичная кнопка-пилюля */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 17px 22px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  font-size: 16px;
+  box-shadow: var(--shadow-soft);
+  transition: transform 0.12s ease, background 0.15s ease;
+}
+.btn-primary:active {
+  transform: scale(0.98);
+  background: var(--accent-press);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

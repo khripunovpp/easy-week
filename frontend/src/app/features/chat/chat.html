@@ -1,0 +1,106 @@
+<header class="chat__top">
+  <div class="chat__brand">
+    <span class="chat__logo">🥕</span>
+    <div>
+      <h1>Easy Week</h1>
+      <p class="chat__sub muted">Меню на неделю · заморозка</p>
+    </div>
+  </div>
+</header>
+
+<div class="chat__stream">
+  @for (m of messages(); track m.id) {
+    @if (m.role === 'user') {
+      <div class="msg msg--user">{{ m.text }}</div>
+    } @else {
+      @if (m.text) {
+        <div class="msg msg--bot">{{ m.text }}</div>
+      }
+
+      @if (m.plan; as plan) {
+        <section class="plan">
+          <div class="plan__head">
+            <div>
+              <p class="eyebrow">План · {{ plan.weekLabel }}</p>
+              <h2 class="plan__title">{{ plan.title }}</h2>
+            </div>
+            <span class="plan__count">{{ plan.dishes.length }} блюд</span>
+          </div>
+
+          @for (d of plan.dishes; track d.id; let i = $index) {
+            <div class="dish">
+              <a class="dish__main" [routerLink]="['/dish', d.id]">
+                <div class="dish__emoji" [class]="pastel(i)">{{ d.emoji }}</div>
+                <div class="dish__body">
+                  <h3 class="dish__name">{{ d.name }}</h3>
+                  <div class="dish__meta">
+                    <span class="meta-chip">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                        <circle cx="12" cy="12" r="8" />
+                        <path d="M12 8v4l2.5 2" stroke-linecap="round" />
+                      </svg>
+                      {{ totalTime(d.prepMin, d.cookMin) }} мин
+                    </span>
+
+                    @if (d.storage.freeze) {
+                      <span class="badge-frost">❄️ {{ d.storage.shelfLifeDays }} дн</span>
+                    }
+
+                    <span class="meta-chip">{{ d.servings }} порц.</span>
+                  </div>
+                </div>
+              </a>
+              <button
+                class="dish__remove"
+                type="button"
+                (click)="removeDish(m.id, d.id)"
+                aria-label="Убрать блюдо">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M7 7l10 10M17 7L7 17" stroke-linecap="round" />
+                </svg>
+              </button>
+            </div>
+          } @empty {
+            <p class="plan__empty muted">Все блюда убраны. Добавьте новые ниже 👇</p>
+          }
+
+          <button class="dish-add" type="button" (click)="addDish(m.id)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 6v12M6 12h12" stroke-linecap="round" />
+            </svg>
+            Добавить блюдо
+          </button>
+
+          <div class="plan__actions">
+            <button class="btn-ghost" type="button">Отклонить</button>
+            <button class="btn-primary plan__accept" type="button">Принять план</button>
+          </div>
+        </section>
+      }
+    }
+  }
+</div>
+
+<div class="composer">
+  <div class="chips">
+    @for (s of suggestions; track s) {
+      <button class="chip" type="button" (click)="useSuggestion(s)">{{ s }}</button>
+    }
+  </div>
+
+  <div class="composer__row">
+    <input
+      class="composer__input"
+      type="text"
+      placeholder="Опишите, что приготовить…"
+      [ngModel]="draft()"
+      (ngModelChange)="draft.set($event)"
+      (keyup.enter)="send()"
+      aria-label="Сообщение" />
+    <button class="composer__send" type="button" (click)="send()" aria-label="Отправить">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
+        <path d="M5 12h13M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </button>
+  </div>
+</div>

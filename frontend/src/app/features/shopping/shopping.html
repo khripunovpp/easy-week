@@ -1,0 +1,33 @@
+<header class="shop__top">
+  <div class="shop__toprow">
+    <p class="eyebrow">{{ plan.title }} · {{ plan.weekLabel }}</p>
+    <span class="shop__progress">{{ doneCount() }}/{{ total }}</span>
+  </div>
+  <h1>Список покупок</h1>
+</header>
+
+<div class="shop__scroll">
+  @for (group of groups; track group.category) {
+    <section class="group">
+      <p class="group__label">{{ group.category }}</p>
+
+      @for (item of group.items; track item.name + item.unit) {
+        <button
+          class="row"
+          type="button"
+          [class.row--done]="isChecked(item)"
+          (click)="toggle(item)">
+          <span class="check" [class.check--on]="isChecked(item)">
+            @if (isChecked(item)) {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+                <path d="M5 12.5l4 4L19 7" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            }
+          </span>
+          <span class="row__name">{{ item.name }}</span>
+          <span class="row__qty">{{ fmtQty(item) }}</span>
+        </button>
+      }
+    </section>
+  }
+</div>

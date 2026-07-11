@@ -1,0 +1,80 @@
+@if (dish(); as d) {
+  <header class="d__top">
+    <a class="d__back" routerLink="/chat" aria-label="Назад">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M15 6l-6 6 6 6" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </a>
+  </header>
+
+  <div class="d__scroll">
+    <div class="d__hero">
+      <span class="d__emoji">{{ d.emoji }}</span>
+      <h1>{{ d.name }}</h1>
+      <div class="d__meta">
+        <span class="pill"><b>{{ d.prepMin }}</b> мин подготовка</span>
+        <span class="pill"><b>{{ d.cookMin }}</b> мин готовка</span>
+        <span class="pill"><b>{{ d.servings }}</b> порции</span>
+      </div>
+    </div>
+
+    <!-- Хранение — доменная фишка -->
+    <section class="card card--frost">
+      <div class="card__head">
+        <span class="card__ic">❄️</span>
+        <div>
+          <p class="card__title">Хранение</p>
+          <p class="card__sub muted">
+            @if (d.storage.vacuum) { Вакуум · } Заморозка до {{ d.storage.shelfLifeDays }} дней
+          </p>
+        </div>
+      </div>
+      @if (d.storage.note) {
+        <p class="card__note">{{ d.storage.note }}</p>
+      }
+    </section>
+
+    <!-- Советы -->
+    @if (d.tips.length) {
+      <section class="card">
+        <p class="card__title card__title--lead">💡 Советы</p>
+        <ul class="tips">
+          @for (tip of d.tips; track tip) {
+            <li>{{ tip }}</li>
+          }
+        </ul>
+      </section>
+    }
+
+    <!-- Пошаговые инструкции -->
+    <section class="block">
+      <p class="block__label">Приготовление · {{ totalTime(d.prepMin, d.cookMin) }} мин</p>
+      <ol class="steps">
+        @for (step of d.steps; track step; let i = $index) {
+          <li class="step">
+            <span class="step__no">{{ i + 1 }}</span>
+            <span class="step__text">{{ step }}</span>
+          </li>
+        }
+      </ol>
+    </section>
+
+    <!-- Ингредиенты -->
+    <section class="block">
+      <p class="block__label">Ингредиенты · {{ d.servings }} порции</p>
+      <div class="card card--tight">
+        @for (ing of d.ingredients; track ing.name) {
+          <div class="ing">
+            <span class="ing__name">{{ ing.name }}</span>
+            <span class="ing__qty">{{ ing.qty }} {{ ing.unit }}</span>
+          </div>
+        }
+      </div>
+    </section>
+  </div>
+} @else {
+  <div class="d__missing">
+    <p class="muted">Блюдо не найдено.</p>
+    <a class="btn-primary" routerLink="/chat">В чат</a>
+  </div>
+}
