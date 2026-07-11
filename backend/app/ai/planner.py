@@ -72,12 +72,16 @@ async def _gen_dish(i: int, name: str, emoji: str, user_message: str) -> dict[st
     }
 
 
-async def generate_plan(user_message: str, avoid_titles: list[str]) -> dict[str, Any]:
+async def generate_plan(
+    user_message: str, avoid_titles: list[str], count: int = 5
+) -> dict[str, Any]:
     """Быстрая генерация: сначала названия, потом блюда параллельно."""
     names, _ = await run_json(
-        build_names_messages(user_message, avoid_titles), NAMES_SCHEMA, max_tokens=700
+        build_names_messages(user_message, avoid_titles, count),
+        NAMES_SCHEMA,
+        max_tokens=120 + count * 110,
     )
-    entries = names.get("dishes") or []
+    entries = (names.get("dishes") or [])[:count]  # держим ровно count блюд
 
     dishes = await asyncio.gather(
         *(

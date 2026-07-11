@@ -7,13 +7,93 @@
 
 /* Шапка */
 .chat__top {
-  padding: 18px 20px 8px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 18px 18px 8px 20px;
 }
 
 .chat__brand {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+/* Выбор количества блюд */
+.count {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.count__btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 12px;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+  color: var(--ink);
+  transition: transform 0.12s ease;
+}
+.count__btn:active {
+  transform: scale(0.97);
+}
+.count__num {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--accent);
+}
+.count__label {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.count__chev {
+  width: 15px;
+  height: 15px;
+  color: var(--ink-3);
+  transition: transform 0.2s ease;
+}
+.count__btn--open .count__chev {
+  transform: rotate(180deg);
+}
+
+.count__menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-width: 130px;
+  padding: 6px;
+  background: var(--surface);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-float);
+  animation: count-in 0.14s ease;
+}
+@keyframes count-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+.count__opt {
+  padding: 10px 12px;
+  border-radius: 10px;
+  text-align: left;
+  font-size: 15px;
+  color: var(--ink);
+  transition: background 0.12s ease;
+}
+.count__opt:active {
+  background: var(--surface-sunk);
+}
+.count__opt--active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
 }
 
 .chat__logo {

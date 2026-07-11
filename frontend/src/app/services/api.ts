@@ -31,8 +31,16 @@ export interface ShoppingGroup {
 export class EasyWeekApi {
   private readonly http = inject(HttpClient);
 
-  chat(message: string, conversationId: string | null): Observable<ChatResponse> {
-    return this.http.post<ChatResponse>(`${API_BASE}/chat`, { message, conversationId });
+  chat(
+    message: string,
+    conversationId: string | null,
+    dishesCount = 5,
+  ): Observable<ChatResponse> {
+    return this.http.post<ChatResponse>(`${API_BASE}/chat`, {
+      message,
+      conversationId,
+      dishesCount,
+    });
   }
 
   listPlans(): Observable<PlanSummary[]> {

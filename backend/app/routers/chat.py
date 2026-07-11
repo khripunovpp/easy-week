@@ -43,7 +43,7 @@ async def chat(req: ChatRequest, session: SessionDep) -> ChatResponse:
     avoid = _accepted_dish_names(session)
 
     try:
-        data = await generate_plan(req.message, avoid)
+        data = await generate_plan(req.message, avoid, req.dishes_count)
     except CloudflareError as exc:
         raise HTTPException(status_code=502, detail=f"Генерация недоступна: {exc}") from exc
 

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 
@@ -70,6 +70,7 @@ class ShoppingGroup(CamelModel):
 class ChatRequest(CamelModel):
     conversation_id: str | None = None
     message: str
+    dishes_count: int = Field(default=5, ge=2, le=12)
 
 
 class ChatResponse(CamelModel):

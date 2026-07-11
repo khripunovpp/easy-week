@@ -1,7 +1,11 @@
 import { Routes } from '@angular/router';
 
 export const routes: Routes = [
-  { path: '', pathMatch: 'full', redirectTo: 'chat' },
+  { path: '', pathMatch: 'full', redirectTo: 'home' },
+  {
+    path: 'home',
+    loadComponent: () => import('./features/home/home').then((m) => m.Home),
+  },
   {
     path: 'chat',
     loadComponent: () => import('./features/chat/chat').then((m) => m.Chat),
@@ -31,5 +35,5 @@ export const routes: Routes = [
     loadComponent: () => import('./features/stub/stub').then((m) => m.Stub),
     data: { title: 'Профиль', emoji: '🧑‍🍳' },
   },
-  { path: '**', redirectTo: 'chat' },
+  { path: '**', redirectTo: 'home' },
 ];

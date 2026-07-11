@@ -6,10 +6,35 @@
       <p class="chat__sub muted">Меню на неделю · заморозка</p>
     </div>
   </div>
+
+  <!-- Выбор количества блюд -->
+  <div class="count">
+    <button class="count__btn" type="button" (click)="toggleMenu()" [class.count__btn--open]="menuOpen()">
+      <span class="count__num">{{ store.dishCount() }}</span>
+      <span class="count__label">{{ dishWord(store.dishCount()) }}</span>
+      <svg class="count__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </button>
+
+    @if (menuOpen()) {
+      <div class="count__menu">
+        @for (n of countOptions; track n) {
+          <button
+            class="count__opt"
+            type="button"
+            [class.count__opt--active]="n === store.dishCount()"
+            (click)="pickCount(n)">
+            {{ n }} {{ dishWord(n) }}
+          </button>
+        }
+      </div>
+    }
+  </div>
 </header>
 
 <div class="chat__stream">
-  @for (m of messages(); track m.id) {
+  @for (m of store.messages(); track m.id) {
     @if (m.role === 'user') {
       <div class="msg msg--user">{{ m.text }}</div>
     } @else {
@@ -24,7 +49,7 @@
               <p class="eyebrow">План · {{ plan.weekLabel }}</p>
               <h2 class="plan__title">{{ plan.title }}</h2>
             </div>
-            <span class="plan__count">{{ plan.dishes.length }} блюд</span>
+            <span class="plan__count">{{ plan.dishes.length }} {{ dishWord(plan.dishes.length) }}</span>
           </div>
 
           @for (d of plan.dishes; track d.id; let i = $index) {
@@ -53,7 +78,7 @@
               <button
                 class="dish__remove"
                 type="button"
-                (click)="removeDish(m.id, d.id)"
+                (click)="store.removeDish(m.id, d.id)"
                 aria-label="Убрать блюдо">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M7 7l10 10M17 7L7 17" stroke-linecap="round" />
@@ -64,7 +89,7 @@
             <p class="plan__empty muted">Все блюда убраны. Добавьте новые ниже 👇</p>
           }
 
-          <button class="dish-add" type="button" (click)="addDish(m.id)">
+          <button class="dish-add" type="button" (click)="store.addDish(m.id)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M12 6v12M6 12h12" stroke-linecap="round" />
             </svg>
@@ -73,13 +98,13 @@
 
           @if (plan.status === 'draft') {
             <div class="plan__actions">
-              <button class="btn-ghost" type="button" (click)="setPlanStatus(m.id, plan.id, 'rejected')">
+              <button class="btn-ghost" type="button" (click)="store.setPlanStatus(m.id, plan.id, 'rejected')">
                 Отклонить
               </button>
               <button
                 class="btn-primary plan__accept"
                 type="button"
-                (click)="setPlanStatus(m.id, plan.id, 'accepted')">
+                (click)="store.setPlanStatus(m.id, plan.id, 'accepted')">
                 Принять план
               </button>
             </div>
@@ -105,7 +130,7 @@
     }
   }
 
-  @if (loading()) {
+  @if (store.loading()) {
     <div class="msg msg--bot typing" aria-label="Составляю план">
       <span></span><span></span><span></span>
     </div>
@@ -124,11 +149,11 @@
       class="composer__input"
       type="text"
       placeholder="Опишите, что приготовить…"
-      [ngModel]="draft()"
-      (ngModelChange)="draft.set($event)"
-      (keyup.enter)="send()"
+      [ngModel]="store.draft()"
+      (ngModelChange)="store.draft.set($event)"
+      (keyup.enter)="store.send()"
       aria-label="Сообщение" />
-    <button class="composer__send" type="button" (click)="send()" aria-label="Отправить">
+    <button class="composer__send" type="button" (click)="store.send()" aria-label="Отправить">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
         <path d="M5 12h13M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round" />
       </svg>

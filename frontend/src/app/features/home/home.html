@@ -1,0 +1,31 @@
+<div class="home__scroll">
+  <div class="home__hero">
+    <span class="home__logo">🥕</span>
+    <h1 class="home__name">Easy Week</h1>
+    <p class="home__tag">Меню на неделю с заготовками впрок</p>
+  </div>
+
+  <div class="home__card">
+    <p class="home__greet">
+      Привет! Я помогу составить <b>меню на неделю</b>: подберу блюда, посчитаю время готовки,
+      дам пошаговые рецепты и список покупок — всё под <b>вакуум и заморозку</b>.
+    </p>
+
+    <ul class="home__steps">
+      @for (s of steps; track s.title) {
+        <li class="hstep">
+          <span class="hstep__emoji">{{ s.emoji }}</span>
+          <span class="hstep__body">
+            <span class="hstep__title">{{ s.title }}</span>
+            <span class="hstep__text muted">{{ s.text }}</span>
+          </span>
+        </li>
+      }
+    </ul>
+  </div>
+</div>
+
+<div class="home__actions">
+  <a class="btn-primary" routerLink="/chat">Составить меню</a>
+  <a class="home__secondary" routerLink="/plans">Мои планы</a>
+</div>
