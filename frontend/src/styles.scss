@@ -142,3 +142,21 @@ ul {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* Печать: убираем чрому приложения, документ на всю страницу */
+@media print {
+  .tabbar {
+    display: none !important;
+  }
+  .app {
+    height: auto;
+    max-width: none;
+    overflow: visible;
+  }
+  .app__main {
+    padding-bottom: 0;
+  }
+  body {
+    background: #fff;
+  }
+}

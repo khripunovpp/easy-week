@@ -1,9 +1,10 @@
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { EasyWeekApi, ShoppingGroup } from '../../services/api';
 
 @Component({
   selector: 'ew-shopping',
-  imports: [],
+  imports: [RouterLink],
   templateUrl: './shopping.html',
   styleUrl: './shopping.scss',
 })
@@ -17,6 +18,7 @@ export class Shopping {
   readonly loading = signal(true);
   readonly empty = signal(false);
   readonly title = signal('');
+  readonly currentPlanId = signal('');
 
   private readonly checked = signal<Set<string>>(new Set());
   private activePlanId = '';
@@ -62,6 +64,7 @@ export class Shopping {
 
   private fetch(planId: string): void {
     this.activePlanId = planId;
+    this.currentPlanId.set(planId);
     this.checked.set(this.loadChecked(planId));
     this.api.shoppingList(planId).subscribe({
       next: (groups) => {

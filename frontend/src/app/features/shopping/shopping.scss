@@ -25,9 +25,30 @@
   border-radius: var(--r-pill);
 }
 
+.shop__headrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+}
 .shop__top h1 {
   font-size: 27px;
-  margin-top: 8px;
+}
+.shop__pdf {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-soft);
+}
+.shop__pdf svg {
+  width: 20px;
+  height: 20px;
 }
 
 .shop__scroll {

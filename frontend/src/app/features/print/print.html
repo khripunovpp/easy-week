@@ -1,0 +1,103 @@
+<!-- Панель управления (не печатается) -->
+<div class="bar">
+  <a class="bar__back" routerLink="/chat" aria-label="Назад">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M15 6l-6 6 6 6" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+  </a>
+  <div class="bar__toggles">
+    <button
+      class="toggle"
+      type="button"
+      [class.toggle--on]="showRecipes()"
+      (click)="showRecipes.set(!showRecipes())">
+      Рецепты
+    </button>
+    <button
+      class="toggle"
+      type="button"
+      [class.toggle--on]="showShopping()"
+      (click)="showShopping.set(!showShopping())">
+      Покупки
+    </button>
+  </div>
+  <button class="bar__print" type="button" (click)="print()" [disabled]="!ready()">
+    Сохранить PDF
+  </button>
+</div>
+
+@if (loading()) {
+  <div class="p-state"><div class="spinner"></div><p class="muted">Собираю документ…</p></div>
+} @else if (plan(); as p) {
+  <article class="doc">
+    <header class="doc__head">
+      <h1>{{ p.title }}</h1>
+      <p class="doc__sub">Меню на неделю · {{ p.weekLabel }} · заготовки впрок</p>
+    </header>
+
+    @if (showRecipes()) {
+      <section class="doc__section">
+        <h2 class="doc__h2">Рецепты</h2>
+        @for (d of p.dishes; track d.id) {
+          <div class="recipe">
+            <div class="recipe__title">
+              <span class="recipe__emoji">{{ d.emoji }}</span>
+              <h3>{{ d.name }}</h3>
+            </div>
+            <p class="recipe__meta">
+              Подготовка {{ d.prepMin }} мин · Готовка {{ d.cookMin }} мин · {{ d.servings }} порции
+              @if (d.storage.freeze) {
+                · ❄ Заморозка до {{ d.storage.shelfLifeDays }} дней
+              }
+            </p>
+            @if (d.storage.note) {
+              <p class="recipe__note">Хранение: {{ d.storage.note }}</p>
+            }
+
+            <div class="recipe__cols">
+              <div class="recipe__ing">
+                <h4>Ингредиенты</h4>
+                <ul>
+                  @for (ing of d.ingredients; track ing.name) {
+                    <li>{{ ing.name }} — {{ ing.qty }} {{ ing.unit }}</li>
+                  }
+                </ul>
+              </div>
+              <div class="recipe__steps">
+                <h4>Приготовление</h4>
+                <ol>
+                  @for (step of d.steps; track step) {
+                    <li>{{ step }}</li>
+                  }
+                </ol>
+                @if (d.tips.length) {
+                  <p class="recipe__tips"><b>Советы:</b> {{ d.tips.join(' ') }}</p>
+                }
+              </div>
+            </div>
+          </div>
+        }
+      </section>
+    }
+
+    @if (showShopping()) {
+      <section class="doc__section doc__section--shopping">
+        <h2 class="doc__h2">Список покупок</h2>
+        <div class="shop-cols">
+          @for (group of shopping(); track group.category) {
+            <div class="shop-cat">
+              <h4>{{ group.category }}</h4>
+              <ul>
+                @for (item of group.items; track item.name + item.unit) {
+                  <li>{{ item.name }} — {{ item.qty }} {{ item.unit }}</li>
+                }
+              </ul>
+            </div>
+          }
+        </div>
+      </section>
+    }
+  </article>
+} @else {
+  <div class="p-state"><p class="muted">Не удалось загрузить план.</p></div>
+}

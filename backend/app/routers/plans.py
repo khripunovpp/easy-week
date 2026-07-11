@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 from typing import Annotated
 
@@ -54,6 +55,28 @@ async def set_status(plan_id: str, req: StatusRequest, session: SessionDep) -> W
 async def shopping_list(plan_id: str, session: SessionDep) -> list[ShoppingGroup]:
     plan = to_week_plan(_get_plan(session, plan_id))
     return build_shopping_list(plan.dishes)
+
+
+@router.post("/{plan_id}/full")
+async def full_plan(plan_id: str, session: SessionDep) -> WeekPlan:
+    """Полный план со всеми шагами (догенерирует недостающие) — для экспорта в PDF."""
+    row = _get_plan(session, plan_id)
+    dishes = list(row.dishes or [])
+    missing = [(i, d) for i, d in enumerate(dishes) if not d.get("steps")]
+    if missing:
+        try:
+            results = await asyncio.gather(
+                *(generate_details(d.get("name", ""), d.get("ingredients", [])) for _, d in missing)
+            )
+        except CloudflareError as exc:
+            raise HTTPException(status_code=502, detail=f"Не удалось собрать рецепты: {exc}") from exc
+        for (i, d), det in zip(missing, results):
+            dishes[i] = {**d, **det}
+        row.dishes = dishes
+        session.add(row)
+        session.commit()
+        session.refresh(row)
+    return to_week_plan(row)
 
 
 @router.post("/{plan_id}/dishes/{dish_id}/details")

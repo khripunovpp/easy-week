@@ -5,7 +5,16 @@
       <span class="shop__progress">{{ doneCount() }}/{{ total() }}</span>
     }
   </div>
-  <h1>Список покупок</h1>
+  <div class="shop__headrow">
+    <h1>Список покупок</h1>
+    @if (!loading() && !empty() && currentPlanId()) {
+      <a class="shop__pdf" [routerLink]="['/print', currentPlanId()]" [queryParams]="{ parts: 'shopping' }" aria-label="Экспорт в PDF">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M8 3h6l4 4v14H8zM14 3v4h4M9 13h6M9 17h6" stroke-linejoin="round" stroke-linecap="round" />
+        </svg>
+      </a>
+    }
+  </div>
 </header>
 
 @if (loading()) {

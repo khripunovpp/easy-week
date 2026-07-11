@@ -317,6 +317,24 @@
   color: #c0654a;
 }
 
+/* Экспорт в PDF */
+.plan__export {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 8px;
+  padding: 10px;
+  text-decoration: none;
+  color: var(--ink-2);
+  font-size: 14px;
+  font-weight: 600;
+}
+.plan__export svg {
+  width: 17px;
+  height: 17px;
+}
+
 /* Пастельные фоны иконок */
 .pastel-0 { background: var(--pastel-peach); }
 .pastel-1 { background: var(--pastel-green); }

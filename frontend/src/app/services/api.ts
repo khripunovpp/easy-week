@@ -42,6 +42,11 @@ export class EasyWeekApi {
     return this.http.get<WeekPlan>(`${API_BASE}/plans/${planId}`);
   }
 
+  // Полный план со всеми шагами (догенерирует недостающие) — для экспорта в PDF.
+  fullPlan(planId: string): Observable<WeekPlan> {
+    return this.http.post<WeekPlan>(`${API_BASE}/plans/${planId}/full`, {});
+  }
+
   setStatus(planId: string, status: PlanStatus): Observable<WeekPlan> {
     return this.http.post<WeekPlan>(`${API_BASE}/plans/${planId}/status`, { status });
   }
