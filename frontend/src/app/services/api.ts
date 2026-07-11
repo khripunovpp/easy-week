@@ -3,8 +3,9 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { Dish, PlanStatus, WeekPlan } from '../models/plan.model';
 
-// Дев: бэкенд на :8000. В проде (одна раздача) заменить на относительный '/api'.
-const API_BASE = 'http://127.0.0.1:8000/api';
+// Относительный путь: в проде nginx проксирует /api → бэкенд;
+// в деве — dev-прокси Angular (proxy.conf.json) на localhost:8000.
+const API_BASE = '/api';
 
 export interface ChatResponse {
   conversationId: string;

@@ -1,0 +1,17 @@
+# Cloudflare Tunnel для Easy Week — даёт HTTPS-адрес (нужен для PWA/service worker).
+# Скопировать в ~/.cloudflared/config.yml на Raspberry Pi и подставить свои значения.
+#
+# Предварительно (один раз):
+#   cloudflared tunnel login
+#   cloudflared tunnel create easy-week          # выведет <TUNNEL_ID> и создаст json-креды
+#   cloudflared tunnel route dns easy-week easy-week.ТВОЙ-ДОМЕН   # если есть домен в Cloudflare
+
+tunnel: <TUNNEL_ID>
+credentials-file: /home/pashtitto/.cloudflared/<TUNNEL_ID>.json
+
+ingress:
+  # Публичный HTTPS-хостнейм → локальный nginx Easy Week (:8080)
+  - hostname: easy-week.ТВОЙ-ДОМЕН
+    service: http://localhost:8080
+  # Фолбэк
+  - service: http_status:404
