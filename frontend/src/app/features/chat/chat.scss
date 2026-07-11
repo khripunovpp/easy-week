@@ -465,6 +465,8 @@
 }
 
 .chips {
+  position: relative;
+  z-index: 1;
   display: flex;
   gap: 8px;
   overflow-x: auto;
@@ -495,6 +497,8 @@
 }
 
 .composer__row {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 10px;
