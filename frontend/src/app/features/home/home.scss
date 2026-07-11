@@ -5,63 +5,61 @@
   min-height: 0;
 }
 
-.home__scroll {
+.home {
   flex: 1;
-  min-height: 0;
   overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  padding: 20px 22px 8px;
-  gap: 18px;
+  padding: 20px 20px 24px;
 }
 
-.home__hero {
+/* Бренд: лого слева, заголовок+подзаголовок справа */
+.home__brand {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  text-align: center;
-  padding: 20px 0 4px;
+  gap: 14px;
+  padding: 6px 2px 20px;
 }
 
 .home__logo {
   display: grid;
   place-items: center;
-  width: 84px;
-  height: 84px;
-  font-size: 44px;
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  font-size: 30px;
   background: var(--surface);
-  border-radius: 26px;
-  box-shadow: var(--shadow-card);
+  border-radius: 18px;
+  box-shadow: var(--shadow-soft);
 }
 
 .home__name {
-  font-size: 32px;
-  margin: 16px 0 4px;
+  font-size: 26px;
+  line-height: 1.05;
 }
 
 .home__tag {
-  font-size: 15px;
-  color: var(--ink-2);
-  margin: 0;
+  font-size: 13.5px;
+  margin: 3px 0 0;
 }
 
+/* Блок приветствия с кнопками внутри */
 .home__card {
   background: var(--surface);
   border-radius: var(--r-card);
-  padding: 20px;
+  padding: 22px 20px 20px;
   box-shadow: var(--shadow-card);
 }
 
 .home__greet {
   font-size: 15px;
   line-height: 1.55;
-  margin: 0 0 16px;
+  margin: 0 0 18px;
 }
 
 .home__steps {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 13px;
+  margin-bottom: 22px;
 }
 
 .hstep {
@@ -95,25 +93,41 @@
   font-size: 13px;
 }
 
+/* Две кнопки в одном блоке: слева и справа */
 .home__actions {
-  flex-shrink: 0;
   display: flex;
-  flex-direction: column;
+  gap: 10px;
+}
+
+.home__btn {
+  flex: 1;
+  display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 10px 22px 14px;
-  background: linear-gradient(180deg, transparent, var(--bg-bottom) 45%);
-}
-
-.home__actions .btn-primary {
-  width: 100%;
-  text-decoration: none;
-}
-
-.home__secondary {
-  padding: 12px;
-  color: var(--ink-2);
+  justify-content: center;
+  padding: 16px;
+  border-radius: var(--r-pill);
   font-weight: 600;
-  font-size: 15px;
+  font-size: 15.5px;
   text-decoration: none;
+  transition: transform 0.12s ease, background 0.15s ease;
+}
+.home__btn:active {
+  transform: scale(0.98);
+}
+
+.home__btn--primary {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: var(--shadow-soft);
+}
+.home__btn--primary:active {
+  background: var(--accent-press);
+}
+
+.home__btn--ghost {
+  background: var(--surface-sunk);
+  color: var(--ink);
+}
+.home__btn--ghost:active {
+  background: var(--line);
 }

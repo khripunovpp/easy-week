@@ -1,11 +1,13 @@
-<div class="home__scroll">
-  <div class="home__hero">
+<div class="home">
+  <header class="home__brand">
     <span class="home__logo">🥕</span>
-    <h1 class="home__name">Easy Week</h1>
-    <p class="home__tag">Меню на неделю с заготовками впрок</p>
-  </div>
+    <div class="home__brandtext">
+      <h1 class="home__name">Easy Week</h1>
+      <p class="home__tag muted">Меню на неделю с заготовками впрок</p>
+    </div>
+  </header>
 
-  <div class="home__card">
+  <section class="home__card">
     <p class="home__greet">
       Привет! Я помогу составить <b>меню на неделю</b>: подберу блюда, посчитаю время готовки,
       дам пошаговые рецепты и список покупок — всё под <b>вакуум и заморозку</b>.
@@ -22,10 +24,10 @@
         </li>
       }
     </ul>
-  </div>
-</div>
 
-<div class="home__actions">
-  <a class="btn-primary" routerLink="/chat">Составить меню</a>
-  <a class="home__secondary" routerLink="/plans">Мои планы</a>
+    <div class="home__actions">
+      <a class="home__btn home__btn--primary" routerLink="/chat">Составить</a>
+      <a class="home__btn home__btn--ghost" routerLink="/plans">Планы</a>
+    </div>
+  </section>
 </div>
