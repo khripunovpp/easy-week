@@ -7,7 +7,7 @@ export const routes: Routes = [
     loadComponent: () => import('./features/chat/chat').then((m) => m.Chat),
   },
   {
-    path: 'dish/:id',
+    path: 'plan/:planId/dish/:dishId',
     loadComponent: () => import('./features/dish/dish').then((m) => m.DishPage),
   },
   {

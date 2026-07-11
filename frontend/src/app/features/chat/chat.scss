@@ -71,6 +71,36 @@
   border-bottom-right-radius: 7px;
 }
 
+/* Индикатор набора */
+.typing {
+  display: inline-flex;
+  gap: 5px;
+  padding: 15px 18px;
+}
+.typing span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  animation: typing 1.2s infinite ease-in-out;
+}
+.typing span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.typing span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+@keyframes typing {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
 /* Карточка плана */
 .plan {
   align-self: stretch;

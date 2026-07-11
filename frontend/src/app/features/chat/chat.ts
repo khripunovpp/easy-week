@@ -1,8 +1,9 @@
-import { Component, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ChatMessage, WeekPlan } from '../../models/plan.model';
-import { EXTRA_DISHES, MOCK_MESSAGES, MOCK_PLAN } from '../../data/mock-plan';
+import { EXTRA_DISHES } from '../../data/mock-plan';
+import { EasyWeekApi } from '../../services/api';
 
 @Component({
   selector: 'ew-chat',
@@ -11,11 +12,21 @@ import { EXTRA_DISHES, MOCK_MESSAGES, MOCK_PLAN } from '../../data/mock-plan';
   styleUrl: './chat.scss',
 })
 export class Chat {
-  readonly messages = signal<ChatMessage[]>(MOCK_MESSAGES);
+  private readonly api = inject(EasyWeekApi);
+
+  readonly messages = signal<ChatMessage[]>([
+    {
+      id: 'intro',
+      role: 'assistant',
+      text: 'Привет! Составлю меню на неделю под заморозку. Сколько ужинов и есть ли ограничения?',
+    },
+  ]);
   readonly draft = signal('');
+  readonly loading = signal(false);
 
   readonly suggestions = ['5 ужинов', 'Без свинины', 'На 2 порции', 'Побыстрее'];
 
+  private conversationId: string | null = null;
   private seq = 100;
 
   pastel(i: number): string {
@@ -30,7 +41,38 @@ export class Chat {
     this.draft.set(text);
   }
 
-  // Убрать одно блюдо из плана, не отклоняя весь план.
+  send(): void {
+    const text = this.draft().trim();
+    if (!text || this.loading()) return;
+
+    this.messages.update((list) => [...list, { id: `u-${this.seq++}`, role: 'user', text }]);
+    this.draft.set('');
+    this.loading.set(true);
+
+    this.api.chat(text, this.conversationId).subscribe({
+      next: (res) => {
+        this.conversationId = res.conversationId;
+        this.messages.update((list) => [
+          ...list,
+          { id: `a-${this.seq++}`, role: 'assistant', text: res.reply, plan: res.plan ?? undefined },
+        ]);
+        this.loading.set(false);
+      },
+      error: () => {
+        this.messages.update((list) => [
+          ...list,
+          {
+            id: `e-${this.seq++}`,
+            role: 'assistant',
+            text: 'Не получилось составить план. Проверьте, что бэкенд запущен, и попробуйте ещё раз.',
+          },
+        ]);
+        this.loading.set(false);
+      },
+    });
+  }
+
+  // Убрать блюдо из показанного плана (визуально, не отклоняя план).
   removeDish(messageId: string, dishId: string): void {
     this.updatePlan(messageId, (plan) => ({
       ...plan,
@@ -38,7 +80,7 @@ export class Chat {
     }));
   }
 
-  // Добавить блюдо в план (пока — из запасного пула; позже — по запросу к AI).
+  // Добавить блюдо (пока из запасного пула; далее — запрос к AI).
   addDish(messageId: string): void {
     this.updatePlan(messageId, (plan) => {
       const present = new Set(plan.dishes.map((d) => d.id));
@@ -49,33 +91,7 @@ export class Chat {
 
   private updatePlan(messageId: string, fn: (plan: WeekPlan) => WeekPlan): void {
     this.messages.update((list) =>
-      list.map((m) =>
-        m.id === messageId && m.plan ? { ...m, plan: fn(m.plan) } : m,
-      ),
+      list.map((m) => (m.id === messageId && m.plan ? { ...m, plan: fn(m.plan) } : m)),
     );
-  }
-
-  send(): void {
-    const text = this.draft().trim();
-    if (!text) return;
-
-    this.messages.update((list) => [
-      ...list,
-      { id: `u-${this.seq++}`, role: 'user', text },
-    ]);
-    this.draft.set('');
-
-    // Заглушка ответа, пока нет бэкенда: показываем тот же план.
-    setTimeout(() => {
-      this.messages.update((list) => [
-        ...list,
-        {
-          id: `a-${this.seq++}`,
-          role: 'assistant',
-          text: 'Обновил меню под запрос — всё под заморозку 👇',
-          plan: { ...MOCK_PLAN, id: `plan-${this.seq}` },
-        },
-      ]);
-    }, 350);
   }
 }

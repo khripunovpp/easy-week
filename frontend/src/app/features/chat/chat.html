@@ -29,7 +29,7 @@
 
           @for (d of plan.dishes; track d.id; let i = $index) {
             <div class="dish">
-              <a class="dish__main" [routerLink]="['/dish', d.id]">
+              <a class="dish__main" [routerLink]="['/plan', plan.id, 'dish', d.id]">
                 <div class="dish__emoji" [class]="pastel(i)">{{ d.emoji }}</div>
                 <div class="dish__body">
                   <h3 class="dish__name">{{ d.name }}</h3>
@@ -78,6 +78,12 @@
         </section>
       }
     }
+  }
+
+  @if (loading()) {
+    <div class="msg msg--bot typing" aria-label="Составляю план">
+      <span></span><span></span><span></span>
+    </div>
   }
 </div>
 

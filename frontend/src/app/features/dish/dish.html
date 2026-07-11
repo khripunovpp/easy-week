@@ -1,12 +1,17 @@
-@if (dish(); as d) {
-  <header class="d__top">
-    <a class="d__back" routerLink="/chat" aria-label="Назад">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M15 6l-6 6 6 6" stroke-linecap="round" stroke-linejoin="round" />
-      </svg>
-    </a>
-  </header>
+<header class="d__top">
+  <a class="d__back" routerLink="/chat" aria-label="Назад">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M15 6l-6 6 6 6" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+  </a>
+</header>
 
+@if (loading()) {
+  <div class="d__state">
+    <div class="spinner"></div>
+    <p class="muted">Готовлю пошаговый рецепт…</p>
+  </div>
+} @else if (dish(); as d) {
   <div class="d__scroll">
     <div class="d__hero">
       <span class="d__emoji">{{ d.emoji }}</span>
@@ -18,7 +23,6 @@
       </div>
     </div>
 
-    <!-- Хранение — доменная фишка -->
     <section class="card card--frost">
       <div class="card__head">
         <span class="card__ic">❄️</span>
@@ -34,7 +38,6 @@
       }
     </section>
 
-    <!-- Советы -->
     @if (d.tips.length) {
       <section class="card">
         <p class="card__title card__title--lead">💡 Советы</p>
@@ -46,7 +49,6 @@
       </section>
     }
 
-    <!-- Пошаговые инструкции -->
     <section class="block">
       <p class="block__label">Приготовление · {{ totalTime(d.prepMin, d.cookMin) }} мин</p>
       <ol class="steps">
@@ -59,7 +61,6 @@
       </ol>
     </section>
 
-    <!-- Ингредиенты -->
     <section class="block">
       <p class="block__label">Ингредиенты · {{ d.servings }} порции</p>
       <div class="card card--tight">
@@ -73,8 +74,8 @@
     </section>
   </div>
 } @else {
-  <div class="d__missing">
-    <p class="muted">Блюдо не найдено.</p>
+  <div class="d__state">
+    <p class="muted">Не удалось загрузить блюдо.</p>
     <a class="btn-primary" routerLink="/chat">В чат</a>
   </div>
 }
