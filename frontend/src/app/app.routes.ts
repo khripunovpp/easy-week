@@ -19,6 +19,10 @@ export const routes: Routes = [
     loadComponent: () => import('./features/shopping/shopping').then((m) => m.Shopping),
   },
   {
+    path: 'shopping/:planId',
+    loadComponent: () => import('./features/shopping/shopping').then((m) => m.Shopping),
+  },
+  {
     path: 'profile',
     loadComponent: () => import('./features/stub/stub').then((m) => m.Stub),
     data: { title: 'Профиль', emoji: '🧑‍🍳' },

@@ -72,6 +72,13 @@ export class Chat {
     });
   }
 
+  // Принять / отклонить план — сохраняем статус на бэкенде.
+  setPlanStatus(messageId: string, planId: string, status: 'accepted' | 'rejected'): void {
+    this.api.setStatus(planId, status).subscribe({
+      next: (updated) => this.updatePlan(messageId, () => updated),
+    });
+  }
+
   // Убрать блюдо из показанного плана (визуально, не отклоняя план).
   removeDish(messageId: string, dishId: string): void {
     this.updatePlan(messageId, (plan) => ({

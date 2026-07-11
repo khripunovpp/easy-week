@@ -1,9 +1,34 @@
 import asyncio
 import logging
 import re
+from datetime import date, timedelta
 from typing import Any
 
 from .cloudflare import run_json
+
+_MONTHS_GEN = [
+    "января", "февраля", "марта", "апреля", "мая", "июня",
+    "июля", "августа", "сентября", "октября", "ноября", "декабря",
+]
+
+
+def _week_label(today: date | None = None) -> str:
+    today = today or date.today()
+    monday = today - timedelta(days=today.weekday())
+    sunday = monday + timedelta(days=6)
+    if monday.month == sunday.month:
+        return f"{monday.day}–{sunday.day} {_MONTHS_GEN[sunday.month - 1]}"
+    return (
+        f"{monday.day} {_MONTHS_GEN[monday.month - 1]} – "
+        f"{sunday.day} {_MONTHS_GEN[sunday.month - 1]}"
+    )
+
+
+def _clean_title(title: str) -> str:
+    title = re.sub(r"\s*\([^)]*\)", "", title).strip(" .,-")
+    if len(title) > 34:
+        title = title[:34].rsplit(" ", 1)[0] + "…"
+    return title or "План на неделю"
 from .prompt import (
     DETAILS_SCHEMA,
     DISH_SCHEMA,
@@ -29,7 +54,7 @@ def _clean_name(name: str) -> str:
 
 async def _gen_dish(i: int, name: str, emoji: str, user_message: str) -> dict[str, Any]:
     parsed, _ = await run_json(
-        build_dish_messages(name, user_message), DISH_SCHEMA, max_tokens=600
+        build_dish_messages(name, user_message), DISH_SCHEMA, max_tokens=800
     )
     return {
         "id": _slug(name, i),
@@ -64,8 +89,8 @@ async def generate_plan(user_message: str, avoid_titles: list[str]) -> dict[str,
     logger.info("plan generated: dishes=%d (parallel)", len(dishes))
     return {
         "reply": names.get("reply") or "Готово — вот план на неделю.",
-        "title": names.get("title") or "План на неделю",
-        "week_label": names.get("week_label") or "",
+        "title": _clean_title(names.get("title") or "План на неделю"),
+        "week_label": _week_label(),
         "dishes": list(dishes),
     }
 

@@ -71,10 +71,28 @@
             Добавить блюдо
           </button>
 
-          <div class="plan__actions">
-            <button class="btn-ghost" type="button">Отклонить</button>
-            <button class="btn-primary plan__accept" type="button">Принять план</button>
-          </div>
+          @if (plan.status === 'draft') {
+            <div class="plan__actions">
+              <button class="btn-ghost" type="button" (click)="setPlanStatus(m.id, plan.id, 'rejected')">
+                Отклонить
+              </button>
+              <button
+                class="btn-primary plan__accept"
+                type="button"
+                (click)="setPlanStatus(m.id, plan.id, 'accepted')">
+                Принять план
+              </button>
+            </div>
+          } @else {
+            <div class="plan__decided">
+              <span
+                class="tag"
+                [class.tag--ok]="plan.status === 'accepted'"
+                [class.tag--no]="plan.status === 'rejected'">
+                {{ plan.status === 'accepted' ? '✓ План принят' : 'План отклонён' }}
+              </span>
+            </div>
+          }
         </section>
       }
     }

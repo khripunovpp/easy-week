@@ -1,7 +1,7 @@
-import { Component } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { MOCK_HISTORY } from '../../data/mock-plan';
-import { PlanStatus, WeekPlan } from '../../models/plan.model';
+import { PlanStatus } from '../../models/plan.model';
+import { EasyWeekApi, PlanSummary } from '../../services/api';
 
 @Component({
   selector: 'ew-plans',
@@ -10,16 +10,25 @@ import { PlanStatus, WeekPlan } from '../../models/plan.model';
   styleUrl: './plans.scss',
 })
 export class Plans {
-  readonly plans = MOCK_HISTORY;
+  private readonly api = inject(EasyWeekApi);
 
-  readonly drafts = this.plans.filter((p) => p.status === 'draft');
-  readonly decided = this.plans.filter((p) => p.status !== 'draft');
+  readonly plans = signal<PlanSummary[]>([]);
+  readonly loading = signal(true);
+
+  readonly drafts = computed(() => this.plans().filter((p) => p.status === 'draft'));
+  readonly decided = computed(() => this.plans().filter((p) => p.status !== 'draft'));
+
+  constructor() {
+    this.api.listPlans().subscribe({
+      next: (plans) => {
+        this.plans.set(plans);
+        this.loading.set(false);
+      },
+      error: () => this.loading.set(false),
+    });
+  }
 
   statusLabel(s: PlanStatus): string {
     return s === 'accepted' ? 'Принят' : s === 'rejected' ? 'Отклонён' : 'Черновик';
-  }
-
-  emoji(plan: WeekPlan): string {
-    return plan.dishes[0]?.emoji ?? '🍽️';
   }
 }

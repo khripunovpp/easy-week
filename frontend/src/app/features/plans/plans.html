@@ -3,38 +3,47 @@
   <p class="muted">Меню по неделям</p>
 </header>
 
-<div class="pl__scroll">
-  @if (drafts.length) {
-    <p class="pl__label">В работе</p>
-    @for (plan of drafts; track plan.id) {
-      <a class="prow" routerLink="/chat">
-        <span class="prow__emoji pastel-3">{{ emoji(plan) }}</span>
+@if (loading()) {
+  <div class="pl__state"><div class="spinner"></div></div>
+} @else if (!plans().length) {
+  <div class="pl__state">
+    <span class="pl__emoji">🗂️</span>
+    <p class="muted">Планов пока нет.</p>
+  </div>
+} @else {
+  <div class="pl__scroll">
+    @if (drafts().length) {
+      <p class="pl__label">В работе</p>
+      @for (plan of drafts(); track plan.id) {
+        <a class="prow" [routerLink]="['/shopping', plan.id]">
+          <span class="prow__emoji pastel-3">{{ plan.emoji }}</span>
+          <span class="prow__body">
+            <span class="prow__title">{{ plan.title }}</span>
+            <span class="prow__sub muted">{{ plan.weekLabel }} · {{ plan.dishesCount }} блюд</span>
+          </span>
+          <span class="tag tag--draft">{{ statusLabel(plan.status) }}</span>
+        </a>
+      }
+    }
+
+    <p class="pl__label">История</p>
+    @for (plan of decided(); track plan.id; let i = $index) {
+      <a class="prow" [routerLink]="['/shopping', plan.id]">
+        <span class="prow__emoji" [class]="'pastel-' + (i % 5)">{{ plan.emoji }}</span>
         <span class="prow__body">
           <span class="prow__title">{{ plan.title }}</span>
-          <span class="prow__sub muted">{{ plan.weekLabel }} · {{ plan.dishes.length }} блюд</span>
+          <span class="prow__sub muted">{{ plan.weekLabel }} · {{ plan.dishesCount }} блюд</span>
         </span>
-        <span class="tag tag--draft">{{ statusLabel(plan.status) }}</span>
+        <span
+          class="tag"
+          [class.tag--ok]="plan.status === 'accepted'"
+          [class.tag--no]="plan.status === 'rejected'">
+          {{ statusLabel(plan.status) }}
+        </span>
       </a>
     }
-  }
-
-  <p class="pl__label">История</p>
-  @for (plan of decided; track plan.id; let i = $index) {
-    <a class="prow" routerLink="/chat">
-      <span class="prow__emoji" [class]="'pastel-' + (i % 5)">{{ emoji(plan) }}</span>
-      <span class="prow__body">
-        <span class="prow__title">{{ plan.title }}</span>
-        <span class="prow__sub muted">{{ plan.weekLabel }} · {{ plan.dishes.length }} блюд</span>
-      </span>
-      <span
-        class="tag"
-        [class.tag--ok]="plan.status === 'accepted'"
-        [class.tag--no]="plan.status === 'rejected'">
-        {{ statusLabel(plan.status) }}
-      </span>
-    </a>
-  }
-</div>
+  </div>
+}
 
 <a class="pl__new btn-primary" routerLink="/chat">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

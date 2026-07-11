@@ -294,6 +294,29 @@
   background: var(--line);
 }
 
+/* Статус после решения по плану */
+.plan__decided {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 2px;
+}
+.plan__decided .tag {
+  font-size: 14px;
+  font-weight: 600;
+  padding: 9px 18px;
+  border-radius: var(--r-pill);
+  background: var(--surface-sunk);
+  color: var(--ink-2);
+}
+.plan__decided .tag--ok {
+  background: #e4f1de;
+  color: #4f8a3d;
+}
+.plan__decided .tag--no {
+  background: #f7e6e2;
+  color: #c0654a;
+}
+
 /* Пастельные фоны иконок */
 .pastel-0 { background: var(--pastel-peach); }
 .pastel-1 { background: var(--pastel-green); }
