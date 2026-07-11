@@ -42,6 +42,7 @@ export interface Dish {
 
 export interface WeekPlan {
   id: string;
+  conversationId?: string;
   title: string;
   weekLabel: string; // напр. «14–20 июля»
   status: PlanStatus;

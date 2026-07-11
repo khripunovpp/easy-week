@@ -3,18 +3,19 @@ import { ChatMessage, WeekPlan } from '../models/plan.model';
 import { EXTRA_DISHES } from '../data/mock-plan';
 import { EasyWeekApi } from './api';
 
-// Общий стор чата: состояние переживает переходы (план → рецепт → назад).
+const INTRO: ChatMessage = {
+  id: 'intro',
+  role: 'assistant',
+  text: 'Привет! Составлю меню на неделю под заморозку. Сколько ужинов и есть ли ограничения?',
+};
+
+// Общий стор чата: состояние переживает переходы (план → рецепт → назад),
+// поэтому на вкладке «Чат» всегда открыт последний активный чат.
 @Injectable({ providedIn: 'root' })
 export class ChatStore {
   private readonly api = inject(EasyWeekApi);
 
-  readonly messages = signal<ChatMessage[]>([
-    {
-      id: 'intro',
-      role: 'assistant',
-      text: 'Привет! Составлю меню на неделю под заморозку. Сколько ужинов и есть ли ограничения?',
-    },
-  ]);
+  readonly messages = signal<ChatMessage[]>([INTRO]);
   readonly draft = signal('');
   readonly loading = signal(false);
   readonly dishCount = signal(5);
@@ -24,6 +25,31 @@ export class ChatStore {
 
   setCount(n: number): void {
     this.dishCount.set(n);
+  }
+
+  // Начать новый чат (сбрасываем переписку, но сохраняем выбор количества).
+  newChat(): void {
+    this.messages.set([INTRO]);
+    this.conversationId = null;
+    this.draft.set('');
+    this.loading.set(false);
+  }
+
+  // Загрузить существующий диалог плана (для «Продолжить обсуждение»).
+  loadConversation(conversationId: string): void {
+    this.conversationId = conversationId;
+    this.draft.set('');
+    this.loading.set(true);
+    this.api.conversationMessages(conversationId).subscribe({
+      next: (msgs) => {
+        this.messages.set(msgs.length ? msgs : [INTRO]);
+        this.loading.set(false);
+      },
+      error: () => {
+        this.messages.set([INTRO]);
+        this.loading.set(false);
+      },
+    });
   }
 
   send(): void {

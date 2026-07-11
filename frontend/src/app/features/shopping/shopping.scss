@@ -6,29 +6,9 @@
   min-height: 0;
 }
 
-/* Шапка — overlay с фейд-блюром */
+/* Шапка — фейд-блюр через глобальный класс .fade-top */
 .shop__top {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 10;
   padding: 20px 22px 18px;
-}
-.shop__top::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-top) 72%, transparent 100%);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  -webkit-mask: linear-gradient(180deg, #000 0%, #000 74%, transparent 100%);
-  mask: linear-gradient(180deg, #000 0%, #000 74%, transparent 100%);
-  pointer-events: none;
-}
-.shop__top > * {
-  position: relative;
-  z-index: 1;
 }
 
 .shop__toprow {
@@ -92,19 +72,6 @@
 }
 .shop__emoji {
   font-size: 44px;
-}
-.spinner {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  border: 3px solid var(--line);
-  border-top-color: var(--accent);
-  animation: spin 0.8s linear infinite;
-}
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 /* Категория */

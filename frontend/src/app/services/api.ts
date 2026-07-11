@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
-import { Dish, PlanStatus, WeekPlan } from '../models/plan.model';
+import { ChatMessage, Dish, PlanStatus, WeekPlan } from '../models/plan.model';
 
 // Относительный путь: в проде nginx проксирует /api → бэкенд;
 // в деве — dev-прокси Angular (proxy.conf.json) на localhost:8000.
@@ -66,5 +66,11 @@ export class EasyWeekApi {
 
   dishDetails(planId: string, dishId: string): Observable<Dish> {
     return this.http.post<Dish>(`${API_BASE}/plans/${planId}/dishes/${dishId}/details`, {});
+  }
+
+  conversationMessages(conversationId: string): Observable<ChatMessage[]> {
+    return this.http.get<ChatMessage[]>(
+      `${API_BASE}/conversations/${conversationId}/messages`,
+    );
   }
 }

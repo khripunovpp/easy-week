@@ -1,0 +1,88 @@
+<header class="pv__top fade-top">
+  <a class="pv__back" routerLink="/plans" aria-label="Назад">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M15 6l-6 6 6 6" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+  </a>
+  @if (plan(); as p) {
+    <a class="pv__pdf" [routerLink]="['/print', p.id]" aria-label="Экспорт в PDF">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="M8 3h6l4 4v14H8zM14 3v4h4M9 13h6M9 17h6" stroke-linejoin="round" stroke-linecap="round" />
+      </svg>
+    </a>
+  }
+</header>
+
+@if (loading()) {
+  <div class="pv__state"><div class="spinner"></div></div>
+} @else if (plan(); as p) {
+  <div class="pv__scroll">
+    <div class="pv__head">
+      <p class="eyebrow">План · {{ p.weekLabel }}</p>
+      <div class="pv__titlerow">
+        <h1>{{ p.title }}</h1>
+        <span
+          class="tag"
+          [class.tag--ok]="p.status === 'accepted'"
+          [class.tag--no]="p.status === 'rejected'"
+          [class.tag--draft]="p.status === 'draft'">
+          {{ statusLabel(p.status) }}
+        </span>
+      </div>
+      <p class="pv__count muted">{{ p.dishes.length }} {{ dishWord(p.dishes.length) }}</p>
+    </div>
+
+    <section class="pv__dishes">
+      @for (d of p.dishes; track d.id; let i = $index) {
+        <a class="dish" [routerLink]="['/plan', p.id, 'dish', d.id]">
+          <div class="dish__emoji" [class]="pastel(i)">{{ d.emoji }}</div>
+          <div class="dish__body">
+            <h3 class="dish__name">{{ d.name }}</h3>
+            <div class="dish__meta">
+              <span class="meta-chip">{{ totalTime(d.prepMin, d.cookMin) }} мин</span>
+              @if (d.storage.freeze) {
+                <span class="badge-frost">❄️ {{ d.storage.shelfLifeDays }} дн</span>
+              }
+              <span class="meta-chip">{{ d.servings }} порц.</span>
+            </div>
+          </div>
+          <svg class="dish__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </a>
+      }
+    </section>
+
+    <div class="pv__links">
+      <a class="pv__link" [routerLink]="['/shopping', p.id]">
+        <span>🛒 Список покупок</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+      <a class="pv__link" [routerLink]="['/print', p.id]">
+        <span>📄 Экспорт в PDF</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+    </div>
+
+    @if (p.status === 'draft') {
+      <div class="pv__decide">
+        <button class="btn-ghost" type="button" (click)="setStatus('rejected')">Отклонить</button>
+        <button class="btn-primary" type="button" (click)="setStatus('accepted')">Принять план</button>
+      </div>
+    }
+  </div>
+
+  <div class="pv__footer fade-bottom">
+    <button class="btn-primary" type="button" (click)="continueChat()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v9A1.5 1.5 0 0 1 18.5 16H9l-4 3.5V16H5.5A1.5 1.5 0 0 1 4 14.5z" stroke-linejoin="round"/>
+      </svg>
+      Продолжить обсуждение
+    </button>
+  </div>
+} @else {
+  <div class="pv__state">
+    <p class="muted">Не удалось загрузить план.</p>
+    <a class="btn-primary" routerLink="/plans">К планам</a>
+  </div>
+}

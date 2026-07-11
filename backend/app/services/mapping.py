@@ -6,6 +6,7 @@ def to_week_plan(row: PlanRow) -> WeekPlan:
     dishes = [Dish.model_validate(d) for d in (row.dishes or [])]
     return WeekPlan(
         id=row.id,
+        conversation_id=row.conversation_id,
         title=row.title,
         week_label=row.week_label,
         status=row.status,

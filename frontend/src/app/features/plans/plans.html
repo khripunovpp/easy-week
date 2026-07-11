@@ -1,4 +1,4 @@
-<header class="pl__top">
+<header class="pl__top fade-top">
   <h1>Планы</h1>
   <p class="muted">Меню по неделям</p>
 </header>
@@ -15,7 +15,7 @@
     @if (drafts().length) {
       <p class="pl__label">В работе</p>
       @for (plan of drafts(); track plan.id) {
-        <a class="prow" [routerLink]="['/shopping', plan.id]">
+        <a class="prow" [routerLink]="['/plan', plan.id]">
           <span class="prow__emoji pastel-3">{{ plan.emoji }}</span>
           <span class="prow__body">
             <span class="prow__title">{{ plan.title }}</span>
@@ -28,7 +28,7 @@
 
     <p class="pl__label">История</p>
     @for (plan of decided(); track plan.id; let i = $index) {
-      <a class="prow" [routerLink]="['/shopping', plan.id]">
+      <a class="prow" [routerLink]="['/plan', plan.id]">
         <span class="prow__emoji" [class]="'pastel-' + (i % 5)">{{ plan.emoji }}</span>
         <span class="prow__body">
           <span class="prow__title">{{ plan.title }}</span>
@@ -45,9 +45,11 @@
   </div>
 }
 
-<a class="pl__new btn-primary" routerLink="/chat">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-    <path d="M12 6v12M6 12h12" stroke-linecap="round" />
-  </svg>
-  Новый план
-</a>
+<div class="pl__footer fade-bottom">
+  <a class="pl__new btn-primary" routerLink="/chat">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M12 6v12M6 12h12" stroke-linecap="round" />
+    </svg>
+    Новый план
+  </a>
+</div>

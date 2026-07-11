@@ -11,6 +11,10 @@ export const routes: Routes = [
     loadComponent: () => import('./features/chat/chat').then((m) => m.Chat),
   },
   {
+    path: 'plan/:id',
+    loadComponent: () => import('./features/plan/plan').then((m) => m.PlanPage),
+  },
+  {
     path: 'plan/:planId/dish/:dishId',
     loadComponent: () => import('./features/dish/dish').then((m) => m.DishPage),
   },

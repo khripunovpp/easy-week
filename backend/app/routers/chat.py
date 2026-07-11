@@ -8,7 +8,7 @@ from ..ai.cloudflare import CloudflareError
 from ..ai.planner import generate_plan
 from ..db import get_session
 from ..models import Conversation, MessageRow, PlanRow
-from ..schemas import ChatRequest, ChatResponse
+from ..schemas import ChatMessageOut, ChatRequest, ChatResponse
 from ..services.mapping import to_week_plan
 
 router = APIRouter(prefix="/api", tags=["chat"])
@@ -25,6 +25,27 @@ def _accepted_dish_names(session: Session, limit: int = 12) -> list[str]:
             if name:
                 names.append(name)
     return names[:limit]
+
+
+@router.get("/conversations/{conversation_id}/messages")
+async def conversation_messages(
+    conversation_id: str, session: SessionDep
+) -> list[ChatMessageOut]:
+    """Сообщения диалога (для продолжения обсуждения плана в чате)."""
+    rows = session.exec(
+        select(MessageRow)
+        .where(MessageRow.conversation_id == conversation_id)
+        .order_by(MessageRow.created_at)
+    ).all()
+    out: list[ChatMessageOut] = []
+    for m in rows:
+        plan = None
+        if m.plan_id:
+            plan_row = session.get(PlanRow, m.plan_id)
+            if plan_row:
+                plan = to_week_plan(plan_row)
+        out.append(ChatMessageOut(id=m.id, role=m.role, text=m.text, plan=plan))
+    return out
 
 
 @router.post("/chat")

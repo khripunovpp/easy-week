@@ -6,43 +6,38 @@
   min-height: 0;
 }
 
-/* Шапка — overlay с фейд-блюром, контент уходит под неё */
+/* Шапка чата — только контролы справа (класс .fade-top) */
 .chat__top {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 10;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 16px 18px 22px 20px;
-}
-.chat__top::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-top) 72%, transparent 100%);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  -webkit-mask: linear-gradient(180deg, #000 0%, #000 74%, transparent 100%);
-  mask: linear-gradient(180deg, #000 0%, #000 74%, transparent 100%);
-  pointer-events: none;
-}
-
-.chat__brand {
-  position: relative;
-  z-index: 1;
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 16px 18px;
+}
+
+.chat__new {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-soft);
+  transition: transform 0.12s ease;
+}
+.chat__new svg {
+  width: 19px;
+  height: 19px;
+}
+.chat__new:active {
+  transform: scale(0.94);
 }
 
 /* Выбор количества блюд */
 .count {
   position: relative;
-  z-index: 1;
   flex-shrink: 0;
 }
 
@@ -116,34 +111,13 @@
   font-weight: 600;
 }
 
-.chat__logo {
-  display: grid;
-  place-items: center;
-  width: 46px;
-  height: 46px;
-  font-size: 24px;
-  background: var(--surface);
-  border-radius: 15px;
-  box-shadow: var(--shadow-soft);
-}
-
-.chat__top h1 {
-  font-size: 22px;
-  line-height: 1.1;
-}
-
-.chat__sub {
-  font-size: 13px;
-  margin: 2px 0 0;
-}
-
 /* Лента сообщений */
 .chat__stream {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   /* верх/низ — место под overlay-шапку и композер */
-  padding: 96px 16px 152px;
+  padding: 74px 16px 152px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -377,25 +351,13 @@
   padding-top: 4px;
 }
 
-.plan__accept {
+/* обе кнопки решения — равной ширины (используют глобальные .btn-ghost / .btn-primary) */
+.plan__actions > * {
   flex: 1;
   width: auto;
 }
 
-.btn-ghost {
-  padding: 15px 20px;
-  border-radius: var(--r-pill);
-  background: var(--surface-sunk);
-  color: var(--ink-2);
-  font-weight: 600;
-  font-size: 15px;
-  transition: background 0.15s ease;
-}
-.btn-ghost:active {
-  background: var(--line);
-}
-
-/* Статус после решения по плану */
+/* Статус после решения по плану (крупнее базового тега) */
 .plan__decided {
   display: flex;
   justify-content: center;
@@ -403,19 +365,7 @@
 }
 .plan__decided .tag {
   font-size: 14px;
-  font-weight: 600;
   padding: 9px 18px;
-  border-radius: var(--r-pill);
-  background: var(--surface-sunk);
-  color: var(--ink-2);
-}
-.plan__decided .tag--ok {
-  background: #e4f1de;
-  color: #4f8a3d;
-}
-.plan__decided .tag--no {
-  background: #f7e6e2;
-  color: #c0654a;
 }
 
 /* Экспорт в PDF */
@@ -443,30 +393,12 @@
 .pastel-3 { background: var(--pastel-yellow); }
 .pastel-4 { background: var(--pastel-blue); }
 
-/* Композер — overlay с фейд-блюром снизу */
+/* Композер — overlay с фейд-блюром снизу (класс .fade-bottom) */
 .composer {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 10;
   padding: 26px 16px 12px;
-}
-.composer::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, transparent 0%, var(--bg-bottom) 55%);
-  backdrop-filter: blur(7px);
-  -webkit-backdrop-filter: blur(7px);
-  -webkit-mask: linear-gradient(180deg, transparent 0%, #000 52%);
-  mask: linear-gradient(180deg, transparent 0%, #000 52%);
-  pointer-events: none;
 }
 
 .chips {
-  position: relative;
-  z-index: 1;
   display: flex;
   gap: 8px;
   overflow-x: auto;
@@ -497,8 +429,6 @@
 }
 
 .composer__row {
-  position: relative;
-  z-index: 1;
   display: flex;
   align-items: center;
   gap: 10px;

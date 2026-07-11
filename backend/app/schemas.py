@@ -37,10 +37,18 @@ class Dish(CamelModel):
 
 class WeekPlan(CamelModel):
     id: str
+    conversation_id: str = ""
     title: str
     week_label: str
     status: str
     dishes: list[Dish]
+
+
+class ChatMessageOut(CamelModel):
+    id: str
+    role: str
+    text: str = ""
+    plan: WeekPlan | None = None
 
 
 class PlanSummary(CamelModel):

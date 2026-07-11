@@ -43,6 +43,12 @@
   --shadow-soft: 0 6px 18px -10px rgba(72, 45, 32, 0.22);
   --shadow-float: 0 18px 40px -14px rgba(72, 45, 32, 0.35);
 
+  /* Шкала отступов */
+  --space-1: 6px;
+  --space-2: 10px;
+  --space-3: 16px;
+  --space-4: 22px;
+  --space-5: 30px;
   --space: 16px;
 
   /* Шрифты */
@@ -115,8 +121,9 @@ ul {
   text-transform: none;
 }
 
-/* Первичная кнопка-пилюля */
-.btn-primary {
+/* ===== Кнопки ===== */
+.btn-primary,
+.btn-ghost {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -124,16 +131,105 @@ ul {
   width: 100%;
   padding: 17px 22px;
   border-radius: var(--r-pill);
-  background: var(--accent);
-  color: #fff;
   font-weight: 600;
   font-size: 16px;
-  box-shadow: var(--shadow-soft);
+  text-decoration: none;
   transition: transform 0.12s ease, background 0.15s ease;
+}
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: var(--shadow-soft);
 }
 .btn-primary:active {
   transform: scale(0.98);
   background: var(--accent-press);
+}
+.btn-ghost {
+  background: var(--surface-sunk);
+  color: var(--ink);
+}
+.btn-ghost:active {
+  transform: scale(0.98);
+  background: var(--line);
+}
+
+/* ===== Теги статуса ===== */
+.tag {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 11px;
+  border-radius: var(--r-pill);
+  background: var(--surface-sunk);
+  color: var(--ink-2);
+}
+.tag--ok {
+  background: #e4f1de;
+  color: #4f8a3d;
+}
+.tag--no {
+  background: #f7e6e2;
+  color: #c0654a;
+}
+.tag--draft {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* ===== Спиннер загрузки ===== */
+.spinner {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 3px solid var(--line);
+  border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ===== Фейд-оверлеи для шапок (fade-top) и футеров (fade-bottom) ===== */
+.fade-top,
+.fade-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 10;
+}
+.fade-top {
+  top: 0;
+}
+.fade-bottom {
+  bottom: 0;
+}
+.fade-top::before,
+.fade-bottom::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.fade-top::before {
+  background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-top) 72%, transparent 100%);
+  -webkit-mask: linear-gradient(180deg, #000 0%, #000 74%, transparent 100%);
+  mask: linear-gradient(180deg, #000 0%, #000 74%, transparent 100%);
+}
+.fade-bottom::before {
+  background: linear-gradient(180deg, transparent 0%, var(--bg-bottom) 55%);
+  -webkit-mask: linear-gradient(180deg, transparent 0%, #000 52%);
+  mask: linear-gradient(180deg, transparent 0%, #000 52%);
+}
+/* контент шапки/футера над блюр-слоем (иначе Safari прячет его) */
+.fade-top > *,
+.fade-bottom > * {
+  position: relative;
+  z-index: 1;
 }
 
 @media (prefers-reduced-motion: reduce) {
