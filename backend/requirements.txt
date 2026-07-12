@@ -2,3 +2,4 @@ fastapi[standard]>=0.115
 sqlmodel>=0.0.22
 pydantic-settings>=2.5
 fpdf2>=2.7
+prometheus-fastapi-instrumentator>=7.0

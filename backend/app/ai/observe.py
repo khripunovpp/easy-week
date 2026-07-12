@@ -9,9 +9,34 @@ import logging
 from datetime import date, datetime, timezone
 from pathlib import Path
 
+from prometheus_client import Counter
+
 from ..config import settings
 
 logger = logging.getLogger("easy_week.ai")
+
+# Метрики для Prometheus. category — огрублённый label (текст до ":"), чтобы не плодить
+# высокую кардинальность (в label иначе попадают названия блюд).
+_calls = Counter("easyweek_ai_calls_total", "AI-вызовы", ["provider", "model", "category"])
+_tokens = Counter("easyweek_ai_tokens_total", "AI-токены", ["provider", "model", "kind"])
+
+
+def _category(label: str) -> str:
+    return (label or "?").split(":")[0].strip() or "?"
+
+
+def _record_metrics(provider: str, model: str, label: str, usage: dict) -> None:
+    _calls.labels(provider, model, _category(label)).inc()
+    u = usage or {}
+    for kind, key in (
+        ("prompt", "prompt_tokens"),
+        ("completion", "completion_tokens"),
+        ("cache_hit", "prompt_cache_hit_tokens"),
+        ("cache_miss", "prompt_cache_miss_tokens"),
+    ):
+        val = u.get(key)
+        if val:
+            _tokens.labels(provider, model, kind).inc(val)
 
 
 def _write_file_record(record: dict) -> None:
@@ -52,6 +77,8 @@ def log_ai_call(
     logger.info("  usage: %s", _usage_summary(usage or {}))
     logger.info("  prompt: %s", json.dumps(messages, ensure_ascii=False))
     logger.info("  response: %s", resp)
+
+    _record_metrics(provider, model, label, usage or {})
 
     _write_file_record(
         {
