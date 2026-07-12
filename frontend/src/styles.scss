@@ -137,6 +137,7 @@ ul {
   letter-spacing: 0.02em;
   color: var(--ink-3);
   text-transform: none;
+  margin: 0;
 }
 
 /* ===== Кнопки ===== */
@@ -346,13 +347,16 @@ ul {
   flex-shrink: 0;
 }
 
-/* Заголовок: тайтл + опциональный сабтайтл */
+/* Заголовок: тайтл + опциональный сабтайтл.
+   Высота фиксирована и тайтл прижат к верху — поздний (async) сабтайтл появляется
+   снизу и НЕ двигает тайтл. */
 .page__heading {
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 2px;
   min-width: 0;
+  height: var(--page-header-h);
 }
 .page__title {
   font-size: 27px;
@@ -382,16 +386,14 @@ ul {
   flex-direction: column;
   padding: var(--page-pad-top) var(--page-pad-x) var(--page-pad-bottom);
 }
-/* фикс-шапка не в потоке → сдвигаем контент на всю её высоту (контент+паддинг) + зазор,
-   чтобы страница с фикс-шапкой и без выглядела одинаково */
+/* фикс-шапка не в потоке → сдвигаем контент ровно на её высоту (контент + паддинг).
+   Зазор до контента даёт нижний паддинг самой шапки (--page-pad-y) — не добавляем ещё раз. */
 .page--header-fixed .page__inner {
-  padding-top: calc(var(--page-header-h) + 2 * var(--page-pad-y) + var(--page-pad-top));
+  padding-top: calc(var(--page-header-h) + 2 * var(--page-pad-y));
 }
-/* фикс-футер не в потоке → освобождаем его высоту (контент + паддинг) + зазор */
+/* фикс-футер не в потоке → освобождаем ровно его высоту (контент + верхний и нижний паддинг) */
 .page--footer-fixed .page__inner {
-  padding-bottom: calc(
-    var(--page-footer-h) + var(--page-pad-y) + var(--page-footer-pad-b) + var(--page-pad-bottom)
-  );
+  padding-bottom: calc(var(--page-footer-h) + var(--page-pad-y) + var(--page-footer-pad-b));
 }
 
 /* --- Футер --- */

@@ -15,35 +15,47 @@
         <p class="muted">Планов пока нет.</p>
       </div>
     } @else {
-      @if (drafts().length) {
-        <p class="pl__label">В работе</p>
-        @for (plan of drafts(); track plan.id) {
+      @if (acceptedList().length) {
+        <p class="pl__label">Принятые</p>
+        @for (plan of acceptedList(); track plan.id; let i = $index) {
           <a class="prow" [routerLink]="['/plan', plan.id]">
-            <span class="emoji-badge pastel-3">{{ plan.emoji }}</span>
+            <span class="emoji-badge" [class]="'pastel-' + (i % 5)">{{ plan.emoji }}</span>
             <span class="prow__body">
               <span class="prow__title">{{ plan.title }}</span>
               <span class="prow__sub muted">{{ plan.weekLabel }} · {{ plan.dishesCount }} блюд</span>
             </span>
-            <span class="tag tag--draft">{{ statusLabel(plan.status) }}</span>
+            <span class="tag tag--ok">{{ statusLabel(plan.status) }}</span>
           </a>
+        }
+        @if (moreAccepted() > 0) {
+          <button class="pl__more" type="button" (click)="showMoreAccepted()">
+            Загрузить ещё
+          </button>
         }
       }
 
-      <p class="pl__label">История</p>
-      @for (plan of decided(); track plan.id; let i = $index) {
-        <a class="prow" [routerLink]="['/plan', plan.id]">
-          <span class="emoji-badge" [class]="'pastel-' + (i % 5)">{{ plan.emoji }}</span>
-          <span class="prow__body">
-            <span class="prow__title">{{ plan.title }}</span>
-            <span class="prow__sub muted">{{ plan.weekLabel }} · {{ plan.dishesCount }} блюд</span>
-          </span>
-          <span
-            class="tag"
-            [class.tag--ok]="plan.status === 'accepted'"
-            [class.tag--no]="plan.status === 'rejected'">
-            {{ statusLabel(plan.status) }}
-          </span>
-        </a>
+      @if (historyList().length) {
+        <p class="pl__label">История</p>
+        @for (plan of historyList(); track plan.id; let i = $index) {
+          <a class="prow" [routerLink]="['/plan', plan.id]">
+            <span class="emoji-badge" [class]="'pastel-' + (i % 5)">{{ plan.emoji }}</span>
+            <span class="prow__body">
+              <span class="prow__title">{{ plan.title }}</span>
+              <span class="prow__sub muted">{{ plan.weekLabel }} · {{ plan.dishesCount }} блюд</span>
+            </span>
+            <span
+              class="tag"
+              [class.tag--no]="plan.status === 'rejected'"
+              [class.tag--draft]="plan.status === 'draft'">
+              {{ statusLabel(plan.status) }}
+            </span>
+          </a>
+        }
+        @if (moreHistory() > 0) {
+          <button class="pl__more" type="button" (click)="showMoreHistory()">
+            Загрузить ещё
+          </button>
+        }
       }
     }
   </div>

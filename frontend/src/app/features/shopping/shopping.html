@@ -1,19 +1,18 @@
 <div class="page page--header-fixed">
   <header class="page__header page__header--fixed fade-top">
     <div class="page__heading">
-      <h1 class="page__title">Список покупок</h1>
-      @if (title()) {
-        <p class="page__subtitle">{{ title() }}</p>
-      }
+      <h1 class="page__title">Покупки</h1>
+      <p class="page__subtitle">{{ title() ?? ' ' }}</p>
     </div>
     <div class="page__actions">
       @if (!loading() && !empty()) {
         <span class="shop__progress">{{ doneCount() }}/{{ total() }}</span>
       }
       @if (!loading() && !empty() && currentPlanId()) {
-        <a class="icon-btn" [routerLink]="['/print', currentPlanId()]" [queryParams]="{ parts: 'shopping' }" aria-label="Экспорт в PDF">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-            <path d="M8 3h6l4 4v14H8zM14 3v4h4M9 13h6M9 17h6" stroke-linejoin="round" stroke-linecap="round" />
+        <a [queryParams]="{ parts: 'shopping' }" [routerLink]="['/print', currentPlanId()]" aria-label="Экспорт в PDF"
+           class="icon-btn">
+          <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+            <path d="M8 3h6l4 4v14H8zM14 3v4h4M9 13h6M9 17h6" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </a>
       }
@@ -32,14 +31,14 @@
           <p class="group__label">{{ group.category }}</p>
           @for (item of group.items; track item.name + item.unit) {
             <button
-              class="row"
-              type="button"
+              (click)="toggle(item)"
               [class.row--done]="isChecked(item)"
-              (click)="toggle(item)">
-              <span class="check" [class.check--on]="isChecked(item)">
+              class="row"
+              type="button">
+              <span [class.check--on]="isChecked(item)" class="check">
                 @if (isChecked(item)) {
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
-                    <path d="M5 12.5l4 4L19 7" stroke-linecap="round" stroke-linejoin="round" />
+                  <svg fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24">
+                    <path d="M5 12.5l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/>
                   </svg>
                 }
               </span>
@@ -52,7 +51,9 @@
 
       @if (loading()) {
         <!-- Лоадер снизу, пока пункты догружаются потоком -->
-        <div class="shop__loading"><ew-cooking /></div>
+        <div class="shop__loading">
+          <ew-cooking/>
+        </div>
       }
     }
   </div>

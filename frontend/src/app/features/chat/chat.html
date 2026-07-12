@@ -54,7 +54,10 @@
 
           @for (d of plan.dishes; track d.id; let i = $index) {
             <div class="dish">
-              <a class="dish__main" [routerLink]="['/plan', plan.id, 'dish', d.id]">
+              <a
+                class="dish__main"
+                [class.dish__main--static]="isStreaming(m.id)"
+                [routerLink]="isStreaming(m.id) ? null : ['/plan', plan.id, 'dish', d.id]">
                 <div class="emoji-badge" [class]="pastel(i)">{{ d.emoji }}</div>
                 <div class="dish__body">
                   <h3 class="dish__name">{{ d.name }}</h3>

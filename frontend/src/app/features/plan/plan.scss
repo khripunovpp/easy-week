@@ -20,7 +20,7 @@
 
 /* Заголовок плана */
 .pv__head {
-  padding: 0 2px 12px;
+  padding: 0 0 12px;
 }
 .pv__titlerow {
   display: flex;
@@ -108,13 +108,39 @@
   color: var(--ink-3);
 }
 
-/* Принять/отклонить */
-.pv__decide {
+/* Футер: 👎 отклонить · Продолжить обсуждение · 👍 принять */
+.pv__foot {
   display: flex;
+  align-items: center;
   gap: 10px;
-  margin-top: 14px;
 }
-.pv__decide > * {
+.pv__continue {
   flex: 1;
-  width: auto;
+  white-space: nowrap;
+  padding-left: 14px;
+  padding-right: 14px;
+}
+.pv__vote {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  transition: transform 0.12s ease;
+}
+.pv__vote:active {
+  transform: scale(0.94);
+}
+.pv__vote svg {
+  width: 25px;
+  height: 25px;
+}
+.pv__vote--no {
+  background: var(--no-soft);
+  color: var(--no);
+}
+.pv__vote--ok {
+  background: var(--ok-soft);
+  color: var(--ok);
 }

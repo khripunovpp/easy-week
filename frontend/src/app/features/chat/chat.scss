@@ -232,6 +232,10 @@
   text-decoration: none;
   color: inherit;
 }
+/* во время потоковой генерации блюдо ещё не сохранено — карточка статична */
+.dish__main--static {
+  pointer-events: none;
+}
 
 .dish__remove {
   flex-shrink: 0;

@@ -29,6 +29,22 @@
   margin-top: 0;
 }
 
+/* Ссылка «Загрузить ещё» под секцией */
+.pl__more {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  margin: 2px 0 8px;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+}
+.pl__more:active {
+  background: var(--accent-soft);
+}
+
 /* Строка плана */
 .prow {
   display: flex;
