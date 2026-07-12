@@ -57,6 +57,11 @@ sudo cp "$MON/grafana/dashboards-provider.yml" /etc/grafana/provisioning/dashboa
 sudo cp "$MON/grafana/dashboards/easy-week.json" /var/lib/grafana/dashboards/easy-week.json
 sudo chown -R grafana:grafana /var/lib/grafana/dashboards
 
+# --- 4b. Порт Grafana: 3000 занят другим проектом → ставим 3002 ---
+if ! grep -q '^GF_SERVER_HTTP_PORT=' /etc/default/grafana-server 2>/dev/null; then
+  echo 'GF_SERVER_HTTP_PORT=3002' | sudo tee -a /etc/default/grafana-server >/dev/null
+fi
+
 # --- 5. systemd-юниты Prometheus/Loki/Promtail ---
 echo "→ systemd-юниты"
 sudo cp "$MON/systemd/ew-prometheus.service" "$MON/systemd/ew-loki.service" "$MON/systemd/ew-promtail.service" /etc/systemd/system/
@@ -71,5 +76,5 @@ echo "✅ Готово. Статусы:"
 systemctl is-active ew-prometheus ew-loki ew-promtail grafana-server | paste -d' ' <(echo -e "prometheus\nloki\npromtail\ngrafana") -
 IP="$(hostname -I | awk '{print $1}')"
 echo
-echo "Grafana:    http://$IP:3000  (admin / admin — сменить при входе)"
+echo "Grafana:    http://$IP:3002  (admin / admin — сменить при входе)"
 echo "Prometheus: http://127.0.0.1:9090 (только локально; метрики LAN — http://$IP:8080/metrics)"

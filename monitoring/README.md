@@ -29,7 +29,7 @@ Grafana: http://localhost:3000 (admin / admin). Остановить: `docker co
 cd ~/easy-week && git pull
 bash monitoring/install-pi.sh
 ```
-- **Grafana**: `http://192.168.1.230:3000` (admin/admin — сменить при входе).
+- **Grafana**: `http://192.168.1.230:3002` (admin/admin — сменить при входе).
 - **Prometheus** слушает только localhost (9090); метрики в LAN — `http://192.168.1.230:8080/metrics`.
 
 Конфиги живут в репо (`monitoring/`), systemd на них ссылается — правки применяются
