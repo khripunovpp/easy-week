@@ -35,7 +35,7 @@ bash monitoring/install-pi.sh
 Конфиги живут в репо (`monitoring/`), systemd на них ссылается — правки применяются
 `git pull` + `sudo systemctl restart ew-prometheus ew-loki ew-promtail`.
 
-Порты (localhost на Пае): Prometheus 9090, Loki 3100, Promtail 9080; Grafana 3000 (LAN).
+Порты (localhost на Пае): Prometheus 9090, Loki 3100, Promtail 9080; Grafana 3002 (LAN).
 
 ## Файлы
 - `prometheus/prometheus.{pi,docker}.yml` — скрап-конфиги (таргет бэкенда).
