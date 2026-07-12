@@ -16,6 +16,7 @@ services:
   loki:
     image: grafana/loki:3.3.2
     restart: unless-stopped
+    user: root  # том lokidata создаётся root-овым; loki иначе не может писать (только локально)
     volumes:
       - ./loki/loki-config.yml:/etc/loki/config.yml:ro
       - lokidata:/var/lib/loki
