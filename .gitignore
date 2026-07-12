@@ -34,3 +34,6 @@ backend/data/
 
 # Misc tooling
 skills-lock.json
+
+# Временные файлы сессии (скриншоты, тестовые PDF)
+scratchpad/

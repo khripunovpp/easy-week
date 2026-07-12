@@ -5,7 +5,7 @@ from collections.abc import AsyncIterable
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 from sqlmodel import Session, select
 
@@ -14,6 +14,7 @@ from ..ai.planner import generate_details, normalize_shopping
 from ..db import get_session
 from ..models import PlanRow
 from ..schemas import Dish, PlanSummary, ShoppingGroup, StatusRequest, WeekPlan
+from ..services.export_pdf import build_plan_pdf
 from ..services.mapping import to_summary, to_week_plan
 from ..services.shopping import aggregate_ingredients, group_items
 
@@ -117,6 +118,25 @@ async def shopping_list_stream(
             count += 1
             yield ServerSentEvent(event="item", data=clean)
     yield ServerSentEvent(event="done", data={"count": count})
+
+
+@router.get("/{plan_id}/pdf")
+async def plan_pdf(
+    plan_id: str,
+    session: SessionDep,
+    recipes: bool = True,
+    shopping: bool = True,
+) -> Response:
+    """PDF плана (рецепты и/или список покупок). Собирается из уже сохранённых данных."""
+    row = _get_plan(session, plan_id)
+    plan = to_week_plan(row)
+    groups = group_items(aggregate_ingredients(plan.dishes)) if shopping else []
+    pdf_bytes = build_plan_pdf(plan, groups, recipes=recipes, shop=shopping)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'inline; filename="easy-week.pdf"'},
+    )
 
 
 @router.post("/{plan_id}/full")
