@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterable
+from datetime import datetime, timezone
 from typing import Annotated
 from uuid import uuid4
 
@@ -235,6 +236,11 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
         dishes=result["dishes"],
     )
     session.add(new_plan)
+    # Исходная версия заменена новой — сразу отменяем её (остаётся доступной по ссылке,
+    # в истории/при перезагрузке чата свернётся как «отменён»).
+    row.status = "rejected"
+    row.decided_at = datetime.now(timezone.utc)
+    session.add(row)
     session.add(
         MessageRow(
             id=uuid4().hex,

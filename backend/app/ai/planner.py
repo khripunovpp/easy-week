@@ -283,23 +283,25 @@ async def _generate_plan_cloudflare(
     }
 
 
-async def generate_dish_detail(name: str, servings: int = 4) -> dict:
+async def generate_dish_detail(name: str, servings: int = 4, change: str = "") -> dict:
     """Полная деталь блюда (ингредиенты + шаги + советы + note) — лениво при открытии.
+    change — правка рецепта (напр. «убрать болгарский перец»): перегенерирует рецепт с учётом.
 
     Рецепты — лучшей моделью (DeepSeek, правило CLAUDE.md); фолбэк — Cloudflare mistral."""
+    label = f"деталь блюда: {name}" + (f" ({change})" if change else "")
     if settings.deepseek_configured:
         try:
             parsed = await deepseek_json(
-                build_dish_detail_messages(name, servings),
+                build_dish_detail_messages(name, servings, change),
                 max_tokens=1400,
-                label=f"деталь блюда: {name}",
+                label=label,
             )
             if parsed.get("ingredients") or parsed.get("steps"):
                 return _clean_detail(parsed, PROVIDER_DEEPSEEK)
         except DeepSeekError as exc:
             logger.warning("DeepSeek деталь недоступна (%s) — фолбэк на Cloudflare", str(exc)[:120])
     parsed, _ = await run_json(
-        build_dish_detail_messages(name, servings),
+        build_dish_detail_messages(name, servings, change),
         DISH_DETAIL_SCHEMA,
         model=settings.cf_model_judge,
         max_tokens=1400,
@@ -409,6 +411,26 @@ async def edit_plan(
                 changed.append(
                     f"заменила «{old}» на «{nd.get('name')}»" if old else f"добавила «{nd.get('name')}»"
                 )
+        elif op == "edit_dish":
+            idx = _match_index(work, args.get("name", ""))
+            change = args.get("change", "")
+            if idx is not None and change:
+                dish = work[idx]
+                detail = await generate_dish_detail(
+                    dish.get("name", ""), dish.get("servings", 4), change
+                )
+                providers.add(detail.get("provider", PROVIDER_DEEPSEEK))
+                nd = {
+                    **dish,
+                    "ingredients": detail.get("ingredients") or [],
+                    "steps": detail.get("steps") or [],
+                    "tips": detail.get("tips") or [],
+                    "detail_provider": detail.get("provider") or "",
+                }
+                if detail.get("note"):
+                    nd["storage"] = {**(dish.get("storage") or {}), "note": detail["note"]}
+                work[idx] = nd
+                changed.append(f"обновила рецепт «{dish.get('name')}» ({change})")
         elif op == "create_plan":
             cnt = max(2, min(int(args.get("count") or len(work) or 5), 12))
             gen = await generate_plan(args.get("note", user_message), [], cnt)
@@ -453,6 +475,7 @@ async def _edit_actions_cloudflare(
         "add": "add_dishes",
         "remove": "remove_dish",
         "replace": "replace_dish",
+        "edit": "edit_dish",
         "create": "create_plan",
     }
     calls: list[dict[str, Any]] = []
@@ -467,6 +490,7 @@ async def _edit_actions_cloudflare(
                 "note": a.get("query", ""),
                 "name": a.get("name", ""),
                 "old_name": a.get("name", ""),
+                "change": a.get("change", "") or a.get("query", ""),
                 "count": a.get("count", 1),
             },
         })

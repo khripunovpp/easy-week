@@ -246,10 +246,15 @@ DISH_DETAIL_SCHEMA = {
 }
 
 
-def build_dish_detail_messages(name: str, servings: int) -> list[dict[str, str]]:
+def build_dish_detail_messages(
+    name: str, servings: int, change: str = ""
+) -> list[dict[str, str]]:
+    content = f"Блюдо: {name}. Порций: {servings}."
+    if change:
+        content += f" Изменение рецепта (обязательно учти): {change}."
     return [
         {"role": "system", "content": DISH_DETAIL_SYSTEM},
-        {"role": "user", "content": f"Блюдо: {name}. Порций: {servings}."},
+        {"role": "user", "content": content},
     ]
 
 
@@ -262,8 +267,11 @@ EDIT_SYSTEM = _SHARED_PREFIX + (
     "add_dishes / remove_dish / replace_dish. create_plan вызывай ТОЛЬКО когда просят совсем "
     "другое меню (напр. «сделай вегетарианское», «сгенерируй заново»). "
     "Можно вызвать несколько функций за раз (напр. убрать одно и добавить другое). "
+    "Если просят изменить ИНГРЕДИЕНТЫ или сам рецепт конкретного блюда (убрать/добавить/"
+    "заменить продукт, сделать острее, меньше соли и т.п.) — это edit_dish, НЕ replace_dish "
+    "(блюдо остаётся тем же, меняется только его рецепт). "
     "Если просьба не про изменение плана — не вызывай функции, коротко ответь текстом на русском. "
-    "Названия блюд в remove_dish/replace_dish бери из списка ниже."
+    "Названия блюд в remove_dish/replace_dish/edit_dish бери из списка ниже."
 )
 
 PLAN_TOOLS = [
@@ -317,6 +325,28 @@ PLAN_TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "edit_dish",
+            "description": (
+                "Изменить рецепт конкретного блюда: убрать/добавить/заменить ингредиент, "
+                "сделать острее, менее солёным и т.п. Блюдо остаётся тем же — перегенерируется "
+                "его рецепт (ингредиенты и шаги)."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Название блюда из текущего плана"},
+                    "change": {
+                        "type": "string",
+                        "description": "Что изменить в рецепте, напр. 'убрать болгарский перец'",
+                    },
+                },
+                "required": ["name", "change"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "create_plan",
             "description": "Пересобрать меню целиком (только по явной просьбе о другом меню).",
             "parameters": {
@@ -359,9 +389,10 @@ EDIT_ACTION_SCHEMA = {
             "items": {
                 "type": "object",
                 "properties": {
-                    "op": {"type": "string", "description": "add|remove|replace|create"},
+                    "op": {"type": "string", "description": "add|remove|replace|edit|create"},
                     "query": {"type": "string"},
                     "name": {"type": "string"},
+                    "change": {"type": "string"},
                     "count": {"type": "integer"},
                 },
                 "required": ["op"],
@@ -376,9 +407,10 @@ def build_edit_action_messages(
     title: str, dish_names: list[str], user_message: str
 ) -> list[dict[str, str]]:
     system = EDIT_SYSTEM + (
-        " Верни СТРОГО JSON: {\"reply\": \"...\", \"actions\": [{\"op\": \"add|remove|replace|create\", "
-        "\"query\": \"...\", \"name\": \"...\", \"count\": число}]}. Для remove/replace указывай name "
-        "заменяемого блюда; для add/create — query/note в поле query; count — при add/create."
+        " Верни СТРОГО JSON: {\"reply\": \"...\", \"actions\": [{\"op\": \"add|remove|replace|edit|create\", "
+        "\"query\": \"...\", \"name\": \"...\", \"change\": \"...\", \"count\": число}]}. Для remove/replace/edit "
+        "указывай name блюда; для edit — что поменять в поле change; для add/create — query/note в поле query; "
+        "count — при add/create."
     )
     return [
         {"role": "system", "content": system},
