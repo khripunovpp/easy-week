@@ -17,8 +17,10 @@ _MONTHS_GEN = [
 
 
 def _week_label(today: date | None = None) -> str:
+    # План всегда на СЛЕДУЮЩУЮ неделю: начинаешь чат на этой неделе — готовишь
+    # в ближайшие выходные на неделю с понедельника (Пн–Вс следующей недели).
     today = today or date.today()
-    monday = today - timedelta(days=today.weekday())
+    monday = today - timedelta(days=today.weekday()) + timedelta(days=7)
     sunday = monday + timedelta(days=6)
     if monday.month == sunday.month:
         return f"{monday.day}–{sunday.day} {_MONTHS_GEN[sunday.month - 1]}"
