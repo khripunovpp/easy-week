@@ -17,11 +17,7 @@
   </div>
 </header>
 
-@if (loading()) {
-  <div class="shop__state">
-    <ew-cooking />
-  </div>
-} @else if (empty()) {
+@if (empty()) {
   <div class="shop__state">
     <span class="shop__emoji">🛒</span>
     <p class="muted">Пока нет плана. Составьте меню в чате — список покупок соберётся сам.</p>
@@ -49,6 +45,11 @@
           </button>
         }
       </section>
+    }
+
+    @if (loading()) {
+      <!-- Лоадер снизу, пока пункты догружаются потоком -->
+      <div class="shop__loading"><ew-cooking /></div>
     }
   </div>
 }

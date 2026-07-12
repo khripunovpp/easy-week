@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx
@@ -14,45 +13,6 @@ logger = logging.getLogger("easy_week.cloudflare")
 
 class CloudflareError(RuntimeError):
     pass
-
-
-async def run_stream(
-    messages: list[dict[str, str]],
-    *,
-    model: str | None = None,
-    max_tokens: int = 1400,
-    label: str = "",
-) -> AsyncIterator[str]:
-    """Стриминг Workers AI: отдаёт дельты текста по мере генерации (для SSE).
-
-    Без json_schema — форму JSON задаём в промпте (со схемой mistral не стримит токенами).
-    """
-    if not settings.cf_configured:
-        raise CloudflareError("Cloudflare не настроен: нет CF_ACCOUNT_ID / CF_API_TOKEN")
-
-    model = model or settings.cf_model
-    logger.info("AI → Cloudflare · %s · %s (stream)", model.split("/")[-1], label or "?")
-    url = f"{_BASE}/{settings.cf_account_id}/ai/run/{model}"
-    payload = {"messages": messages, "stream": True, "max_tokens": max_tokens}
-    headers = {"Authorization": f"Bearer {settings.cf_api_token}"}
-
-    async with httpx.AsyncClient(timeout=90.0) as client:
-        async with client.stream("POST", url, json=payload, headers=headers) as resp:
-            if resp.status_code != 200:
-                body = await resp.aread()
-                raise CloudflareError(f"Workers AI {resp.status_code}: {body[:300]!r}")
-            async for line in resp.aiter_lines():
-                if not line or not line.startswith("data:"):
-                    continue
-                data = line[5:].strip()
-                if data == "[DONE]":
-                    break
-                try:
-                    delta = json.loads(data).get("response")
-                except json.JSONDecodeError:
-                    continue
-                if delta:
-                    yield delta
 
 
 async def _run_once(

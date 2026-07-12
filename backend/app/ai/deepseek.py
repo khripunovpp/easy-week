@@ -49,7 +49,7 @@ async def deepseek_stream(
                     delta = json.loads(data)["choices"][0]["delta"].get("content")
                 except (json.JSONDecodeError, KeyError, IndexError):
                     continue
-                if delta:
+                if isinstance(delta, str) and delta:
                     yield delta
 
 

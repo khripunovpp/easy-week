@@ -1,10 +1,12 @@
 import asyncio
 import hashlib
 import json
+from collections.abc import AsyncIterable
 from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.sse import EventSourceResponse, ServerSentEvent
 from sqlmodel import Session, select
 
 from ..ai.cloudflare import CloudflareError
@@ -15,7 +17,11 @@ from ..schemas import Dish, PlanSummary, ShoppingGroup, StatusRequest, WeekPlan
 from ..services.mapping import to_summary, to_week_plan
 from ..services.shopping import aggregate_ingredients, group_items
 
+import logging
+
 router = APIRouter(prefix="/api/plans", tags=["plans"])
+
+logger = logging.getLogger("easy_week.plans")
 
 SessionDep = Annotated[Session, Depends(get_session)]
 
@@ -77,6 +83,40 @@ async def shopping_list(plan_id: str, session: SessionDep) -> list[ShoppingGroup
     session.add(row)
     session.commit()
     return group_items(items)
+
+
+def _clean_shop_item(it: dict) -> dict | None:
+    """Приводит пункт к {name, qty, unit, category}; None — если мусор."""
+    name = str(it.get("name", "")).strip()
+    if not name:
+        return None
+    try:
+        qty = float(it.get("qty", 0) or 0)
+    except (TypeError, ValueError):
+        qty = 0.0
+    qty = round(qty, 2) if qty % 1 else int(qty)
+    cat = str(it.get("category") or "Прочее").strip()
+    return {"name": name, "qty": qty, "unit": str(it.get("unit", "")).strip(), "category": cat}
+
+
+@router.get("/{plan_id}/shopping-list/stream", response_class=EventSourceResponse)
+async def shopping_list_stream(
+    plan_id: str, session: SessionDep
+) -> AsyncIterable[ServerSentEvent]:
+    """Потоковый список покупок: пункты прилетают по одному (SSE).
+
+    Источник — детерминированная агрегация ингредиентов (граммы у источника,
+    каноничное объединение продуктов): мгновенно и точно, без ожидания модели.
+    (Стриминг mistral для этого не годится — в потоке он теряет числа количеств.)"""
+    row = _get_plan(session, plan_id)
+    plan = to_week_plan(row)
+    count = 0
+    for it in aggregate_ingredients(plan.dishes):
+        clean = _clean_shop_item(it)
+        if clean:
+            count += 1
+            yield ServerSentEvent(event="item", data=clean)
+    yield ServerSentEvent(event="done", data={"count": count})
 
 
 @router.post("/{plan_id}/full")

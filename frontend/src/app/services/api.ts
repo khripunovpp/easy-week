@@ -28,6 +28,19 @@ export interface ChatStreamHandlers {
   onError: (message: string) => void;
 }
 
+export interface ShoppingListItem {
+  name: string;
+  qty: number;
+  unit: string;
+  category: string;
+}
+
+export interface ShoppingStreamHandlers {
+  onItem: (item: ShoppingListItem) => void;
+  onDone: () => void;
+  onError: (message: string) => void;
+}
+
 export interface PlanSummary {
   id: string;
   title: string;
@@ -58,29 +71,65 @@ export class EasyWeekApi {
     });
   }
 
-  // Потоковый чат (SSE): meta → dish (по одному) → done. Плюс возвращает abort-функцию.
+  // Потоковый чат (SSE): meta → dish (по одному) → done.
   async chatStream(
     message: string,
     conversationId: string | null,
     dishesCount: number,
     handlers: ChatStreamHandlers,
   ): Promise<void> {
-    let resp: Response;
-    try {
-      resp = await fetch(`${API_BASE}/chat/stream`, {
+    await this.openSse(
+      `${API_BASE}/chat/stream`,
+      {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message, conversationId, dishesCount }),
-      });
+      },
+      handlers.onError,
+      (event, payload) => {
+        if (event === 'meta') handlers.onMeta(payload as ChatStreamMeta);
+        else if (event === 'dish') handlers.onDish(payload as Dish);
+        else if (event === 'done')
+          handlers.onDone(payload as { planId: string; dishesCount: number });
+        else if (event === 'error')
+          handlers.onError((payload as { message?: string }).message ?? 'Ошибка генерации');
+      },
+    );
+  }
+
+  // Потоковый список покупок (SSE): item (по одному) → done.
+  async shoppingStream(planId: string, handlers: ShoppingStreamHandlers): Promise<void> {
+    await this.openSse(
+      `${API_BASE}/plans/${planId}/shopping-list/stream`,
+      { method: 'GET' },
+      handlers.onError,
+      (event, payload) => {
+        if (event === 'item') handlers.onItem(payload as ShoppingListItem);
+        else if (event === 'done') handlers.onDone();
+        else if (event === 'error')
+          handlers.onError((payload as { message?: string }).message ?? 'Ошибка');
+      },
+    );
+  }
+
+  // Общий приём SSE: читает поток, режет по событиям, дёргает onEvent(event, payload).
+  private async openSse(
+    url: string,
+    init: RequestInit,
+    onError: (message: string) => void,
+    onEvent: (event: string, payload: unknown) => void,
+  ): Promise<void> {
+    let resp: Response;
+    try {
+      resp = await fetch(url, init);
     } catch {
-      handlers.onError('Нет связи с сервером');
+      onError('Нет связи с сервером');
       return;
     }
     if (!resp.ok || !resp.body) {
-      handlers.onError('Сервер недоступен');
+      onError('Сервер недоступен');
       return;
     }
-
     const reader = resp.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
@@ -93,33 +142,28 @@ export class EasyWeekApi {
         while ((sep = buffer.indexOf('\n\n')) >= 0) {
           const chunk = buffer.slice(0, sep);
           buffer = buffer.slice(sep + 2);
-          this.dispatchSse(chunk, handlers);
+          const parsed = this.parseSse(chunk);
+          if (parsed) onEvent(parsed.event, parsed.payload);
         }
       }
     } catch {
-      handlers.onError('Поток прервался');
+      onError('Поток прервался');
     }
   }
 
-  private dispatchSse(raw: string, handlers: ChatStreamHandlers): void {
+  private parseSse(raw: string): { event: string; payload: unknown } | null {
     let event = 'message';
     let data = '';
     for (const line of raw.split('\n')) {
       if (line.startsWith('event:')) event = line.slice(6).trim();
       else if (line.startsWith('data:')) data += line.slice(5).trim();
     }
-    if (!data) return;
-    let payload: unknown;
+    if (!data) return null;
     try {
-      payload = JSON.parse(data);
+      return { event, payload: JSON.parse(data) };
     } catch {
-      return;
+      return null;
     }
-    if (event === 'meta') handlers.onMeta(payload as ChatStreamMeta);
-    else if (event === 'dish') handlers.onDish(payload as Dish);
-    else if (event === 'done') handlers.onDone(payload as { planId: string; dishesCount: number });
-    else if (event === 'error')
-      handlers.onError((payload as { message?: string }).message ?? 'Ошибка генерации');
   }
 
   listPlans(): Observable<PlanSummary[]> {

@@ -1,7 +1,18 @@
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { EasyWeekApi, ShoppingGroup } from '../../services/api';
+import { EasyWeekApi, ShoppingGroup, ShoppingListItem } from '../../services/api';
 import { CookingLoader } from '../../shared/cooking-loader';
+
+// Порядок категорий в списке (как на бэке). Незнакомые — в конце.
+const CATEGORY_ORDER = [
+  'Мясо и птица',
+  'Рыба',
+  'Овощи',
+  'Молочное',
+  'Бакалея',
+  'Специи',
+  'Прочее',
+];
 
 @Component({
   selector: 'ew-shopping',
@@ -15,7 +26,7 @@ export class Shopping {
   // /shopping/:planId — конкретный план; /shopping — последний.
   readonly planId = input<string>('');
 
-  readonly groups = signal<ShoppingGroup[]>([]);
+  readonly items = signal<ShoppingListItem[]>([]);
   readonly loading = signal(true);
   readonly empty = signal(false);
   readonly title = signal('');
@@ -24,9 +35,24 @@ export class Shopping {
   private readonly checked = signal<Set<string>>(new Set());
   private activePlanId = '';
 
-  readonly total = computed(() =>
-    this.groups().reduce((n, g) => n + g.items.length, 0),
-  );
+  // Живая группировка по категориям — пересобирается по мере прихода пунктов.
+  readonly groups = computed<ShoppingGroup[]>(() => {
+    const byCat = new Map<string, ShoppingListItem[]>();
+    for (const it of this.items()) {
+      const cat = it.category || 'Прочее';
+      (byCat.get(cat) ?? byCat.set(cat, []).get(cat)!).push(it);
+    }
+    const order = [
+      ...CATEGORY_ORDER.filter((c) => byCat.has(c)),
+      ...[...byCat.keys()].filter((c) => !CATEGORY_ORDER.includes(c)),
+    ];
+    return order.map((category) => ({
+      category,
+      items: [...byCat.get(category)!].sort((a, b) => a.name.localeCompare(b.name, 'ru')),
+    }));
+  });
+
+  readonly total = computed(() => this.items().length);
   readonly doneCount = computed(() => this.checked().size);
 
   constructor() {
@@ -39,6 +65,7 @@ export class Shopping {
   private load(planId: string): void {
     this.loading.set(true);
     this.empty.set(false);
+    this.items.set([]);
 
     if (planId) {
       this.fetch(planId);
@@ -67,15 +94,17 @@ export class Shopping {
     this.activePlanId = planId;
     this.currentPlanId.set(planId);
     this.checked.set(this.loadChecked(planId));
-    this.api.shoppingList(planId).subscribe({
-      next: (groups) => {
-        this.groups.set(groups);
-        this.empty.set(groups.length === 0);
+    this.items.set([]);
+
+    void this.api.shoppingStream(planId, {
+      onItem: (item) => this.items.update((list) => [...list, item]),
+      onDone: () => {
         this.loading.set(false);
+        this.empty.set(this.items().length === 0);
       },
-      error: () => {
+      onError: () => {
         this.loading.set(false);
-        this.empty.set(true);
+        this.empty.set(this.items().length === 0);
       },
     });
   }
