@@ -1,9 +1,9 @@
 <header class="d__top">
-  <a class="d__back" routerLink="/chat" aria-label="Назад">
+  <button class="d__back" type="button" (click)="back()" aria-label="Назад">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <path d="M15 6l-6 6 6 6" stroke-linecap="round" stroke-linejoin="round" />
     </svg>
-  </a>
+  </button>
 </header>
 
 @if (loading()) {

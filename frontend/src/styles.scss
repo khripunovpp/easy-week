@@ -73,6 +73,7 @@
   --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
   --font-body: 'Inter', system-ui, -apple-system, sans-serif;
 
+  --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
@@ -329,9 +330,11 @@ ul {
   display: flex;
   align-items: center;
   gap: 12px;
-  /* высота = контент + вертикальный паддинг (border-box) */
-  min-height: calc(var(--page-header-h) + 2 * var(--page-pad-y));
-  padding: var(--page-pad-y) var(--page-pad-x);
+  /* высота = контент + вертикальный паддинг (+ верхняя сейф-зона в PWA) */
+  min-height: calc(var(--page-header-h) + 2 * var(--page-pad-y) + var(--safe-top));
+  /* верхний паддинг включает сейф-зону: контент опускается под вырез,
+     а фон шапки (fade-top) заезжает под статус-бар своим цветом */
+  padding: calc(var(--page-pad-y) + var(--safe-top)) var(--page-pad-x) var(--page-pad-y);
 }
 /* фиксированная шапка — поверх контента; фейд-блюр вешается классом .fade-top */
 .page__header--fixed {
@@ -389,7 +392,7 @@ ul {
 /* фикс-шапка не в потоке → сдвигаем контент ровно на её высоту (контент + паддинг).
    Зазор до контента даёт нижний паддинг самой шапки (--page-pad-y) — не добавляем ещё раз. */
 .page--header-fixed .page__inner {
-  padding-top: calc(var(--page-header-h) + 2 * var(--page-pad-y));
+  padding-top: calc(var(--page-header-h) + 2 * var(--page-pad-y) + var(--safe-top));
 }
 /* фикс-футер не в потоке → освобождаем ровно его высоту (контент + верхний и нижний паддинг) */
 .page--footer-fixed .page__inner {

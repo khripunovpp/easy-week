@@ -1,5 +1,6 @@
+import { Location } from '@angular/common';
 import { Component, effect, inject, input, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { Dish } from '../../models/plan.model';
 import { EasyWeekApi } from '../../services/api';
 import { CookingLoader } from '../../shared/cooking-loader';
@@ -12,9 +13,20 @@ import { CookingLoader } from '../../shared/cooking-loader';
 })
 export class DishPage {
   private readonly api = inject(EasyWeekApi);
+  private readonly location = inject(Location);
+  private readonly router = inject(Router);
 
   readonly planId = input<string>('');
   readonly dishId = input<string>('');
+
+  // Назад — туда, откуда пришли (план или чат). Если истории нет — на план.
+  back(): void {
+    if (history.length > 1) {
+      this.location.back();
+    } else {
+      this.router.navigate(['/plan', this.planId()]);
+    }
+  }
 
   readonly dish = signal<Dish | null>(null);
   readonly loading = signal(true);
