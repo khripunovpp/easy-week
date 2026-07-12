@@ -9,7 +9,15 @@ from sqlmodel import Session, select
 
 from ..ai.cloudflare import CloudflareError
 from ..ai.observe import record_conversation, record_plan
-from ..ai.planner import _week_label, edit_plan, generate_plan, generate_plan_stream
+from ..ai.planner import (
+    _week_label,
+    add_dish_direct,
+    edit_plan,
+    generate_plan,
+    generate_plan_stream,
+    remove_dish_by_id,
+    replace_dish_by_id,
+)
 from ..db import get_session
 from ..models import Conversation, MessageRow, PlanRow
 from ..schemas import ChatMessageOut, ChatRequest, ChatResponse, Dish
@@ -207,13 +215,42 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
         # Плана ещё нет — вести себя как обычное создание.
         return await chat(req, session)
 
-    session.add(
-        MessageRow(id=uuid4().hex, conversation_id=conv.id, role="user", text=req.message)
-    )
-    session.commit()
+    # Текст пользователя в ленте: для кнопок — понятный лейбл действия.
+    user_text = req.message
+    if req.replace_dish_id:
+        tgt = next(
+            (d.get("name") for d in (row.dishes or []) if d.get("id") == req.replace_dish_id),
+            None,
+        )
+        user_text = f"Замена «{tgt}»" if tgt else "Замена блюда"
+        if req.message.strip():
+            user_text += f": {req.message.strip()}"
+    elif req.add_dish:
+        user_text = "Добавить блюдо"
+        if req.message.strip():
+            user_text += f": {req.message.strip()}"
+
+    # Крестик (удаление) — мгновенное действие без реплики: пользовательское сообщение не пишем.
+    if not req.remove_dish_id:
+        session.add(
+            MessageRow(id=uuid4().hex, conversation_id=conv.id, role="user", text=user_text)
+        )
+        session.commit()
 
     try:
-        result = await edit_plan(row.dishes or [], row.title, req.message)
+        if req.remove_dish_id:
+            # Крестик — детерминированное удаление, вообще без модели.
+            result = remove_dish_by_id(row.dishes or [], row.title, req.remove_dish_id)
+        elif req.replace_dish_id:
+            # Точечная замена по кнопке — минуя тул-коллинг (выбор функции).
+            result = await replace_dish_by_id(
+                row.dishes or [], row.title, req.replace_dish_id, req.message
+            )
+        elif req.add_dish:
+            # Добавление по кнопке — минуя тул-коллинг.
+            result = await add_dish_direct(row.dishes or [], row.title, req.message)
+        else:
+            result = await edit_plan(row.dishes or [], row.title, req.message)
     except CloudflareError as exc:
         raise HTTPException(status_code=502, detail=f"Правка недоступна: {exc}") from exc
 
@@ -246,12 +283,14 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
     row.status = "rejected"
     row.decided_at = datetime.now(timezone.utc)
     session.add(row)
+    # Крестик — без реплики: сообщение несёт только новую версию плана (пустой текст),
+    # чтобы карточка отрисовалась при перезагрузке чата.
     session.add(
         MessageRow(
             id=uuid4().hex,
             conversation_id=conv.id,
             role="assistant",
-            text=reply,
+            text="" if req.remove_dish_id else reply,
             plan_id=new_plan.id,
         )
     )

@@ -73,11 +73,17 @@ export class EasyWeekApi {
     });
   }
 
-  // Правка текущего плана диалога (tool calling на бэке): вернёт обновлённый план.
-  editPlan(conversationId: string, message: string): Observable<ChatResponse> {
+  // Правка текущего плана диалога. По тексту — tool calling; по кнопкам карточки — минуя его:
+  // replaceDishId (заменить блюдо), removeDishId (удалить, без модели), addDish (добавить блюдо).
+  editPlan(
+    conversationId: string,
+    message: string,
+    opts: { replaceDishId?: string; removeDishId?: string; addDish?: boolean } = {},
+  ): Observable<ChatResponse> {
     return this.http.post<ChatResponse>(`${API_BASE}/chat/edit`, {
       message,
       conversationId,
+      ...opts,
     });
   }
 

@@ -203,7 +203,8 @@
   pointer-events: none;
 }
 
-.dish__remove {
+/* Кнопки действия у блюда: заменить (⟳) и убрать (×) */
+.dish__act {
   flex-shrink: 0;
   display: grid;
   place-items: center;
@@ -213,13 +214,17 @@
   color: var(--ink-3);
   transition: background 0.15s ease, color 0.15s ease;
 }
-.dish__remove svg {
+.dish__act svg {
   width: 17px;
   height: 17px;
 }
-.dish__remove:active {
+.dish__act:active {
   background: var(--accent-soft);
   color: var(--accent);
+}
+.dish__remove:active {
+  background: var(--no-soft);
+  color: var(--no);
 }
 
 .dish-add {
@@ -347,6 +352,40 @@
 /* Композер — overlay с фейд-блюром снизу (позиция .page__footer--fixed) */
 .composer {
   padding: 24px var(--page-pad-x) 12px;
+}
+
+/* Бейдж действия в композере (замена/добавление блюда) — вместо чипсов-подсказок */
+.composer__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  margin-bottom: 10px;
+  padding: 7px 8px 7px 14px;
+  border-radius: var(--r-pill);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.composer__badge-text {
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.composer__badge-x {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: var(--accent);
+  background: rgba(0, 0, 0, 0.04);
+}
+.composer__badge-x svg {
+  width: 15px;
+  height: 15px;
 }
 
 .chips {

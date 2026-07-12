@@ -46,6 +46,20 @@ export class Chat {
     this.store.setPlanStatus(msgId, planId, 'rejected');
   }
 
+  // Лейбл бейджа действия в композере (замена конкретного блюда / добавление).
+  pendingLabel(): string {
+    const p = this.store.pending();
+    if (!p) return '';
+    return p.kind === 'replace' ? `Замена: ${p.name}` : 'Добавить блюдо';
+  }
+
+  composerPlaceholder(): string {
+    const p = this.store.pending();
+    if (p?.kind === 'replace') return 'Пожелания к замене (необязательно)…';
+    if (p?.kind === 'add') return 'Какое блюдо добавить?…';
+    return 'Опишите, что приготовить…';
+  }
+
   pastel(i: number): string {
     return `pastel-${i % 5}`;
   }

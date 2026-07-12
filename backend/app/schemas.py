@@ -84,6 +84,13 @@ class ChatRequest(CamelModel):
     conversation_id: str | None = None
     message: str
     dishes_count: int = Field(default=5, ge=2, le=12)
+    # Если задан — правка = точечная замена этого блюда (кнопка «заменить» в карточке).
+    # Бэкенд меняет именно его, без выбора функции моделью.
+    replace_dish_id: str | None = None
+    # Если задан — детерминированное удаление блюда (крестик): вообще без модели, только в БД.
+    remove_dish_id: str | None = None
+    # Если true — добавить одно блюдо в текущий план (кнопка «Добавить блюдо»), минуя тул-коллинг.
+    add_dish: bool = False
 
 
 class ChatResponse(CamelModel):

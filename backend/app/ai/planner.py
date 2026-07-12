@@ -455,6 +455,68 @@ async def edit_plan(
     }
 
 
+async def replace_dish_by_id(
+    dishes: list[dict], title: str, dish_id: str, query: str
+) -> dict[str, Any]:
+    """Точечная замена конкретного блюда (кнопка «заменить» в карточке): без выбора функции
+    моделью — сразу генерим замену. query — пожелание пользователя (может быть пустым)."""
+    work = [dict(d) for d in dishes]
+    idx = next((i for i, d in enumerate(work) if d.get("id") == dish_id), None)
+    if idx is None:
+        idx = _match_index(work, dish_id)  # запасной путь: трактуем как название
+    if idx is None:
+        return {"reply": "Не нашла блюдо для замены.", "title": title,
+                "dishes": dishes, "provider": PROVIDER_DEEPSEEK, "changed": []}
+
+    old = work[idx].get("name", "")
+    q = query.strip() or f"другое блюдо взамен «{old}», отличное от остальных"
+    gen = await generate_plan(q, _dish_names(work), 1)
+    provider = gen.get("provider", PROVIDER_DEEPSEEK)
+    if not gen["dishes"]:
+        return {"reply": "Не удалось подобрать замену. Попробуйте ещё раз.", "title": title,
+                "dishes": dishes, "provider": provider, "changed": []}
+
+    ids = {d["id"] for d in work}
+    nd = _reid(gen["dishes"][0], idx, ids)
+    work[idx] = nd
+    changed = [f"заменила «{old}» на «{nd.get('name')}»"]
+    return {"reply": "Готово: " + changed[0] + ".", "title": title,
+            "dishes": work, "provider": provider, "changed": changed}
+
+
+def remove_dish_by_id(dishes: list[dict], title: str, dish_id: str) -> dict[str, Any]:
+    """Детерминированное удаление блюда (крестик) — БЕЗ модели, только правка списка."""
+    work = [dict(d) for d in dishes]
+    idx = next((i for i, d in enumerate(work) if d.get("id") == dish_id), None)
+    if idx is None:
+        idx = _match_index(work, dish_id)
+    if idx is None:
+        return {"reply": "Не нашла блюдо для удаления.", "title": title,
+                "dishes": dishes, "provider": "", "changed": []}
+    name = work.pop(idx).get("name", "")
+    changed = [f"убрала «{name}»"]
+    return {"reply": "Готово: " + changed[0] + ".", "title": title,
+            "dishes": work, "provider": "", "changed": changed}
+
+
+async def add_dish_direct(dishes: list[dict], title: str, query: str) -> dict[str, Any]:
+    """Добавить одно блюдо в существующий план (кнопка «Добавить блюдо») — без выбора функции
+    моделью. query — пожелание пользователя (может быть пустым)."""
+    work = [dict(d) for d in dishes]
+    q = query.strip() or "ещё одно блюдо, отличное от остальных"
+    gen = await generate_plan(q, _dish_names(work), 1)
+    provider = gen.get("provider", PROVIDER_DEEPSEEK)
+    if not gen["dishes"]:
+        return {"reply": "Не удалось подобрать блюдо. Попробуйте ещё раз.", "title": title,
+                "dishes": dishes, "provider": provider, "changed": []}
+    ids = {d["id"] for d in work}
+    nd = _reid(gen["dishes"][0], len(work), ids)
+    work.append(nd)
+    changed = [f"добавила «{nd.get('name')}»"]
+    return {"reply": "Готово: " + changed[0] + ".", "title": title,
+            "dishes": work, "provider": provider, "changed": changed}
+
+
 async def _edit_actions_cloudflare(
     title: str, dishes: list[dict], user_message: str
 ) -> tuple[list[dict[str, Any]], str, str]:

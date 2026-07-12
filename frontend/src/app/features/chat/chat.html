@@ -93,9 +93,19 @@
               </a>
               @if (!isStreaming(m.id)) {
                 <button
-                  class="dish__remove"
+                  class="dish__act"
                   type="button"
-                  (click)="store.removeDish(m.id, d.id)"
+                  (click)="store.requestReplace(d.id, d.name)"
+                  aria-label="Заменить блюдо">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
+                    <path d="M20 11a8 8 0 1 0-.9 4.5" stroke-linecap="round" />
+                    <path d="M20 4v5h-5" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </button>
+                <button
+                  class="dish__act dish__remove"
+                  type="button"
+                  (click)="store.removeDish(d.id)"
                   aria-label="Убрать блюдо">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M7 7l10 10M17 7L7 17" stroke-linecap="round" />
@@ -113,7 +123,7 @@
               <p class="plan__empty muted">Все блюда убраны. Добавьте новые ниже 👇</p>
             }
 
-            <button class="dish-add" type="button" (click)="store.addDish(m.id)">
+            <button class="dish-add" type="button" (click)="store.requestAdd()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M12 6v12M6 12h12" stroke-linecap="round" />
               </svg>
@@ -157,17 +167,32 @@
 </div>
 
   <div class="composer page__footer--fixed fade-bottom">
-    <div class="chips">
-      @for (s of suggestions; track s) {
-        <button class="chip" type="button" (click)="useSuggestion(s)">{{ s }}</button>
-      }
-    </div>
+    @if (store.pending()) {
+      <div class="composer__badge">
+        <span class="composer__badge-text">{{ pendingLabel() }}</span>
+        <button
+          class="composer__badge-x"
+          type="button"
+          (click)="store.clearPending()"
+          aria-label="Отменить">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M7 7l10 10M17 7L7 17" stroke-linecap="round" />
+          </svg>
+        </button>
+      </div>
+    } @else {
+      <div class="chips">
+        @for (s of suggestions; track s) {
+          <button class="chip" type="button" (click)="useSuggestion(s)">{{ s }}</button>
+        }
+      </div>
+    }
 
     <div class="composer__row">
       <input
         class="composer__input"
         type="text"
-        placeholder="Опишите, что приготовить…"
+        [placeholder]="composerPlaceholder()"
         [ngModel]="store.draft()"
         (ngModelChange)="store.draft.set($event)"
         (keyup.enter)="store.send()"

@@ -1,7 +1,11 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { ChatMessage, WeekPlan } from '../models/plan.model';
-import { EXTRA_DISHES } from '../data/mock-plan';
 import { EasyWeekApi } from './api';
+
+// Действие, инициированное кнопкой карточки, — «висит» бейджем в композере до отправки.
+export type PendingAction =
+  | { kind: 'replace'; id: string; name: string }
+  | { kind: 'add' };
 
 const INTRO: ChatMessage = {
   id: 'intro',
@@ -21,6 +25,8 @@ export class ChatStore {
   // id сообщения-плана, который сейчас стримится (лоадер живёт внутри его карточки)
   readonly streamingMsgId = signal<string | null>(null);
   readonly dishCount = signal(5);
+  // Действие с карточки, ждущее отправки (бейдж в композере): замена блюда или добавление.
+  readonly pending = signal<PendingAction | null>(null);
 
   private conversationId: string | null = null;
   private seq = 100;
@@ -54,17 +60,40 @@ export class ChatStore {
     });
   }
 
-  send(): void {
-    const text = this.draft().trim();
-    if (!text || this.loading()) return;
+  // Кнопки карточки: пометить блюдо к замене / добавить блюдо / снять пометку (бейдж в композере).
+  requestReplace(id: string, name: string): void {
+    this.pending.set({ kind: 'replace', id, name });
+  }
+  requestAdd(): void {
+    this.pending.set({ kind: 'add' });
+  }
+  clearPending(): void {
+    this.pending.set(null);
+  }
 
-    this.messages.update((list) => [...list, { id: `u-${this.seq++}`, role: 'user', text }]);
+  send(): void {
+    const pending = this.pending();
+    const text = this.draft().trim();
+    if ((!text && !pending) || this.loading()) return;
+
+    const userText = this.pendingLabel(pending, text);
+    this.messages.update((list) => [
+      ...list,
+      { id: `u-${this.seq++}`, role: 'user', text: userText },
+    ]);
     this.draft.set('');
     this.loading.set(true);
 
-    // Если в диалоге уже есть план — это правка (tool calling), а не новый план.
-    if (this.conversationId && this.messages().some((m) => m.plan)) {
-      this.editCurrentPlan(text);
+    // Правка текущего плана: по кнопке (минуя тул-коллинг) или tool calling по тексту.
+    if (this.conversationId && (pending || this.messages().some((m) => m.plan))) {
+      this.pending.set(null);
+      const opts =
+        pending?.kind === 'replace'
+          ? { replaceDishId: pending.id }
+          : pending?.kind === 'add'
+            ? { addDish: true }
+            : {};
+      this.editCurrentPlan(text, opts);
       return;
     }
 
@@ -122,29 +151,26 @@ export class ChatStore {
     });
   }
 
+  // Лейбл действия для ленты («Замена «X»», «Добавить блюдо») + дописанный пользователем текст.
+  private pendingLabel(pending: PendingAction | null, text: string): string {
+    if (pending?.kind === 'replace') return `Замена «${pending.name}»${text ? `: ${text}` : ''}`;
+    if (pending?.kind === 'add') return `Добавить блюдо${text ? `: ${text}` : ''}`;
+    return text;
+  }
+
   // Правка текущего плана: обновляем карточку на месте + добавляем реплику бота.
-  private editCurrentPlan(text: string): void {
+  private editCurrentPlan(
+    text: string,
+    opts: { replaceDishId?: string; addDish?: boolean } = {},
+  ): void {
     const convId = this.conversationId;
     if (!convId) {
       this.loading.set(false);
       return;
     }
-    this.api.editPlan(convId, text).subscribe({
+    this.api.editPlan(convId, text, opts).subscribe({
       next: (res) => {
-        const plan = res.plan;
-        if (plan) {
-          // Правка вернула НОВУЮ версию плана (новый id) — заменяем ею текущую карточку
-          // (последнее сообщение с планом). Старый план остаётся доступен по своей ссылке.
-          this.messages.update((list) => {
-            let lastIdx = -1;
-            list.forEach((m, i) => {
-              if (m.plan) lastIdx = i;
-            });
-            return lastIdx === -1
-              ? list
-              : list.map((m, i) => (i === lastIdx ? { ...m, plan } : m));
-          });
-        }
+        if (res.plan) this.replaceCurrentPlan(res.plan);
         this.messages.update((list) => [
           ...list,
           { id: `a-${this.seq++}`, role: 'assistant', text: res.reply },
@@ -165,6 +191,17 @@ export class ChatStore {
     });
   }
 
+  // Заменяет план в последнем сообщении с планом на новую версию (id меняется).
+  private replaceCurrentPlan(plan: WeekPlan): void {
+    this.messages.update((list) => {
+      let lastIdx = -1;
+      list.forEach((m, i) => {
+        if (m.plan) lastIdx = i;
+      });
+      return lastIdx === -1 ? list : list.map((m, i) => (i === lastIdx ? { ...m, plan } : m));
+    });
+  }
+
   setPlanStatus(
     messageId: string,
     planId: string,
@@ -179,18 +216,18 @@ export class ChatStore {
     });
   }
 
-  removeDish(messageId: string, dishId: string): void {
-    this.updatePlan(messageId, (plan) => ({
-      ...plan,
-      dishes: plan.dishes.filter((d) => d.id !== dishId),
-    }));
-  }
-
-  addDish(messageId: string): void {
-    this.updatePlan(messageId, (plan) => {
-      const present = new Set(plan.dishes.map((d) => d.id));
-      const next = EXTRA_DISHES.find((d) => !present.has(d.id));
-      return next ? { ...plan, dishes: [...plan.dishes, next] } : plan;
+  // Крестик: детерминированное удаление блюда (без модели). Карточку обновляем на месте,
+  // сообщений в ленту не добавляем — новая версия приходит с сервера.
+  removeDish(dishId: string): void {
+    const convId = this.conversationId;
+    if (!convId || this.loading()) return;
+    this.loading.set(true);
+    this.api.editPlan(convId, '', { removeDishId: dishId }).subscribe({
+      next: (res) => {
+        if (res.plan) this.replaceCurrentPlan(res.plan);
+        this.loading.set(false);
+      },
+      error: () => this.loading.set(false),
     });
   }
 
