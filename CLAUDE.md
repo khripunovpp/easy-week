@@ -25,6 +25,25 @@
 Новый UI строим на существующих классах/токенах, не изобретаем свой лейаут и не хардкодим
 цвета/отступы. Если гайдбук чего-то не покрывает — сначала дополняем гайдбук, потом код.
 
+## Наблюдаемость и логирование (где что)
+
+Чтобы не искать заново — куда логировать и как смотреть.
+
+- **AI-вызовы (любой провайдер)** идут через `ai/observe.log_ai_call(...)` (вызывается внутри
+  `ai/deepseek.py` и `ai/cloudflare.py`). Он делает сразу три вещи:
+  1) консольный лог (логгер `easy_week.ai`) → journald;
+  2) строку JSONL в файл-за-день `backend/data/ai-logs/ai-YYYY-MM-DD.jsonl`
+     (ts, provider, model, label, полный usage/кэш, messages, response) — для анализа;
+  3) Prometheus-счётчики `easyweek_ai_calls_total` / `easyweek_ai_tokens_total{kind=…}`.
+  **Новый AI-вызов логируется сам, если идёт через хелперы deepseek/cloudflare.** Не дублировать.
+- **Обычные логи приложения:** `logging.getLogger("easy_week.<модуль>")` (INFO) → stdout → journald
+  (`journalctl -u easy-week-backend`). Свой логгер не изобретать.
+- **Метрики:** `/metrics` (prometheus-fastapi-instrumentator). На Пае проброшен nginx: `:8080/metrics`.
+- **Стек мониторинга — в `monitoring/`** (Prometheus + Loki + Promtail + Grafana). Локально Docker
+  (`monitoring/docker-compose.yml`), на Пае native (`monitoring/install-pi.sh`).
+  Grafana на Пае: `http://192.168.1.230:3002`. Логи смотреть в Grafana → Explore → Loki:
+  `{job="easy-week-ai"}` (AI-вызовы) или `{job="easy-week-backend"}` (сервис).
+
 ## Прочее
-- Бэклог и хотелки — в `ROADMAP.md`.
+- Бэклог и хотелки — в `ROADMAP.md`. Мониторинг — в `monitoring/README.md`.
 - Единицы ингредиентов задаём у источника: только `г` / `мл`, `шт` — редко (штучное).
