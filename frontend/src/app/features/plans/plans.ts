@@ -36,6 +36,30 @@ export class Plans {
     this.historyShown.update((n) => n + 10);
   }
 
+  // Удаление с подтверждением (действие необратимо)
+  readonly pendingDelete = signal<PlanSummary | null>(null);
+  readonly deleting = signal(false);
+
+  askDelete(plan: PlanSummary): void {
+    this.pendingDelete.set(plan);
+  }
+  cancelDelete(): void {
+    this.pendingDelete.set(null);
+  }
+  confirmDelete(): void {
+    const plan = this.pendingDelete();
+    if (!plan || this.deleting()) return;
+    this.deleting.set(true);
+    this.api.deletePlan(plan.id).subscribe({
+      next: () => {
+        this.plans.update((list) => list.filter((p) => p.id !== plan.id));
+        this.pendingDelete.set(null);
+        this.deleting.set(false);
+      },
+      error: () => this.deleting.set(false),
+    });
+  }
+
   constructor() {
     this.api.listPlans().subscribe({
       next: (plans) => {

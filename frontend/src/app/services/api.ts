@@ -183,6 +183,10 @@ export class EasyWeekApi {
     return this.http.post<WeekPlan>(`${API_BASE}/plans/${planId}/status`, { status });
   }
 
+  deletePlan(planId: string): Observable<void> {
+    return this.http.delete<void>(`${API_BASE}/plans/${planId}`);
+  }
+
   shoppingList(planId: string): Observable<ShoppingGroup[]> {
     return this.http.get<ShoppingGroup[]>(`${API_BASE}/plans/${planId}/shopping-list`);
   }

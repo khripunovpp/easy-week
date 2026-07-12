@@ -143,7 +143,8 @@ ul {
 
 /* ===== Кнопки ===== */
 .btn-primary,
-.btn-ghost {
+.btn-ghost,
+.btn-danger {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -156,6 +157,18 @@ ul {
   text-decoration: none;
   transition: transform 0.12s ease, background 0.15s ease;
 }
+.btn-danger {
+  background: var(--no);
+  color: #fff;
+  box-shadow: var(--shadow-soft);
+}
+.btn-danger:active {
+  transform: scale(0.98);
+  filter: brightness(0.94);
+}
+.btn-danger:disabled {
+  opacity: 0.6;
+}
 .btn-primary {
   background: var(--accent);
   color: #fff;
@@ -166,7 +179,8 @@ ul {
   background: var(--accent-press);
 }
 .btn-primary svg,
-.btn-ghost svg {
+.btn-ghost svg,
+.btn-danger svg {
   flex-shrink: 0;
   width: 20px;
   height: 20px;

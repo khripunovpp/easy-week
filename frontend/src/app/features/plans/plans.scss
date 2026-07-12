@@ -45,18 +45,43 @@
   background: var(--accent-soft);
 }
 
-/* Строка плана */
+/* Строка плана: кликабельная часть + кнопка удаления */
 .prow {
   display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 12px;
+  align-items: stretch;
   margin-bottom: 10px;
   background: var(--surface);
   border-radius: var(--r-md);
   box-shadow: var(--shadow-soft);
+  overflow: hidden;
+}
+
+.prow__link {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px;
   text-decoration: none;
   color: inherit;
+}
+
+.prow__del {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  color: var(--ink-3);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.prow__del svg {
+  width: 18px;
+  height: 18px;
+}
+.prow__del:active {
+  background: var(--no-soft);
+  color: var(--no);
 }
 
 .prow__body {
@@ -74,4 +99,56 @@
 .prow__sub {
   font-size: 13px;
   margin-top: 2px;
+}
+
+/* Модалка подтверждения удаления */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  background: rgba(34, 29, 26, 0.42);
+  animation: modal-fade 0.15s ease;
+}
+@keyframes modal-fade {
+  from {
+    opacity: 0;
+  }
+}
+.modal__card {
+  width: 100%;
+  max-width: 340px;
+  background: var(--surface);
+  border-radius: var(--r-card);
+  padding: 24px 22px 20px;
+  box-shadow: var(--shadow-float);
+  animation: modal-pop 0.16s ease;
+}
+@keyframes modal-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
+.modal__title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 19px;
+  margin: 0 0 6px;
+}
+.modal__text {
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0 0 20px;
+}
+.modal__actions {
+  display: flex;
+  gap: 10px;
+}
+.modal__actions > * {
+  flex: 1;
+  width: auto;
 }

@@ -47,6 +47,13 @@ async def get_plan(plan_id: str, session: SessionDep) -> WeekPlan:
     return to_week_plan(_get_plan(session, plan_id))
 
 
+@router.delete("/{plan_id}", status_code=204)
+async def delete_plan(plan_id: str, session: SessionDep) -> None:
+    row = _get_plan(session, plan_id)
+    session.delete(row)
+    session.commit()
+
+
 @router.post("/{plan_id}/status")
 async def set_status(plan_id: str, req: StatusRequest, session: SessionDep) -> WeekPlan:
     if req.status not in _VALID_STATUS:
