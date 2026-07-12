@@ -14,7 +14,6 @@ scrape_configs:
   # Логи сервиса бэкенда из journald (фильтр на уровне журнала — надёжнее relabel)
   - job_name: journal
     journal:
-      path: /var/log/journal
       max_age: 24h
       matches: _SYSTEMD_UNIT=easy-week-backend.service
       labels:
