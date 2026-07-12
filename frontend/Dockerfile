@@ -9,6 +9,10 @@ COPY package*.json ./
 RUN npm ci
 COPY . .
 RUN npm run build
+# Локальная разработка: гасим service worker (иначе кэширует старый бандл).
+# safety-worker разрегистрирует уже установленный SW у клиента. На Пае PWA остаётся.
+RUN cp dist/frontend/browser/safety-worker.js dist/frontend/browser/ngsw-worker.js \
+    && rm -f dist/frontend/browser/ngsw.json
 
 # --- Раздача статики ---
 FROM nginx:alpine
