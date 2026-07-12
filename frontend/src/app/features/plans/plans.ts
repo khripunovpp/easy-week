@@ -3,6 +3,7 @@ import { RouterLink } from '@angular/router';
 import { PlanStatus } from '../../models/plan.model';
 import { EasyWeekApi, PlanSummary } from '../../services/api';
 import { CookingLoader } from '../../shared/cooking-loader';
+import { formatDuration } from '../../shared/format';
 
 @Component({
   selector: 'ew-plans',
@@ -72,5 +73,9 @@ export class Plans {
 
   statusLabel(s: PlanStatus): string {
     return s === 'accepted' ? 'Принят' : s === 'rejected' ? 'Отклонён' : 'Черновик';
+  }
+
+  cookTime(mins: number): string {
+    return formatDuration(mins);
   }
 }

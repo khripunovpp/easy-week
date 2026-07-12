@@ -57,6 +57,7 @@ class PlanSummary(CamelModel):
     week_label: str
     status: str
     dishes_count: int
+    total_cook_min: int
     emoji: str
 
 

@@ -47,6 +47,7 @@ export interface PlanSummary {
   weekLabel: string;
   status: PlanStatus;
   dishesCount: number;
+  totalCookMin: number;
   emoji: string;
 }
 

@@ -4,6 +4,7 @@ import { PlanStatus, WeekPlan } from '../../models/plan.model';
 import { EasyWeekApi } from '../../services/api';
 import { ChatStore } from '../../services/chat-store';
 import { CookingLoader } from '../../shared/cooking-loader';
+import { formatDuration } from '../../shared/format';
 
 @Component({
   selector: 'ew-plan',
@@ -43,6 +44,13 @@ export class PlanPage {
 
   totalTime(prep: number, cook: number): number {
     return prep + cook;
+  }
+
+  // Суммарное время на готовку всего плана за раз
+  cookTime(): string {
+    const p = this.plan();
+    if (!p) return '';
+    return formatDuration(p.dishes.reduce((s, d) => s + d.prepMin + d.cookMin, 0));
   }
 
   pastel(i: number): string {

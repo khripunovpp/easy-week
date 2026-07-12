@@ -32,7 +32,9 @@
             {{ statusLabel(p.status) }}
           </span>
         </div>
-        <p class="pv__count muted">{{ p.dishes.length }} {{ dishWord(p.dishes.length) }}</p>
+        <p class="pv__count muted">
+          {{ p.dishes.length }} {{ dishWord(p.dishes.length) }} · готовка ~{{ cookTime() }}
+        </p>
       </div>
 
       <section class="pv__dishes">

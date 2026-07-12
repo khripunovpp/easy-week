@@ -23,7 +23,7 @@
               <span class="emoji-badge" [class]="'pastel-' + (i % 5)">{{ plan.emoji }}</span>
               <span class="prow__body">
                 <span class="prow__title">{{ plan.title }}</span>
-                <span class="prow__sub muted">{{ plan.weekLabel }} · {{ plan.dishesCount }} блюд</span>
+                <span class="prow__sub muted">{{ plan.weekLabel }} · {{ plan.dishesCount }} блюд@if (plan.totalCookMin) { · ~{{ cookTime(plan.totalCookMin) }}}</span>
               </span>
               <span class="tag tag--ok">{{ statusLabel(plan.status) }}</span>
             </a>
@@ -49,7 +49,7 @@
               <span class="emoji-badge" [class]="'pastel-' + (i % 5)">{{ plan.emoji }}</span>
               <span class="prow__body">
                 <span class="prow__title">{{ plan.title }}</span>
-                <span class="prow__sub muted">{{ plan.weekLabel }} · {{ plan.dishesCount }} блюд</span>
+                <span class="prow__sub muted">{{ plan.weekLabel }} · {{ plan.dishesCount }} блюд@if (plan.totalCookMin) { · ~{{ cookTime(plan.totalCookMin) }}}</span>
               </span>
               <span
                 class="tag"
