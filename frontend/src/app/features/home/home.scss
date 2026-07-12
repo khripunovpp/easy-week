@@ -1,17 +1,11 @@
+/* Лейаут держит общий каркас .page (styles.scss); host прозрачен */
 :host {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
+  display: contents;
 }
 
-.home {
-  flex: 1;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
+/* Приветствие центрируем по вертикали */
+.home__inner {
   justify-content: center;
-  padding: 24px 20px;
 }
 
 /* Бренд: лого слева, заголовок+подзаголовок справа */
@@ -96,41 +90,12 @@
   font-size: 13px;
 }
 
-/* Две кнопки в одном блоке: слева и справа */
+/* Две кнопки в ряд (глобальные .btn-primary / .btn-ghost) */
 .home__actions {
   display: flex;
   gap: 10px;
 }
-
-.home__btn {
+.home__actions > * {
   flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  border-radius: var(--r-pill);
-  font-weight: 600;
-  font-size: 15.5px;
-  text-decoration: none;
-  transition: transform 0.12s ease, background 0.15s ease;
-}
-.home__btn:active {
-  transform: scale(0.98);
-}
-
-.home__btn--primary {
-  background: var(--accent);
-  color: #fff;
-  box-shadow: var(--shadow-soft);
-}
-.home__btn--primary:active {
-  background: var(--accent-press);
-}
-
-.home__btn--ghost {
-  background: var(--surface-sunk);
-  color: var(--ink);
-}
-.home__btn--ghost:active {
-  background: var(--line);
+  width: auto;
 }

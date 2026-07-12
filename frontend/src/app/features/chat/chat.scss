@@ -1,38 +1,11 @@
+/* Лейаут держит общий каркас .page (styles.scss); host прозрачен */
 :host {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
+  display: contents;
 }
 
-/* Шапка чата — только контролы справа (класс .fade-top) */
-.chat__top {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 14px 16px 18px;
-}
-
-.chat__new {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: var(--surface);
-  color: var(--ink);
-  box-shadow: var(--shadow-soft);
-  transition: transform 0.12s ease;
-}
-.chat__new svg {
-  width: 19px;
-  height: 19px;
-}
-.chat__new:active {
-  transform: scale(0.94);
+/* композер выше обычного футера — задаём отступ контента под него вручную */
+.chat .page__inner {
+  padding-bottom: 150px;
 }
 
 /* Выбор количества блюд */
@@ -111,15 +84,8 @@
   font-weight: 600;
 }
 
-/* Лента сообщений */
+/* Лента сообщений (скролл и отступы даёт .page__inner) */
 .chat__stream {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  /* верх/низ — место под overlay-шапку и композер */
-  padding: 74px 16px 152px;
-  display: flex;
-  flex-direction: column;
   gap: 12px;
 }
 
@@ -360,9 +326,9 @@
 }
 
 
-/* Композер — overlay с фейд-блюром снизу (класс .fade-bottom) */
+/* Композер — overlay с фейд-блюром снизу (позиция .page__footer--fixed) */
 .composer {
-  padding: 26px 16px 12px;
+  padding: 24px var(--page-pad-x) 12px;
 }
 
 .chips {
@@ -370,11 +336,11 @@
   gap: 8px;
   overflow-x: auto;
   /* от края до края экрана с мягким затуханием по бокам */
-  margin: 0 -16px;
-  padding: 0 16px 10px;
+  margin: 0 calc(-1 * var(--page-pad-x));
+  padding: 0 var(--page-pad-x) 10px;
   scrollbar-width: none;
-  -webkit-mask: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 26px), transparent 100%);
-  mask: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 26px), transparent 100%);
+  -webkit-mask: linear-gradient(90deg, transparent 0, #000 20px, #000 calc(100% - 26px), transparent 100%);
+  mask: linear-gradient(90deg, transparent 0, #000 20px, #000 calc(100% - 26px), transparent 100%);
 }
 .chips::-webkit-scrollbar {
   display: none;

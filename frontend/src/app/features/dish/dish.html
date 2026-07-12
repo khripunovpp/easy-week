@@ -1,17 +1,18 @@
-<header class="d__top">
-  <button class="d__back" type="button" (click)="back()" aria-label="Назад">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M15 6l-6 6 6 6" stroke-linecap="round" stroke-linejoin="round" />
-    </svg>
-  </button>
-</header>
+<div class="page page--header-fixed">
+  <header class="page__header page__header--fixed fade-top">
+    <button class="icon-btn page__back" type="button" (click)="back()" aria-label="Назад">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M15 6l-6 6 6 6" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </button>
+  </header>
 
-@if (loading()) {
-  <div class="d__state">
-    <ew-cooking />
-  </div>
-} @else if (dish(); as d) {
-  <div class="d__scroll">
+  <div class="page__inner d__inner">
+    @if (loading()) {
+      <div class="d__state">
+        <ew-cooking />
+      </div>
+    } @else if (dish(); as d) {
     <div class="d__hero">
       <span class="d__emoji">{{ d.emoji }}</span>
       <h1>{{ d.name }}</h1>
@@ -71,10 +72,11 @@
         }
       </div>
     </section>
+    } @else {
+      <div class="d__state">
+        <p class="muted">Не удалось загрузить блюдо.</p>
+        <a class="btn-primary" routerLink="/chat">В чат</a>
+      </div>
+    }
   </div>
-} @else {
-  <div class="d__state">
-    <p class="muted">Не удалось загрузить блюдо.</p>
-    <a class="btn-primary" routerLink="/chat">В чат</a>
-  </div>
-}
+</div>
