@@ -6,6 +6,7 @@ from typing import Any
 
 from ..config import settings
 from .cloudflare import run_json
+from .deepseek import DeepSeekError, deepseek_json
 
 _MONTHS_GEN = [
     "января", "февраля", "марта", "апреля", "мая", "июня",
@@ -38,6 +39,7 @@ from .prompt import (
     VALIDATE_SCHEMA,
     build_details_messages,
     build_dish_messages,
+    build_ds_plan_messages,
     build_names_messages,
     build_shop_normalize_messages,
     build_validate_messages,
@@ -118,10 +120,56 @@ async def _validate_and_fix(dishes: list[dict], user_message: str) -> None:
             dishes[i] = fixed
 
 
+_DEFAULT_STORAGE = {"vacuum": True, "freeze": True, "shelf_life_days": 45, "note": ""}
+
+
+def _clean_dish(i: int, d: dict) -> dict:
+    name = _clean_name(str(d.get("name", f"Блюдо {i + 1}")))
+    return {
+        "id": _slug(name, i),
+        "name": name,
+        "emoji": d.get("emoji") or "🍽️",
+        "servings": d.get("servings", 4),
+        "prep_min": d.get("prep_min", 15),
+        "cook_min": d.get("cook_min", 30),
+        "tags": d.get("tags", []),
+        "storage": d.get("storage") or dict(_DEFAULT_STORAGE),
+        "ingredients": d.get("ingredients", []),
+        "steps": d.get("steps", []),
+        "tips": d.get("tips", []),
+    }
+
+
 async def generate_plan(
     user_message: str, avoid_titles: list[str], count: int = 5
 ) -> dict[str, Any]:
-    """Пайплайн: меню (mistral) → спеки блюд (8b, параллельно) → валидация+починка (mistral)."""
+    """План через DeepSeek (блюда + короткие шаги); фолбэк — пайплайн Cloudflare."""
+    if settings.deepseek_configured:
+        try:
+            parsed = await deepseek_json(
+                build_ds_plan_messages(user_message, avoid_titles, count),
+                max_tokens=3000,
+            )
+            dishes = [_clean_dish(i, d) for i, d in enumerate((parsed.get("dishes") or [])[:count])]
+            if dishes:
+                logger.info("plan via DeepSeek: dishes=%d", len(dishes))
+                return {
+                    "reply": parsed.get("reply") or "Готово — вот план на неделю.",
+                    "title": _clean_title(parsed.get("title") or "План на неделю"),
+                    "week_label": _week_label(),
+                    "dishes": dishes,
+                }
+            logger.warning("DeepSeek вернул пустой план — фолбэк на Cloudflare")
+        except DeepSeekError as exc:
+            logger.warning("DeepSeek недоступен (%s) — фолбэк на Cloudflare", str(exc)[:120])
+
+    return await _generate_plan_cloudflare(user_message, avoid_titles, count)
+
+
+async def _generate_plan_cloudflare(
+    user_message: str, avoid_titles: list[str], count: int = 5
+) -> dict[str, Any]:
+    """Фолбэк-пайплайн: меню (mistral) → спеки (8b, параллельно) → валидация (mistral)."""
     names, _ = await run_json(
         build_names_messages(user_message, avoid_titles, count),
         NAMES_SCHEMA,
@@ -151,9 +199,12 @@ async def generate_plan(
 
 
 async def generate_details(name: str, ingredients: list[dict]) -> dict[str, list[str]]:
-    """Ленивая догенерация шагов и советов для одного блюда."""
+    """Развёрнутый рецепт (mistral) — по клику на блюдо."""
     parsed, _ = await run_json(
-        build_details_messages(name, ingredients), DETAILS_SCHEMA, max_tokens=700
+        build_details_messages(name, ingredients),
+        DETAILS_SCHEMA,
+        model=settings.cf_model_judge,
+        max_tokens=1100,
     )
     return {"steps": parsed.get("steps") or [], "tips": parsed.get("tips") or []}
 

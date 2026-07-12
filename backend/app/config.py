@@ -10,9 +10,18 @@ class Settings(BaseSettings):
     # 8b-fast: ~2с/запрос — спеки блюд, шаги, мелочи.
     cf_model: str = "@cf/meta/llama-3.1-8b-instruct-fast"
     cf_model_small: str = "@cf/meta/llama-3.2-3b-instruct"
-    # mistral-24b: ~6с, реалистичное меню без «небылиц» + строгий валидатор.
+    # mistral-24b (Cloudflare): развёрнутые рецепты + нормализация списка покупок.
     cf_model_menu: str = "@cf/mistralai/mistral-small-3.1-24b-instruct"
     cf_model_judge: str = "@cf/mistralai/mistral-small-3.1-24b-instruct"
+
+    # DeepSeek: генерация плана (блюда + короткие шаги). Быстрый, качественный.
+    deepseek_api_key: str = ""
+    deepseek_base_url: str = "https://api.deepseek.com"
+    deepseek_model: str = "deepseek-chat"
+
+    @property
+    def deepseek_configured(self) -> bool:
+        return bool(self.deepseek_api_key)
 
     # База и сеть
     db_path: str = "data/easy_week.db"
