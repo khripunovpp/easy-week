@@ -2,9 +2,11 @@ import { Location } from '@angular/common';
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { WeekPlan } from '../../models/plan.model';
 import { EasyWeekApi, ShoppingGroup } from '../../services/api';
+import { CookingLoader } from '../../shared/cooking-loader';
 
 @Component({
   selector: 'ew-print',
+  imports: [CookingLoader],
   templateUrl: './print.html',
   styleUrl: './print.scss',
 })

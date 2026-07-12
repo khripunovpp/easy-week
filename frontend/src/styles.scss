@@ -269,20 +269,7 @@ ul {
   border-radius: var(--r-pill);
 }
 
-/* ===== Спиннер загрузки ===== */
-.spinner {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  border: 3px solid var(--line);
-  border-top-color: var(--accent);
-  animation: spin 0.8s linear infinite;
-}
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
+/* Индикатор загрузки — кулинарный лоадер ew-cooking (shared/cooking-loader). */
 
 /* ===== Фейд-оверлеи для шапок (fade-top) и футеров (fade-bottom) ===== */
 .fade-top,
