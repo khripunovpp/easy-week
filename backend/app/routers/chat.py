@@ -8,6 +8,7 @@ from fastapi.sse import EventSourceResponse, ServerSentEvent
 from sqlmodel import Session, select
 
 from ..ai.cloudflare import CloudflareError
+from ..ai.observe import record_conversation, record_plan
 from ..ai.planner import _week_label, edit_plan, generate_plan, generate_plan_stream
 from ..db import get_session
 from ..models import Conversation, MessageRow, PlanRow
@@ -66,6 +67,7 @@ async def chat_stream(
         conv = Conversation(id=uuid4().hex)
         session.add(conv)
         session.commit()
+        record_conversation()
     session.add(
         MessageRow(id=uuid4().hex, conversation_id=conv.id, role="user", text=req.message)
     )
@@ -129,6 +131,7 @@ async def chat_stream(
         )
     )
     session.commit()
+    record_plan("create")
     yield ServerSentEvent(event="done", data={"planId": plan_id, "dishesCount": len(dishes)})
 
 
@@ -139,6 +142,7 @@ async def chat(req: ChatRequest, session: SessionDep) -> ChatResponse:
         conv = Conversation(id=uuid4().hex)
         session.add(conv)
         session.commit()
+        record_conversation()
 
     session.add(
         MessageRow(id=uuid4().hex, conversation_id=conv.id, role="user", text=req.message)
@@ -173,6 +177,7 @@ async def chat(req: ChatRequest, session: SessionDep) -> ChatResponse:
     )
     session.commit()
     session.refresh(plan_row)
+    record_plan("create")
 
     return ChatResponse(
         conversation_id=conv.id,
@@ -252,6 +257,7 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
     )
     session.commit()
     session.refresh(new_plan)
+    record_plan("edit")
 
     return ChatResponse(
         conversation_id=conv.id,

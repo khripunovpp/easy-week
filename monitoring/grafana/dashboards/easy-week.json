@@ -1,112 +1,487 @@
 {
-  "uid": "easy-week",
-  "title": "Easy Week — AI и запросы",
-  "tags": ["easy-week"],
-  "timezone": "browser",
-  "schemaVersion": 39,
-  "version": 1,
-  "refresh": "30s",
-  "time": { "from": "now-24h", "to": "now" },
-  "templating": { "list": [] },
-  "annotations": { "list": [] },
-  "panels": [
-    {
-      "type": "stat",
-      "title": "Токены за 24ч",
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" } }, "overrides": [] },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
-      "targets": [
-        { "refId": "A", "expr": "sum(increase(easyweek_ai_tokens_total[24h]))" }
-      ]
+ "uid": "easy-week",
+ "title": "Easy Week — AI и запросы",
+ "tags": [
+  "easy-week"
+ ],
+ "timezone": "browser",
+ "schemaVersion": 39,
+ "version": 1,
+ "refresh": "30s",
+ "time": {
+  "from": "now-24h",
+  "to": "now"
+ },
+ "templating": {
+  "list": []
+ },
+ "annotations": {
+  "list": []
+ },
+ "panels": [
+  {
+   "type": "stat",
+   "title": "Токены за 24ч",
+   "gridPos": {
+    "h": 4,
+    "w": 6,
+    "x": 0,
+    "y": 0
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "color": {
+      "mode": "thresholds"
+     }
     },
-    {
-      "type": "stat",
-      "title": "Кэш DeepSeek, %",
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "red", "value": null }, { "color": "orange", "value": 30 }, { "color": "green", "value": 60 } ] } }, "overrides": [] },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none" },
-      "targets": [
-        { "refId": "A", "expr": "100 * sum(increase(easyweek_ai_tokens_total{kind=\"cache_hit\"}[24h])) / clamp_min(sum(increase(easyweek_ai_tokens_total{kind=~\"cache_hit|cache_miss\"}[24h])), 1)" }
-      ]
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
     },
+    "colorMode": "value",
+    "graphMode": "area"
+   },
+   "targets": [
     {
-      "type": "stat",
-      "title": "AI-вызовов за 24ч",
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
-      "targets": [
-        { "refId": "A", "expr": "sum(increase(easyweek_ai_calls_total[24h]))" }
-      ]
-    },
-    {
-      "type": "stat",
-      "title": "RAM бэкенда",
-      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
-      "targets": [
-        { "refId": "A", "expr": "process_resident_memory_bytes{job=\"easy-week-backend\"}" }
-      ]
-    },
-    {
-      "type": "timeseries",
-      "title": "Токены/мин по типу",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 20, "stacking": { "mode": "normal" } } }, "overrides": [] },
-      "options": { "legend": { "displayMode": "table", "calcs": ["sum"], "placement": "right" } },
-      "targets": [
-        { "refId": "A", "expr": "60 * sum by (kind) (rate(easyweek_ai_tokens_total[5m]))", "legendFormat": "{{kind}}" }
-      ]
-    },
-    {
-      "type": "timeseries",
-      "title": "AI-вызовы по категории (в мин)",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 15 } }, "overrides": [] },
-      "options": { "legend": { "displayMode": "table", "calcs": ["sum"], "placement": "right" } },
-      "targets": [
-        { "refId": "A", "expr": "60 * sum by (category) (rate(easyweek_ai_calls_total[5m]))", "legendFormat": "{{category}}" }
-      ]
-    },
-    {
-      "type": "timeseries",
-      "title": "HTTP-запросы по статусу (в сек)",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 15 } }, "overrides": [] },
-      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
-      "targets": [
-        { "refId": "A", "expr": "sum by (status) (rate(http_requests_total[5m]))", "legendFormat": "{{status}}" }
-      ]
-    },
-    {
-      "type": "timeseries",
-      "title": "Латентность HTTP p95, c",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
-      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
-      "targets": [
-        { "refId": "A", "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[5m])))", "legendFormat": "p95" }
-      ]
-    },
-    {
-      "type": "logs",
-      "title": "Логи (AI-вызовы + бэкенд)",
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 20 },
-      "datasource": { "type": "loki", "uid": "loki" },
-      "options": { "showTime": true, "wrapLogMessage": true, "dedupStrategy": "none", "sortOrder": "Descending" },
-      "targets": [
-        { "refId": "A", "expr": "{job=~\"easy-week-.+\"}" }
-      ]
+     "refId": "A",
+     "expr": "sum(increase(easyweek_ai_tokens_total[24h]))"
     }
-  ]
+   ]
+  },
+  {
+   "type": "stat",
+   "title": "Кэш DeepSeek, %",
+   "gridPos": {
+    "h": 4,
+    "w": 6,
+    "x": 6,
+    "y": 0
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "min": 0,
+     "max": 100,
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "orange",
+        "value": 30
+       },
+       {
+        "color": "green",
+        "value": 60
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "none"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "100 * sum(increase(easyweek_ai_tokens_total{kind=\"cache_hit\"}[24h])) / clamp_min(sum(increase(easyweek_ai_tokens_total{kind=~\"cache_hit|cache_miss\"}[24h])), 1)"
+    }
+   ]
+  },
+  {
+   "type": "stat",
+   "title": "AI-вызовов за 24ч",
+   "gridPos": {
+    "h": 4,
+    "w": 6,
+    "x": 12,
+    "y": 0
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "area"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(increase(easyweek_ai_calls_total[24h]))"
+    }
+   ]
+  },
+  {
+   "type": "stat",
+   "title": "RAM бэкенда",
+   "gridPos": {
+    "h": 4,
+    "w": 6,
+    "x": 18,
+    "y": 0
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bytes"
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "area"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "process_resident_memory_bytes{job=\"easy-week-backend\"}"
+    }
+   ]
+  },
+  {
+   "type": "timeseries",
+   "title": "Токены/мин по типу",
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 8
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 20,
+      "stacking": {
+       "mode": "normal"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "calcs": [
+      "sum"
+     ],
+     "placement": "right"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "60 * sum by (kind) (rate(easyweek_ai_tokens_total[5m]))",
+     "legendFormat": "{{kind}}"
+    }
+   ]
+  },
+  {
+   "type": "timeseries",
+   "title": "AI-вызовы по категории (в мин)",
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 8
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 15
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "calcs": [
+      "sum"
+     ],
+     "placement": "right"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "60 * sum by (category) (rate(easyweek_ai_calls_total[5m]))",
+     "legendFormat": "{{category}}"
+    }
+   ]
+  },
+  {
+   "type": "timeseries",
+   "title": "HTTP-запросы по статусу (в сек)",
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 16
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "reqps",
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 15
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (status) (rate(http_requests_total[5m]))",
+     "legendFormat": "{{status}}"
+    }
+   ]
+  },
+  {
+   "type": "timeseries",
+   "title": "Латентность HTTP p95, c",
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 16
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s",
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[5m])))",
+     "legendFormat": "p95"
+    }
+   ]
+  },
+  {
+   "type": "logs",
+   "title": "Логи (AI-вызовы + бэкенд)",
+   "gridPos": {
+    "h": 10,
+    "w": 24,
+    "x": 0,
+    "y": 24
+   },
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "options": {
+    "showTime": true,
+    "wrapLogMessage": true,
+    "dedupStrategy": "none",
+    "sortOrder": "Descending"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "{job=~\"easy-week-.+\"}"
+    }
+   ]
+  },
+  {
+   "type": "stat",
+   "title": "Токены / чат (24ч)",
+   "gridPos": {
+    "h": 4,
+    "w": 6,
+    "x": 0,
+    "y": 4
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "color": {
+      "mode": "thresholds"
+     },
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "area"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(increase(easyweek_ai_tokens_total{kind=~\"prompt|completion\"}[24h])) / clamp_min(sum(increase(easyweek_conversations_total[24h])), 1)"
+    }
+   ]
+  },
+  {
+   "type": "stat",
+   "title": "Токены / план (24ч)",
+   "gridPos": {
+    "h": 4,
+    "w": 6,
+    "x": 6,
+    "y": 4
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "color": {
+      "mode": "thresholds"
+     },
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "area"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(increase(easyweek_ai_tokens_total{kind=~\"prompt|completion\"}[24h])) / clamp_min(sum(increase(easyweek_plans_total[24h])), 1)"
+    }
+   ]
+  },
+  {
+   "type": "stat",
+   "title": "Планов / чат (24ч)",
+   "gridPos": {
+    "h": 4,
+    "w": 6,
+    "x": 12,
+    "y": 4
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "color": {
+      "mode": "thresholds"
+     },
+     "decimals": 1
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "area"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(increase(easyweek_plans_total[24h])) / clamp_min(sum(increase(easyweek_conversations_total[24h])), 1)"
+    }
+   ]
+  }
+ ]
 }

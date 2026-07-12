@@ -20,6 +20,19 @@ logger = logging.getLogger("easy_week.ai")
 _calls = Counter("easyweek_ai_calls_total", "AI-вызовы", ["provider", "model", "category"])
 _tokens = Counter("easyweek_ai_tokens_total", "AI-токены", ["provider", "model", "kind"])
 
+# Бизнес-счётчики: из них в Grafana считаем токены/чат, токены/план, планы/чат.
+_plans = Counter("easyweek_plans_total", "Созданные планы", ["source"])  # create | edit
+_conversations = Counter("easyweek_conversations_total", "Начатые диалоги")
+
+
+def record_plan(source: str = "create") -> None:
+    """source=create — новый план в чате; edit — новая версия при правке."""
+    _plans.labels(source).inc()
+
+
+def record_conversation() -> None:
+    _conversations.inc()
+
 
 def _category(label: str) -> str:
     return (label or "?").split(":")[0].strip() or "?"
