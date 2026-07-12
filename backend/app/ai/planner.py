@@ -36,12 +36,12 @@ def _clean_title(title: str) -> str:
         title = title[:34].rsplit(" ", 1)[0] + "…"
     return title or "План на неделю"
 from .prompt import (
-    DETAILS_SCHEMA,
+    DISH_DETAIL_SCHEMA,
     DISH_SCHEMA,
     NAMES_SCHEMA,
     SHOP_SCHEMA,
     VALIDATE_SCHEMA,
-    build_details_messages,
+    build_dish_detail_messages,
     build_dish_messages,
     build_ds_plan_messages,
     build_names_messages,
@@ -269,16 +269,38 @@ async def _generate_plan_cloudflare(
     }
 
 
-async def generate_details(name: str, ingredients: list[dict]) -> dict[str, list[str]]:
-    """Развёрнутый рецепт (mistral) — по клику на блюдо."""
+async def generate_dish_detail(name: str, servings: int = 4) -> dict:
+    """Полная деталь блюда (ингредиенты + шаги + советы + note) — лениво при открытии.
+
+    Рецепты — лучшей моделью (DeepSeek, правило CLAUDE.md); фолбэк — Cloudflare mistral."""
+    if settings.deepseek_configured:
+        try:
+            parsed = await deepseek_json(
+                build_dish_detail_messages(name, servings),
+                max_tokens=1400,
+                label=f"деталь блюда: {name}",
+            )
+            if parsed.get("ingredients") or parsed.get("steps"):
+                return _clean_detail(parsed)
+        except DeepSeekError as exc:
+            logger.warning("DeepSeek деталь недоступна (%s) — фолбэк на Cloudflare", str(exc)[:120])
     parsed, _ = await run_json(
-        build_details_messages(name, ingredients),
-        DETAILS_SCHEMA,
+        build_dish_detail_messages(name, servings),
+        DISH_DETAIL_SCHEMA,
         model=settings.cf_model_judge,
-        max_tokens=1100,
-        label=f"развёрнутый рецепт: {name}",
+        max_tokens=1400,
+        label=f"деталь блюда (фолбэк): {name}",
     )
-    return {"steps": parsed.get("steps") or [], "tips": parsed.get("tips") or []}
+    return _clean_detail(parsed)
+
+
+def _clean_detail(parsed: dict) -> dict:
+    return {
+        "ingredients": parsed.get("ingredients") or [],
+        "steps": parsed.get("steps") or [],
+        "tips": parsed.get("tips") or [],
+        "note": (parsed.get("note") or "").strip(),
+    }
 
 
 async def normalize_shopping(items: list[dict]) -> list[dict]:

@@ -10,7 +10,7 @@ from fastapi.sse import EventSourceResponse, ServerSentEvent
 from sqlmodel import Session, select
 
 from ..ai.cloudflare import CloudflareError
-from ..ai.planner import generate_details, normalize_shopping
+from ..ai.planner import generate_dish_detail, normalize_shopping
 from ..db import get_session
 from ..models import PlanRow
 from ..schemas import Dish, PlanSummary, ShoppingGroup, StatusRequest, WeekPlan
@@ -34,6 +34,47 @@ def _get_plan(session: Session, plan_id: str) -> PlanRow:
     if row is None:
         raise HTTPException(status_code=404, detail="План не найден")
     return row
+
+
+def _merge_detail(dish: dict, detail: dict) -> dict:
+    """Вливает ленивую деталь (ингредиенты/шаги/советы/note) в блюдо."""
+    d = {
+        **dish,
+        "ingredients": detail.get("ingredients") or [],
+        "steps": detail.get("steps") or [],
+        "tips": detail.get("tips") or [],
+    }
+    if detail.get("note"):
+        d["storage"] = {**(dish.get("storage") or {}), "note": detail["note"]}
+    return d
+
+
+async def _backfill_all(session: Session, row: PlanRow, need_steps: bool = False) -> list[dict]:
+    """Догенерить детали для блюд, у которых их нет, параллельно. Кэш в row.dishes.
+    need_steps=False (покупки: нужны только ингредиенты), True (PDF: нужны и шаги)."""
+    dishes = list(row.dishes or [])
+    missing = [
+        (i, d)
+        for i, d in enumerate(dishes)
+        if not d.get("ingredients") or (need_steps and not d.get("steps"))
+    ]
+    if not missing:
+        return dishes
+    results = await asyncio.gather(
+        *(generate_dish_detail(d.get("name", ""), d.get("servings", 4)) for _, d in missing),
+        return_exceptions=True,
+    )
+    changed = False
+    for (i, d), det in zip(missing, results):
+        if isinstance(det, dict):
+            dishes[i] = _merge_detail(d, det)
+            changed = True
+    if changed:
+        row.dishes = dishes
+        session.add(row)
+        session.commit()
+        session.refresh(row)
+    return list(row.dishes or [])
 
 
 @router.get("")
@@ -70,6 +111,7 @@ async def set_status(plan_id: str, req: StatusRequest, session: SessionDep) -> W
 @router.get("/{plan_id}/shopping-list")
 async def shopping_list(plan_id: str, session: SessionDep) -> list[ShoppingGroup]:
     row = _get_plan(session, plan_id)
+    await _backfill_all(session, row)  # ингредиенты лениво — догрузить перед агрегацией
     plan = to_week_plan(row)
     base = aggregate_ingredients(plan.dishes)
     sig = hashlib.md5(
@@ -113,10 +155,10 @@ async def shopping_list_stream(
 ) -> AsyncIterable[ServerSentEvent]:
     """Потоковый список покупок: пункты прилетают по одному (SSE).
 
-    Источник — детерминированная агрегация ингредиентов (граммы у источника,
-    каноничное объединение продуктов): мгновенно и точно, без ожидания модели.
-    (Стриминг mistral для этого не годится — в потоке он теряет числа количеств.)"""
+    Ингредиенты генерятся лениво — при первом открытии покупок догружаем их для всех блюд,
+    затем детерминированно агрегируем (граммы у источника, каноничное объединение)."""
     row = _get_plan(session, plan_id)
+    await _backfill_all(session, row)
     plan = to_week_plan(row)
     count = 0
     for it in aggregate_ingredients(plan.dishes):
@@ -134,8 +176,9 @@ async def plan_pdf(
     recipes: bool = True,
     shopping: bool = True,
 ) -> Response:
-    """PDF плана (рецепты и/или список покупок). Собирается из уже сохранённых данных."""
+    """PDF плана (рецепты и/или список покупок). Детали генерятся лениво — догрузим при экспорте."""
     row = _get_plan(session, plan_id)
+    await _backfill_all(session, row, need_steps=recipes)
     plan = to_week_plan(row)
     groups = group_items(aggregate_ingredients(plan.dishes)) if shopping else []
     pdf_bytes = build_plan_pdf(plan, groups, recipes=recipes, shop=shopping)
@@ -148,29 +191,18 @@ async def plan_pdf(
 
 @router.post("/{plan_id}/full")
 async def full_plan(plan_id: str, session: SessionDep) -> WeekPlan:
-    """Полный план со всеми шагами (догенерирует недостающие) — для экспорта в PDF."""
+    """Полный план со всеми деталями (догенерирует недостающие) — для экспорта в PDF."""
     row = _get_plan(session, plan_id)
-    dishes = list(row.dishes or [])
-    missing = [(i, d) for i, d in enumerate(dishes) if not d.get("steps")]
-    if missing:
-        try:
-            results = await asyncio.gather(
-                *(generate_details(d.get("name", ""), d.get("ingredients", [])) for _, d in missing)
-            )
-        except CloudflareError as exc:
-            raise HTTPException(status_code=502, detail=f"Не удалось собрать рецепты: {exc}") from exc
-        for (i, d), det in zip(missing, results):
-            dishes[i] = {**d, **det}
-        row.dishes = dishes
-        session.add(row)
-        session.commit()
-        session.refresh(row)
+    try:
+        await _backfill_all(session, row, need_steps=True)
+    except CloudflareError as exc:
+        raise HTTPException(status_code=502, detail=f"Не удалось собрать рецепты: {exc}") from exc
     return to_week_plan(row)
 
 
 @router.post("/{plan_id}/dishes/{dish_id}/details")
 async def dish_details(plan_id: str, dish_id: str, session: SessionDep) -> Dish:
-    """Ленивая догенерация шагов и советов блюда. Кэшируется в плане."""
+    """Ленивая догенерация ПОЛНОЙ детали блюда (ингредиенты+шаги+советы). Кэшируется в плане."""
     row = _get_plan(session, plan_id)
     dishes = list(row.dishes or [])
     idx = next((i for i, d in enumerate(dishes) if d.get("id") == dish_id), None)
@@ -178,12 +210,12 @@ async def dish_details(plan_id: str, dish_id: str, session: SessionDep) -> Dish:
         raise HTTPException(status_code=404, detail="Блюдо не найдено")
 
     dish = dishes[idx]
-    if not dish.get("steps"):  # генерим только если ещё нет (старые планы без шагов)
+    if not dish.get("ingredients") or not dish.get("steps"):  # генерим деталь, если её ещё нет
         try:
-            details = await generate_details(dish.get("name", ""), dish.get("ingredients", []))
+            detail = await generate_dish_detail(dish.get("name", ""), dish.get("servings", 4))
         except CloudflareError as exc:
             raise HTTPException(status_code=502, detail=f"Не удалось получить рецепт: {exc}") from exc
-        dish = {**dish, **details}
+        dish = _merge_detail(dish, detail)
         dishes[idx] = dish
         row.dishes = dishes
         session.add(row)
