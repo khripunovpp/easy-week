@@ -6,6 +6,7 @@ from typing import Any
 import httpx
 
 from ..config import settings
+from .observe import log_ai_call
 
 _BASE = "https://api.cloudflare.com/client/v4/accounts"
 logger = logging.getLogger("easy_week.cloudflare")
@@ -77,7 +78,9 @@ async def run_json(
     last: Exception | None = None
     for attempt in range(retries + 1):
         try:
-            return await _run_once(messages, json_schema, model, max_tokens)
+            parsed, usage = await _run_once(messages, json_schema, model, max_tokens)
+            log_ai_call("Cloudflare", short, label, messages, parsed, usage)
+            return parsed, usage
         except (CloudflareError, httpx.HTTPError) as exc:
             last = exc
             logger.warning("Workers AI attempt %d failed: %s", attempt + 1, str(exc)[:150])

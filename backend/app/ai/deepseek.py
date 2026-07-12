@@ -7,6 +7,7 @@ from typing import Any
 import httpx
 
 from ..config import settings
+from .observe import log_ai_call
 
 logger = logging.getLogger("easy_week.deepseek")
 
@@ -31,9 +32,12 @@ async def deepseek_stream(
         "max_tokens": max_tokens,
         "temperature": 0.7,
         "stream": True,
+        "stream_options": {"include_usage": True},  # финальный чанк с usage (в т.ч. кэш)
     }
     headers = {"Authorization": f"Bearer {settings.deepseek_api_key}"}
 
+    full: list[str] = []
+    usage: dict = {}
     async with httpx.AsyncClient(timeout=120.0) as client:
         async with client.stream("POST", url, json=payload, headers=headers) as resp:
             if resp.status_code != 200:
@@ -46,11 +50,18 @@ async def deepseek_stream(
                 if data == "[DONE]":
                     break
                 try:
-                    delta = json.loads(data)["choices"][0]["delta"].get("content")
-                except (json.JSONDecodeError, KeyError, IndexError):
+                    obj = json.loads(data)
+                except json.JSONDecodeError:
                     continue
+                if obj.get("usage"):
+                    usage = obj["usage"]
+                choices = obj.get("choices") or []
+                delta = choices[0].get("delta", {}).get("content") if choices else None
                 if isinstance(delta, str) and delta:
+                    full.append(delta)
                     yield delta
+
+    log_ai_call("DeepSeek", settings.deepseek_model, label, messages, "".join(full), usage)
 
 
 async def deepseek_json(
@@ -78,8 +89,13 @@ async def deepseek_json(
                 resp = await client.post(url, json=payload, headers=headers)
             if resp.status_code != 200:
                 raise DeepSeekError(f"DeepSeek {resp.status_code}: {resp.text[:300]}")
-            content = resp.json()["choices"][0]["message"]["content"]
-            return json.loads(content)
+            body = resp.json()
+            content = body["choices"][0]["message"]["content"]
+            parsed = json.loads(content)
+            log_ai_call(
+                "DeepSeek", settings.deepseek_model, label, messages, content, body.get("usage", {})
+            )
+            return parsed
         except (DeepSeekError, httpx.HTTPError, json.JSONDecodeError, KeyError) as exc:
             last = exc
             logger.warning("DeepSeek attempt %d failed: %s", attempt + 1, str(exc)[:150])
