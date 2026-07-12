@@ -1,6 +1,6 @@
 import { Component, ElementRef, effect, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { ChatStore } from '../../services/chat-store';
 import { CookingLoader } from '../../shared/cooking-loader';
 
@@ -12,6 +12,7 @@ import { CookingLoader } from '../../shared/cooking-loader';
 })
 export class Chat {
   readonly store = inject(ChatStore);
+  private readonly router = inject(Router);
 
   readonly menuOpen = signal(false);
   readonly countOptions = [3, 4, 5, 6, 7, 8];
@@ -33,6 +34,16 @@ export class Chat {
 
   isStreaming(msgId: string): boolean {
     return this.store.streamingMsgId() === msgId;
+  }
+
+  // Принять план → перейти на его страницу; отклонить → остаёмся в чате.
+  accept(msgId: string, planId: string): void {
+    this.store.setPlanStatus(msgId, planId, 'accepted', () =>
+      this.router.navigate(['/plan', planId]),
+    );
+  }
+  reject(msgId: string, planId: string): void {
+    this.store.setPlanStatus(msgId, planId, 'rejected');
   }
 
   pastel(i: number): string {

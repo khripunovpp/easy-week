@@ -115,9 +115,17 @@ export class ChatStore {
     });
   }
 
-  setPlanStatus(messageId: string, planId: string, status: 'accepted' | 'rejected'): void {
+  setPlanStatus(
+    messageId: string,
+    planId: string,
+    status: 'accepted' | 'rejected',
+    onSuccess?: () => void,
+  ): void {
     this.api.setStatus(planId, status).subscribe({
-      next: (updated) => this.updatePlan(messageId, () => updated),
+      next: (updated) => {
+        this.updatePlan(messageId, () => updated);
+        onSuccess?.();
+      },
     });
   }
 

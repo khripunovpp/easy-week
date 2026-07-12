@@ -290,10 +290,36 @@
   padding-top: 4px;
 }
 
-/* обе кнопки решения — равной ширины (используют глобальные .btn-ghost / .btn-primary) */
+/* Принять/отклонить — иконка-палец + текст, равной ширины */
 .plan__actions > * {
   flex: 1;
   width: auto;
+}
+.plan__vote {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px;
+  border-radius: var(--r-pill);
+  font-weight: 600;
+  font-size: 15px;
+  transition: transform 0.12s ease;
+}
+.plan__vote svg {
+  width: 20px;
+  height: 20px;
+}
+.plan__vote:active {
+  transform: scale(0.98);
+}
+.plan__vote--no {
+  background: var(--no-soft);
+  color: var(--no);
+}
+.plan__vote--ok {
+  background: var(--ok-soft);
+  color: var(--ok);
 }
 
 /* Статус после решения по плану (крупнее базового тега) */
@@ -306,25 +332,6 @@
   font-size: 14px;
   padding: 9px 18px;
 }
-
-/* Экспорт в PDF */
-.plan__export {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  margin-top: 8px;
-  padding: 10px;
-  text-decoration: none;
-  color: var(--ink-2);
-  font-size: 14px;
-  font-weight: 600;
-}
-.plan__export svg {
-  width: 17px;
-  height: 17px;
-}
-
 
 /* Композер — overlay с фейд-блюром снизу (позиция .page__footer--fixed) */
 .composer {
