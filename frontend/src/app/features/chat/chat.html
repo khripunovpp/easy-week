@@ -55,6 +55,12 @@
             <span class="plan__count">{{ plan.dishes.length }} {{ dishWord(plan.dishes.length) }}</span>
           </div>
 
+          @if (plan.status === 'rejected') {
+            <!-- Отклонённый план сворачиваем до заголовка и статуса -->
+            <div class="plan__decided">
+              <span class="tag tag--no">План отклонён</span>
+            </div>
+          } @else {
           @for (d of plan.dishes; track d.id; let i = $index) {
             <div class="dish">
               <a
@@ -129,14 +135,10 @@
               </div>
             } @else {
               <div class="plan__decided">
-                <span
-                  class="tag"
-                  [class.tag--ok]="plan.status === 'accepted'"
-                  [class.tag--no]="plan.status === 'rejected'">
-                  {{ plan.status === 'accepted' ? '✓ План принят' : 'План отклонён' }}
-                </span>
+                <span class="tag tag--ok">✓ План принят</span>
               </div>
             }
+          }
           }
         </section>
       }
