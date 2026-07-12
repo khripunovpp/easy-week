@@ -358,13 +358,13 @@
 .composer__badge {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   max-width: 100%;
   margin-bottom: 10px;
-  padding: 7px 8px 7px 14px;
+  padding: 6px 6px 6px 14px;
   border-radius: var(--r-pill);
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--frost-soft);
+  color: var(--frost);
 }
 .composer__badge-text {
   font-size: 13.5px;
@@ -377,13 +377,16 @@
   flex-shrink: 0;
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  line-height: 0;
   border-radius: 50%;
-  color: var(--accent);
-  background: rgba(0, 0, 0, 0.04);
+  color: var(--frost);
+  background: rgba(74, 156, 214, 0.16);
 }
 .composer__badge-x svg {
+  display: block;
   width: 15px;
   height: 15px;
 }
