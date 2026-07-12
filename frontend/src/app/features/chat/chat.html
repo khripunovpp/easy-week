@@ -131,8 +131,8 @@
   }
 
   @if (store.loading()) {
-    <div class="msg msg--bot typing" aria-label="Составляю план">
-      <span></span><span></span><span></span>
+    <div class="msg msg--bot" aria-label="Составляю план">
+      <ew-cooking [phrases]="cookingPhrases" />
     </div>
   }
 </div>

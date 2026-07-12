@@ -61,7 +61,8 @@ def _clean_name(name: str) -> str:
 
 async def _gen_dish(i: int, name: str, emoji: str, user_message: str) -> dict[str, Any]:
     parsed, _ = await run_json(
-        build_dish_messages(name, user_message), DISH_SCHEMA, max_tokens=800
+        build_dish_messages(name, user_message), DISH_SCHEMA, max_tokens=800,
+        label=f"спеки блюда: {name}",
     )
     return {
         "id": _slug(name, i),
@@ -89,6 +90,7 @@ async def _validate_and_fix(dishes: list[dict], user_message: str) -> None:
             VALIDATE_SCHEMA,
             model=settings.cf_model_judge,
             max_tokens=500,
+            label="валидатор блюд",
         )
     except Exception as exc:  # валидатор не критичен — не роняем генерацию
         logger.warning("validator skipped: %s", str(exc)[:150])
@@ -149,6 +151,7 @@ async def generate_plan(
             parsed = await deepseek_json(
                 build_ds_plan_messages(user_message, avoid_titles, count),
                 max_tokens=3000,
+                label=f"план: {count} блюд + короткие шаги",
             )
             dishes = [_clean_dish(i, d) for i, d in enumerate((parsed.get("dishes") or [])[:count])]
             if dishes:
@@ -175,6 +178,7 @@ async def _generate_plan_cloudflare(
         NAMES_SCHEMA,
         model=settings.cf_model_menu,
         max_tokens=120 + count * 110,
+        label="меню (фолбэк)",
     )
     entries = (names.get("dishes") or [])[:count]  # держим ровно count блюд
 
@@ -205,6 +209,7 @@ async def generate_details(name: str, ingredients: list[dict]) -> dict[str, list
         DETAILS_SCHEMA,
         model=settings.cf_model_judge,
         max_tokens=1100,
+        label=f"развёрнутый рецепт: {name}",
     )
     return {"steps": parsed.get("steps") or [], "tips": parsed.get("tips") or []}
 
@@ -218,5 +223,6 @@ async def normalize_shopping(items: list[dict]) -> list[dict]:
         SHOP_SCHEMA,
         model=settings.cf_model_judge,
         max_tokens=1400,
+        label="список покупок (нормализация)",
     )
     return parsed.get("items") or items

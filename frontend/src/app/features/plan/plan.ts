@@ -3,10 +3,11 @@ import { Router, RouterLink } from '@angular/router';
 import { PlanStatus, WeekPlan } from '../../models/plan.model';
 import { EasyWeekApi } from '../../services/api';
 import { ChatStore } from '../../services/chat-store';
+import { CookingLoader } from '../../shared/cooking-loader';
 
 @Component({
   selector: 'ew-plan',
-  imports: [RouterLink],
+  imports: [RouterLink, CookingLoader],
   templateUrl: './plan.html',
   styleUrl: './plan.scss',
 })

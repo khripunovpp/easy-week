@@ -2,10 +2,11 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { PlanStatus } from '../../models/plan.model';
 import { EasyWeekApi, PlanSummary } from '../../services/api';
+import { CookingLoader } from '../../shared/cooking-loader';
 
 @Component({
   selector: 'ew-plans',
-  imports: [RouterLink],
+  imports: [RouterLink, CookingLoader],
   templateUrl: './plans.html',
   styleUrl: './plans.scss',
 })

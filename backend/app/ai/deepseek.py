@@ -15,12 +15,13 @@ class DeepSeekError(RuntimeError):
 
 
 async def deepseek_json(
-    messages: list[dict[str, str]], *, max_tokens: int = 2048, retries: int = 2
+    messages: list[dict[str, str]], *, max_tokens: int = 2048, retries: int = 2, label: str = ""
 ) -> dict[str, Any]:
     """Вызов DeepSeek (OpenAI-совместимый) в JSON-режиме. Схема описывается в промпте."""
     if not settings.deepseek_configured:
         raise DeepSeekError("DeepSeek не настроен: нет DEEPSEEK_API_KEY")
 
+    logger.info("AI → DeepSeek · %s · %s", settings.deepseek_model, label or "?")
     url = f"{settings.deepseek_base_url}/chat/completions"
     payload = {
         "model": settings.deepseek_model,

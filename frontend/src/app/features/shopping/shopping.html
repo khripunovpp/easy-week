@@ -19,7 +19,7 @@
 
 @if (loading()) {
   <div class="shop__state">
-    <div class="spinner"></div>
+    <ew-cooking [phrases]="['Собираю список','Считаю граммы','Объединяю продукты','Раскладываю по полкам']" />
   </div>
 } @else if (empty()) {
   <div class="shop__state">

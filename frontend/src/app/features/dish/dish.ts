@@ -2,10 +2,11 @@ import { Component, effect, inject, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { Dish } from '../../models/plan.model';
 import { EasyWeekApi } from '../../services/api';
+import { CookingLoader } from '../../shared/cooking-loader';
 
 @Component({
   selector: 'ew-dish',
-  imports: [RouterLink],
+  imports: [RouterLink, CookingLoader],
   templateUrl: './dish.html',
   styleUrl: './dish.scss',
 })

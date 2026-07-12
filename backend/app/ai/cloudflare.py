@@ -62,6 +62,7 @@ async def run_json(
     model: str | None = None,
     max_tokens: int = 2048,
     retries: int = 2,
+    label: str = "",
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Вызов Workers AI со структурированным выводом (json_schema), с ретраями.
 
@@ -71,6 +72,8 @@ async def run_json(
         raise CloudflareError("Cloudflare не настроен: нет CF_ACCOUNT_ID / CF_API_TOKEN")
 
     model = model or settings.cf_model
+    short = model.split("/")[-1]
+    logger.info("AI → Cloudflare · %s · %s", short, label or "?")
     last: Exception | None = None
     for attempt in range(retries + 1):
         try:

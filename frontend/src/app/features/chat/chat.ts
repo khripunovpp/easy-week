@@ -2,10 +2,11 @@ import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ChatStore } from '../../services/chat-store';
+import { CookingLoader } from '../../shared/cooking-loader';
 
 @Component({
   selector: 'ew-chat',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, CookingLoader],
   templateUrl: './chat.html',
   styleUrl: './chat.scss',
 })
@@ -14,6 +15,13 @@ export class Chat {
 
   readonly menuOpen = signal(false);
   readonly countOptions = [3, 4, 5, 6, 7, 8];
+  readonly cookingPhrases = [
+    'Подбираю блюда',
+    'Считаю тайминги',
+    'Проверяю рецепты',
+    'Раскладываю по неделе',
+    'Собираю ингредиенты',
+  ];
   readonly suggestions = ['Без свинины', 'На 2 порции', 'Побыстрее', 'Вегетарианские'];
 
   pastel(i: number): string {

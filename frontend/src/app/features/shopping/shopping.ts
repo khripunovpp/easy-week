@@ -1,10 +1,11 @@
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { EasyWeekApi, ShoppingGroup } from '../../services/api';
+import { CookingLoader } from '../../shared/cooking-loader';
 
 @Component({
   selector: 'ew-shopping',
-  imports: [RouterLink],
+  imports: [RouterLink, CookingLoader],
   templateUrl: './shopping.html',
   styleUrl: './shopping.scss',
 })

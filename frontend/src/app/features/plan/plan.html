@@ -14,7 +14,7 @@
 </header>
 
 @if (loading()) {
-  <div class="pv__state"><div class="spinner"></div></div>
+  <div class="pv__state"><ew-cooking [phrases]="['Достаю план','Раскладываю блюда']" /></div>
 } @else if (plan(); as p) {
   <div class="pv__scroll">
     <div class="pv__head">

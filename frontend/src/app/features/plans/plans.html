@@ -4,7 +4,7 @@
 </header>
 
 @if (loading()) {
-  <div class="pl__state"><div class="spinner"></div></div>
+  <div class="pl__state"><ew-cooking [phrases]="['Открываю холодильник','Достаю планы']" /></div>
 } @else if (!plans().length) {
   <div class="pl__state">
     <span class="pl__emoji">🗂️</span>
