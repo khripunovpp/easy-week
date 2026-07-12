@@ -424,7 +424,13 @@ async def edit_plan(
 
     provider = PROVIDER_CLOUDFLARE if PROVIDER_CLOUDFLARE in providers else PROVIDER_DEEPSEEK
     logger.info("plan edited: ops=%d changed=%d provider=%s", len(calls), len(changed), provider)
-    return {"reply": reply, "title": new_title, "dishes": work, "provider": provider}
+    return {
+        "reply": reply,
+        "title": new_title,
+        "dishes": work,
+        "provider": provider,
+        "changed": changed,
+    }
 
 
 async def _edit_actions_cloudflare(

@@ -133,9 +133,17 @@ export class ChatStore {
       next: (res) => {
         const plan = res.plan;
         if (plan) {
-          this.messages.update((list) =>
-            list.map((m) => (m.plan && m.plan.id === plan.id ? { ...m, plan } : m)),
-          );
+          // Правка вернула НОВУЮ версию плана (новый id) — заменяем ею текущую карточку
+          // (последнее сообщение с планом). Старый план остаётся доступен по своей ссылке.
+          this.messages.update((list) => {
+            let lastIdx = -1;
+            list.forEach((m, i) => {
+              if (m.plan) lastIdx = i;
+            });
+            return lastIdx === -1
+              ? list
+              : list.map((m, i) => (i === lastIdx ? { ...m, plan } : m));
+          });
         }
         this.messages.update((list) => [
           ...list,

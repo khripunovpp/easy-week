@@ -211,26 +211,44 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
     except CloudflareError as exc:
         raise HTTPException(status_code=502, detail=f"Правка недоступна: {exc}") from exc
 
-    row.dishes = result["dishes"]
-    row.title = result["title"]
-    if result.get("provider"):
-        row.provider = result["provider"]
-    row.shopping_sig = ""  # состав изменился — сбросить кэш списка покупок
-    session.add(row)
+    reply = result["reply"]
+
+    # Ничего не изменили (модель не поняла правку) — новую версию не создаём.
+    if not result.get("changed"):
+        session.add(
+            MessageRow(
+                id=uuid4().hex, conversation_id=conv.id, role="assistant", text=reply
+            )
+        )
+        session.commit()
+        return ChatResponse(conversation_id=conv.id, reply=reply, plan=None)
+
+    # Правка создаёт НОВУЮ версию плана (копию), исходный план остаётся доступен по ссылке.
+    new_plan = PlanRow(
+        id=uuid4().hex,
+        conversation_id=conv.id,
+        title=result["title"],
+        week_label=row.week_label,
+        status="draft",
+        provider=result.get("provider") or row.provider,
+        parent_id=row.id,
+        dishes=result["dishes"],
+    )
+    session.add(new_plan)
     session.add(
         MessageRow(
             id=uuid4().hex,
             conversation_id=conv.id,
             role="assistant",
-            text=result["reply"],
-            plan_id=row.id,
+            text=reply,
+            plan_id=new_plan.id,
         )
     )
     session.commit()
-    session.refresh(row)
+    session.refresh(new_plan)
 
     return ChatResponse(
         conversation_id=conv.id,
-        reply=result["reply"],
-        plan=to_week_plan(row),
+        reply=reply,
+        plan=to_week_plan(new_plan),
     )

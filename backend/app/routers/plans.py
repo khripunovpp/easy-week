@@ -81,7 +81,12 @@ async def _backfill_all(session: Session, row: PlanRow, need_steps: bool = False
 @router.get("")
 async def list_plans(session: SessionDep) -> list[PlanSummary]:
     rows = session.exec(select(PlanRow).order_by(PlanRow.created_at.desc())).all()
-    return [to_summary(r) for r in rows]
+    # Промежуточные ЧЕРНОВИКИ, у которых уже есть более новая версия (правка в чате),
+    # в списке не показываем — только последнюю версию. Принятые/отклонённые остаются
+    # всегда (их ссылки могли быть расшарены).
+    superseded = {r.parent_id for r in rows if r.parent_id}
+    visible = [r for r in rows if not (r.status == "draft" and r.id in superseded)]
+    return [to_summary(r) for r in visible]
 
 
 @router.get("/{plan_id}")
