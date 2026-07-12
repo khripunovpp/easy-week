@@ -60,6 +60,10 @@ logger = logging.getLogger("easy_week.planner")
 PROVIDER_DEEPSEEK = "DeepSeek"
 PROVIDER_CLOUDFLARE = "Cloudflare"
 
+# count из селектора — дефолт; явное число в сообщении важнее (см. _plan_count_hint).
+# Поэтому не режем до count, а лишь ограничиваем разумным максимумом.
+_MAX_DISHES = 12
+
 
 def _slug(text: str, i: int) -> str:
     base = re.sub(r"[^a-zа-я0-9]+", "-", text.lower()).strip("-")
@@ -166,7 +170,7 @@ async def generate_plan(
                 max_tokens=3000,
                 label=f"план: {count} блюд + короткие шаги",
             )
-            dishes = [_clean_dish(i, d) for i, d in enumerate((parsed.get("dishes") or [])[:count])]
+            dishes = [_clean_dish(i, d) for i, d in enumerate((parsed.get("dishes") or [])[:_MAX_DISHES])]
             if dishes:
                 logger.info("plan via DeepSeek: dishes=%d", len(dishes))
                 return {
@@ -214,7 +218,7 @@ async def generate_plan_stream(
                             "provider": PROVIDER_DEEPSEEK,
                         }
                 for d in parser.new_dishes():
-                    if emitted >= count:
+                    if emitted >= _MAX_DISHES:
                         break
                     if not meta_sent:
                         meta_sent = True
@@ -260,7 +264,7 @@ async def _generate_plan_cloudflare(
         max_tokens=120 + count * 110,
         label="меню (фолбэк)",
     )
-    entries = (names.get("dishes") or [])[:count]  # держим ровно count блюд
+    entries = (names.get("dishes") or [])[:_MAX_DISHES]  # число блюд решает модель (дефолт — count)
 
     dishes = list(
         await asyncio.gather(

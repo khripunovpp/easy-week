@@ -430,10 +430,18 @@ def build_edit_action_messages(
     ]
 
 
+def _plan_count_hint(count: int) -> str:
+    # count из селектора — это ДЕФОЛТ. Явное число в запросе пользователя важнее.
+    return (
+        f"\n\nКоличество блюд: если в запросе явно указано число (например «два ужина», "
+        f"«5 блюд», «штук 6») — сделай ровно столько (1–12). Если не указано — сделай {count}."
+    )
+
+
 def build_ds_plan_messages(
     user_message: str, avoid_titles: list[str], count: int
 ) -> list[dict[str, str]]:
-    content = f"{user_message.strip()}\n\nСоставь РОВНО {count} блюд(а)."
+    content = user_message.strip() + _plan_count_hint(count)
     if avoid_titles:
         content += "\nНедавно принятые блюда (не повторяй): " + ", ".join(avoid_titles[:12])
     return [
@@ -445,7 +453,7 @@ def build_ds_plan_messages(
 def build_names_messages(
     user_message: str, avoid_titles: list[str], count: int = 5
 ) -> list[dict[str, str]]:
-    content = f"{user_message.strip()}\n\nСоставь РОВНО {count} блюд(а)."
+    content = user_message.strip() + _plan_count_hint(count)
     if avoid_titles:
         content += "\nНедавно принятые блюда (не повторяй): " + ", ".join(avoid_titles[:12])
     return [

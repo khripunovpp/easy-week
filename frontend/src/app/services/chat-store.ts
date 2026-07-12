@@ -127,9 +127,14 @@ export class ChatStore {
       onDish: (dish) => {
         this.updatePlan(msgId, (plan) => ({ ...plan, dishes: [...plan.dishes, dish] }));
       },
-      onDone: () => {
+      onDone: (info) => {
         this.streamingMsgId.set(null);
         this.loading.set(false);
+        // Число блюд решает модель (пользователь мог указать другое в тексте) —
+        // приводим счётчик в шапке к фактическому результату.
+        if (info.dishesCount >= 1 && info.dishesCount <= 12) {
+          this.dishCount.set(info.dishesCount);
+        }
       },
       onError: (message) => {
         this.streamingMsgId.set(null);

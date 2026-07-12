@@ -15,7 +15,7 @@ export class Chat {
   private readonly router = inject(Router);
 
   readonly menuOpen = signal(false);
-  readonly countOptions = [3, 4, 5, 6, 7, 8];
+  readonly countOptions = [2, 3, 4, 5, 6, 7, 8];
   readonly suggestions = ['Без свинины', 'На 2 порции', 'Побыстрее', 'Вегетарианские'];
 
   private readonly streamEl = viewChild<ElementRef<HTMLElement>>('stream');
