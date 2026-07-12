@@ -35,8 +35,10 @@ export class Shopping {
   private readonly checked = signal<Set<string>>(new Set());
   private activePlanId = '';
 
-  // Живая группировка по категориям — пересобирается по мере прихода пунктов.
+  // Живая группировка по категориям. Отмеченные (купленные) уезжают в конец
+  // своей категории, невыбранные — сверху; внутри — по алфавиту.
   readonly groups = computed<ShoppingGroup[]>(() => {
+    const checked = this.checked();
     const byCat = new Map<string, ShoppingListItem[]>();
     for (const it of this.items()) {
       const cat = it.category || 'Прочее';
@@ -48,7 +50,12 @@ export class Shopping {
     ];
     return order.map((category) => ({
       category,
-      items: [...byCat.get(category)!].sort((a, b) => a.name.localeCompare(b.name, 'ru')),
+      items: [...byCat.get(category)!].sort((a, b) => {
+        const da = checked.has(this.key(a)) ? 1 : 0;
+        const db = checked.has(this.key(b)) ? 1 : 0;
+        if (da !== db) return da - db; // невыбранные сверху, отмеченные — вниз
+        return a.name.localeCompare(b.name, 'ru');
+      }),
     }));
   });
 
