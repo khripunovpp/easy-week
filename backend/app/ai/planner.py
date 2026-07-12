@@ -1,12 +1,14 @@
 import asyncio
 import logging
 import re
+from collections.abc import AsyncIterator
 from datetime import date, timedelta
 from typing import Any
 
 from ..config import settings
 from .cloudflare import run_json
-from .deepseek import DeepSeekError, deepseek_json
+from .deepseek import DeepSeekError, deepseek_json, deepseek_stream
+from .stream_parse import PlanStreamParser
 
 _MONTHS_GEN = [
     "января", "февраля", "марта", "апреля", "мая", "июня",
@@ -167,6 +169,69 @@ async def generate_plan(
             logger.warning("DeepSeek недоступен (%s) — фолбэк на Cloudflare", str(exc)[:120])
 
     return await _generate_plan_cloudflare(user_message, avoid_titles, count)
+
+
+async def generate_plan_stream(
+    user_message: str, avoid_titles: list[str], count: int = 5
+) -> AsyncIterator[tuple[str, Any]]:
+    """Потоковый план: yield ('meta', {reply,title,week_label}) → ('dish', dish)… по одному.
+
+    Идёт через стриминг DeepSeek с инкрементальным разбором JSON. Если DeepSeek не
+    настроен/упал/не дал ни одного блюда — фолбэк на обычный generate_plan одним куском.
+    """
+    week = _week_label()
+    meta_sent = False
+    if settings.deepseek_configured:
+        parser = PlanStreamParser()
+        emitted = 0
+        try:
+            async for delta in deepseek_stream(
+                build_ds_plan_messages(user_message, avoid_titles, count),
+                max_tokens=3000,
+                label=f"план (поток): {count} блюд",
+            ):
+                parser.feed(delta)
+                if not meta_sent:
+                    meta = parser.meta()
+                    if meta:
+                        meta_sent = True
+                        yield "meta", {
+                            "reply": meta["reply"] or "Готово — вот план на неделю.",
+                            "title": _clean_title(meta["title"] or "План на неделю"),
+                            "week_label": week,
+                        }
+                for d in parser.new_dishes():
+                    if emitted >= count:
+                        break
+                    if not meta_sent:
+                        meta_sent = True
+                        yield "meta", {
+                            "reply": "Готово — вот план на неделю.",
+                            "title": "План на неделю",
+                            "week_label": week,
+                        }
+                    yield "dish", _clean_dish(emitted, d)
+                    emitted += 1
+            if emitted:
+                logger.info("plan stream via DeepSeek: dishes=%d", emitted)
+                return
+            logger.warning("DeepSeek-поток пуст — фолбэк на generate_plan")
+        except DeepSeekError as exc:
+            if emitted:
+                logger.warning("DeepSeek-поток оборвался после %d блюд: %s", emitted, str(exc)[:120])
+                return
+            logger.warning("DeepSeek-поток недоступен (%s) — фолбэк", str(exc)[:120])
+
+    # Фолбэк: собираем план целиком и отдаём теми же событиями.
+    data = await _generate_plan_cloudflare(user_message, avoid_titles, count)
+    if not meta_sent:
+        yield "meta", {
+            "reply": data["reply"],
+            "title": data["title"],
+            "week_label": data["week_label"],
+        }
+    for d in data["dishes"]:
+        yield "dish", d
 
 
 async def _generate_plan_cloudflare(

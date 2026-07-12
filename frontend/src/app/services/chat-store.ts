@@ -60,24 +60,49 @@ export class ChatStore {
     this.draft.set('');
     this.loading.set(true);
 
-    this.api.chat(text, this.conversationId, this.dishCount()).subscribe({
-      next: (res) => {
-        this.conversationId = res.conversationId;
-        this.messages.update((list) => [
-          ...list,
-          { id: `a-${this.seq++}`, role: 'assistant', text: res.reply, plan: res.plan ?? undefined },
-        ]);
-        this.loading.set(false);
-      },
-      error: () => {
+    // Потоковый приём: сначала meta (карточка плана), потом блюда по одному.
+    const msgId = `a-${this.seq++}`;
+    let planStarted = false;
+
+    void this.api.chatStream(text, this.conversationId, this.dishCount(), {
+      onMeta: (m) => {
+        this.conversationId = m.conversationId;
+        planStarted = true;
         this.messages.update((list) => [
           ...list,
           {
-            id: `e-${this.seq++}`,
+            id: msgId,
             role: 'assistant',
-            text: 'Не получилось составить план. Проверьте, что бэкенд запущен, и попробуйте ещё раз.',
+            text: m.reply,
+            plan: {
+              id: m.planId,
+              conversationId: m.conversationId,
+              title: m.title,
+              weekLabel: m.weekLabel,
+              status: 'draft',
+              dishes: [],
+            },
           },
         ]);
+      },
+      onDish: (dish) => {
+        this.updatePlan(msgId, (plan) => ({ ...plan, dishes: [...plan.dishes, dish] }));
+      },
+      onDone: () => this.loading.set(false),
+      onError: (message) => {
+        if (!planStarted) {
+          this.messages.update((list) => [
+            ...list,
+            {
+              id: `e-${this.seq++}`,
+              role: 'assistant',
+              text:
+                message === 'Не удалось составить план'
+                  ? 'Не получилось составить план. Попробуйте ещё раз.'
+                  : `${message}. Попробуйте ещё раз.`,
+            },
+          ]);
+        }
         this.loading.set(false);
       },
     });

@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx
@@ -12,6 +13,44 @@ logger = logging.getLogger("easy_week.deepseek")
 
 class DeepSeekError(RuntimeError):
     pass
+
+
+async def deepseek_stream(
+    messages: list[dict[str, str]], *, max_tokens: int = 3000, label: str = ""
+) -> AsyncIterator[str]:
+    """Стриминг DeepSeek: отдаёт дельты контента по мере генерации (для SSE)."""
+    if not settings.deepseek_configured:
+        raise DeepSeekError("DeepSeek не настроен: нет DEEPSEEK_API_KEY")
+
+    logger.info("AI → DeepSeek · %s · %s (stream)", settings.deepseek_model, label or "?")
+    url = f"{settings.deepseek_base_url}/chat/completions"
+    payload = {
+        "model": settings.deepseek_model,
+        "messages": messages,
+        "response_format": {"type": "json_object"},
+        "max_tokens": max_tokens,
+        "temperature": 0.7,
+        "stream": True,
+    }
+    headers = {"Authorization": f"Bearer {settings.deepseek_api_key}"}
+
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        async with client.stream("POST", url, json=payload, headers=headers) as resp:
+            if resp.status_code != 200:
+                body = await resp.aread()
+                raise DeepSeekError(f"DeepSeek {resp.status_code}: {body[:300]!r}")
+            async for line in resp.aiter_lines():
+                if not line or not line.startswith("data:"):
+                    continue
+                data = line[5:].strip()
+                if data == "[DONE]":
+                    break
+                try:
+                    delta = json.loads(data)["choices"][0]["delta"].get("content")
+                except (json.JSONDecodeError, KeyError, IndexError):
+                    continue
+                if delta:
+                    yield delta
 
 
 async def deepseek_json(

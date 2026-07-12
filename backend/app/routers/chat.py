@@ -1,17 +1,23 @@
+from collections.abc import AsyncIterable
 from typing import Annotated
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.sse import EventSourceResponse, ServerSentEvent
 from sqlmodel import Session, select
 
 from ..ai.cloudflare import CloudflareError
-from ..ai.planner import generate_plan
+from ..ai.planner import _week_label, generate_plan, generate_plan_stream
 from ..db import get_session
 from ..models import Conversation, MessageRow, PlanRow
-from ..schemas import ChatMessageOut, ChatRequest, ChatResponse
+from ..schemas import ChatMessageOut, ChatRequest, ChatResponse, Dish
 from ..services.mapping import to_week_plan
 
+import logging
+
 router = APIRouter(prefix="/api", tags=["chat"])
+
+logger = logging.getLogger("easy_week.chat")
 
 SessionDep = Annotated[Session, Depends(get_session)]
 
@@ -46,6 +52,79 @@ async def conversation_messages(
                 plan = to_week_plan(plan_row)
         out.append(ChatMessageOut(id=m.id, role=m.role, text=m.text, plan=plan))
     return out
+
+
+@router.post("/chat/stream", response_class=EventSourceResponse)
+async def chat_stream(
+    req: ChatRequest, session: SessionDep
+) -> AsyncIterable[ServerSentEvent]:
+    """Потоковый чат: события meta → dish (по одному) → done. То же, что /chat,
+    но блюда прилетают по мере генерации (SSE). Токенов не больше — один вызов модели."""
+    conv = session.get(Conversation, req.conversation_id) if req.conversation_id else None
+    if conv is None:
+        conv = Conversation(id=uuid4().hex)
+        session.add(conv)
+        session.commit()
+    session.add(
+        MessageRow(id=uuid4().hex, conversation_id=conv.id, role="user", text=req.message)
+    )
+    session.commit()
+
+    avoid = _accepted_dish_names(session)
+    plan_id = uuid4().hex
+
+    dishes: list[dict] = []
+    title = "План на неделю"
+    reply = "Готово — вот план на неделю."
+    week = ""  # заполнится из события meta (оно всегда раньше блюд)
+
+    try:
+        async for kind, payload in generate_plan_stream(req.message, avoid, req.dishes_count):
+            if kind == "meta":
+                title, week, reply = payload["title"], payload["week_label"], payload["reply"]
+                yield ServerSentEvent(
+                    event="meta",
+                    data={
+                        "conversationId": conv.id,
+                        "planId": plan_id,
+                        "title": title,
+                        "weekLabel": week,
+                        "reply": reply,
+                    },
+                )
+            elif kind == "dish":
+                dishes.append(payload)
+                yield ServerSentEvent(
+                    event="dish",
+                    data=Dish.model_validate(payload).model_dump(by_alias=True),
+                )
+    except Exception as exc:  # noqa: BLE001 — сохраняем то, что успели собрать
+        logger.warning("chat_stream оборвался: %s", str(exc)[:150])
+
+    if not dishes:
+        yield ServerSentEvent(event="error", data={"message": "Не удалось составить план"})
+        return
+
+    plan_row = PlanRow(
+        id=plan_id,
+        conversation_id=conv.id,
+        title=title,
+        week_label=week or _week_label(),
+        status="draft",
+        dishes=dishes,
+    )
+    session.add(plan_row)
+    session.add(
+        MessageRow(
+            id=uuid4().hex,
+            conversation_id=conv.id,
+            role="assistant",
+            text=reply,
+            plan_id=plan_id,
+        )
+    )
+    session.commit()
+    yield ServerSentEvent(event="done", data={"planId": plan_id, "dishesCount": len(dishes)})
 
 
 @router.post("/chat")

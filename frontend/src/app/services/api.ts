@@ -13,6 +13,21 @@ export interface ChatResponse {
   plan: WeekPlan | null;
 }
 
+export interface ChatStreamMeta {
+  conversationId: string;
+  planId: string;
+  title: string;
+  weekLabel: string;
+  reply: string;
+}
+
+export interface ChatStreamHandlers {
+  onMeta: (meta: ChatStreamMeta) => void;
+  onDish: (dish: Dish) => void;
+  onDone: (info: { planId: string; dishesCount: number }) => void;
+  onError: (message: string) => void;
+}
+
 export interface PlanSummary {
   id: string;
   title: string;
@@ -41,6 +56,70 @@ export class EasyWeekApi {
       conversationId,
       dishesCount,
     });
+  }
+
+  // Потоковый чат (SSE): meta → dish (по одному) → done. Плюс возвращает abort-функцию.
+  async chatStream(
+    message: string,
+    conversationId: string | null,
+    dishesCount: number,
+    handlers: ChatStreamHandlers,
+  ): Promise<void> {
+    let resp: Response;
+    try {
+      resp = await fetch(`${API_BASE}/chat/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, conversationId, dishesCount }),
+      });
+    } catch {
+      handlers.onError('Нет связи с сервером');
+      return;
+    }
+    if (!resp.ok || !resp.body) {
+      handlers.onError('Сервер недоступен');
+      return;
+    }
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let sep: number;
+        while ((sep = buffer.indexOf('\n\n')) >= 0) {
+          const chunk = buffer.slice(0, sep);
+          buffer = buffer.slice(sep + 2);
+          this.dispatchSse(chunk, handlers);
+        }
+      }
+    } catch {
+      handlers.onError('Поток прервался');
+    }
+  }
+
+  private dispatchSse(raw: string, handlers: ChatStreamHandlers): void {
+    let event = 'message';
+    let data = '';
+    for (const line of raw.split('\n')) {
+      if (line.startsWith('event:')) event = line.slice(6).trim();
+      else if (line.startsWith('data:')) data += line.slice(5).trim();
+    }
+    if (!data) return;
+    let payload: unknown;
+    try {
+      payload = JSON.parse(data);
+    } catch {
+      return;
+    }
+    if (event === 'meta') handlers.onMeta(payload as ChatStreamMeta);
+    else if (event === 'dish') handlers.onDish(payload as Dish);
+    else if (event === 'done') handlers.onDone(payload as { planId: string; dishesCount: number });
+    else if (event === 'error')
+      handlers.onError((payload as { message?: string }).message ?? 'Ошибка генерации');
   }
 
   listPlans(): Observable<PlanSummary[]> {
