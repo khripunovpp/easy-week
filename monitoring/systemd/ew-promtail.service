@@ -1,0 +1,15 @@
+[Unit]
+Description=Promtail (Easy Week monitoring)
+After=network-online.target ew-loki.service
+Wants=network-online.target
+
+[Service]
+User=pashtitto
+# доступ к journald даёт группа systemd-journal (добавляется install-скриптом)
+SupplementaryGroups=systemd-journal
+ExecStart=/usr/local/bin/promtail -config.file=/home/pashtitto/easy-week/monitoring/promtail/promtail.pi.yml
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

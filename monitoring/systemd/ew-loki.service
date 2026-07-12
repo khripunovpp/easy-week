@@ -1,0 +1,14 @@
+[Unit]
+Description=Loki (Easy Week monitoring)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=pashtitto
+Group=pashtitto
+ExecStart=/usr/local/bin/loki -config.file=/home/pashtitto/easy-week/monitoring/loki/loki-config.yml
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,13 @@
+# Провайдер дашбордов: Grafana подхватывает JSON-файлы из этой папки.
+apiVersion: 1
+providers:
+  - name: easy-week
+    orgId: 1
+    folder: Easy Week
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

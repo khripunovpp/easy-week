@@ -1,0 +1,43 @@
+# Promtail на Пае: шлёт в Loki journald бэкенда + структурный AI-лог (JSONL).
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+  log_level: warn
+
+positions:
+  filename: /var/lib/promtail/positions.yaml
+
+clients:
+  - url: http://127.0.0.1:3100/loki/api/v1/push
+
+scrape_configs:
+  # Логи сервиса бэкенда из journald
+  - job_name: journal
+    journal:
+      path: /var/log/journal
+      max_age: 12h
+      labels:
+        job: easy-week-backend
+    relabel_configs:
+      - source_labels: ['__journal__systemd_unit']
+        target_label: unit
+      - source_labels: ['__journal__systemd_unit']
+        regex: easy-week-backend.service
+        action: keep
+
+  # Структурный AI-лог: провайдер/модель как метки для фильтрации в Grafana
+  - job_name: easy-week-ai
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: easy-week-ai
+          __path__: /home/pashtitto/easy-week/backend/data/ai-logs/*.jsonl
+    pipeline_stages:
+      - json:
+          expressions:
+            provider: provider
+            model: model
+            label: label
+      - labels:
+          provider:
+          model:

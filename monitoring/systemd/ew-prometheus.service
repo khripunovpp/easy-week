@@ -1,0 +1,18 @@
+[Unit]
+Description=Prometheus (Easy Week monitoring)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=pashtitto
+Group=pashtitto
+ExecStart=/usr/local/bin/prometheus \
+  --config.file=/home/pashtitto/easy-week/monitoring/prometheus/prometheus.pi.yml \
+  --storage.tsdb.path=/var/lib/prometheus \
+  --storage.tsdb.retention.time=30d \
+  --web.listen-address=127.0.0.1:9090
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
