@@ -33,7 +33,7 @@
     </div>
 </header>
 
-<div class="chat__stream">
+<div class="chat__stream" #stream>
   @for (m of store.messages(); track m.id) {
     @if (m.role === 'user') {
       <div class="msg msg--user">{{ m.text }}</div>
@@ -75,62 +75,71 @@
                   </div>
                 </div>
               </a>
-              <button
-                class="dish__remove"
-                type="button"
-                (click)="store.removeDish(m.id, d.id)"
-                aria-label="Убрать блюдо">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M7 7l10 10M17 7L7 17" stroke-linecap="round" />
-                </svg>
-              </button>
+              @if (!isStreaming(m.id)) {
+                <button
+                  class="dish__remove"
+                  type="button"
+                  (click)="store.removeDish(m.id, d.id)"
+                  aria-label="Убрать блюдо">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M7 7l10 10M17 7L7 17" stroke-linecap="round" />
+                  </svg>
+                </button>
+              }
             </div>
-          } @empty {
-            <p class="plan__empty muted">Все блюда убраны. Добавьте новые ниже 👇</p>
           }
 
-          <button class="dish-add" type="button" (click)="store.addDish(m.id)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 6v12M6 12h12" stroke-linecap="round" />
-            </svg>
-            Добавить блюдо
-          </button>
-
-          @if (plan.status === 'draft') {
-            <div class="plan__actions">
-              <button class="btn-ghost" type="button" (click)="store.setPlanStatus(m.id, plan.id, 'rejected')">
-                Отклонить
-              </button>
-              <button
-                class="btn-primary plan__accept"
-                type="button"
-                (click)="store.setPlanStatus(m.id, plan.id, 'accepted')">
-                Принять план
-              </button>
-            </div>
+          @if (isStreaming(m.id)) {
+            <!-- Лоадер живёт внутри карточки плана, пока блюда догружаются -->
+            <div class="plan__loading"><ew-cooking /></div>
           } @else {
-            <div class="plan__decided">
-              <span
-                class="tag"
-                [class.tag--ok]="plan.status === 'accepted'"
-                [class.tag--no]="plan.status === 'rejected'">
-                {{ plan.status === 'accepted' ? '✓ План принят' : 'План отклонён' }}
-              </span>
-            </div>
-          }
+            @if (!plan.dishes.length) {
+              <p class="plan__empty muted">Все блюда убраны. Добавьте новые ниже 👇</p>
+            }
 
-          <a class="plan__export" [routerLink]="['/print', plan.id]">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-              <path d="M8 3h6l4 4v14H8zM14 3v4h4M9 13h6M9 17h6" stroke-linejoin="round" stroke-linecap="round" />
-            </svg>
-            Экспорт в PDF
-          </a>
+            <button class="dish-add" type="button" (click)="store.addDish(m.id)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 6v12M6 12h12" stroke-linecap="round" />
+              </svg>
+              Добавить блюдо
+            </button>
+
+            @if (plan.status === 'draft') {
+              <div class="plan__actions">
+                <button class="btn-ghost" type="button" (click)="store.setPlanStatus(m.id, plan.id, 'rejected')">
+                  Отклонить
+                </button>
+                <button
+                  class="btn-primary plan__accept"
+                  type="button"
+                  (click)="store.setPlanStatus(m.id, plan.id, 'accepted')">
+                  Принять план
+                </button>
+              </div>
+            } @else {
+              <div class="plan__decided">
+                <span
+                  class="tag"
+                  [class.tag--ok]="plan.status === 'accepted'"
+                  [class.tag--no]="plan.status === 'rejected'">
+                  {{ plan.status === 'accepted' ? '✓ План принят' : 'План отклонён' }}
+                </span>
+              </div>
+            }
+
+            <a class="plan__export" [routerLink]="['/print', plan.id]">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M8 3h6l4 4v14H8zM14 3v4h4M9 13h6M9 17h6" stroke-linejoin="round" stroke-linecap="round" />
+              </svg>
+              Экспорт в PDF
+            </a>
+          }
         </section>
       }
     }
   }
 
-  @if (store.loading()) {
+  @if (store.loading() && !store.streamingMsgId()) {
     <div class="msg msg--bot" aria-label="Составляю план">
       <ew-cooking />
     </div>

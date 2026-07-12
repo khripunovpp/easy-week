@@ -18,6 +18,8 @@ export class ChatStore {
   readonly messages = signal<ChatMessage[]>([INTRO]);
   readonly draft = signal('');
   readonly loading = signal(false);
+  // id сообщения-плана, который сейчас стримится (лоадер живёт внутри его карточки)
+  readonly streamingMsgId = signal<string | null>(null);
   readonly dishCount = signal(5);
 
   private conversationId: string | null = null;
@@ -68,6 +70,7 @@ export class ChatStore {
       onMeta: (m) => {
         this.conversationId = m.conversationId;
         planStarted = true;
+        this.streamingMsgId.set(msgId);
         this.messages.update((list) => [
           ...list,
           {
@@ -88,8 +91,12 @@ export class ChatStore {
       onDish: (dish) => {
         this.updatePlan(msgId, (plan) => ({ ...plan, dishes: [...plan.dishes, dish] }));
       },
-      onDone: () => this.loading.set(false),
+      onDone: () => {
+        this.streamingMsgId.set(null);
+        this.loading.set(false);
+      },
       onError: (message) => {
+        this.streamingMsgId.set(null);
         if (!planStarted) {
           this.messages.update((list) => [
             ...list,

@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, ElementRef, effect, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ChatStore } from '../../services/chat-store';
@@ -16,6 +16,24 @@ export class Chat {
   readonly menuOpen = signal(false);
   readonly countOptions = [3, 4, 5, 6, 7, 8];
   readonly suggestions = ['Без свинины', 'На 2 порции', 'Побыстрее', 'Вегетарианские'];
+
+  private readonly streamEl = viewChild<ElementRef<HTMLElement>>('stream');
+
+  constructor() {
+    // Пока идёт генерация — держим ленту прижатой к низу, чтобы новые блюда
+    // и лоадер внутри карточки не уходили под композер.
+    effect(() => {
+      this.store.messages();
+      this.store.streamingMsgId();
+      if (!this.store.loading()) return;
+      const el = this.streamEl()?.nativeElement;
+      if (el) requestAnimationFrame(() => (el.scrollTop = el.scrollHeight));
+    });
+  }
+
+  isStreaming(msgId: string): boolean {
+    return this.store.streamingMsgId() === msgId;
+  }
 
   pastel(i: number): string {
     return `pastel-${i % 5}`;
