@@ -1,40 +1,6 @@
+/* Лейаут держит общий каркас .page (styles.scss); host прозрачен */
 :host {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-}
-
-/* Шапка (fade-top) */
-.pv__top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 18px 18px;
-}
-.pv__back,
-.pv__pdf {
-  display: grid;
-  place-items: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  background: var(--surface);
-  color: var(--ink);
-  box-shadow: var(--shadow-soft);
-}
-.pv__back svg,
-.pv__pdf svg {
-  width: 21px;
-  height: 21px;
-}
-
-.pv__scroll {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 74px 18px 96px;
+  display: contents;
 }
 
 .pv__state {
@@ -54,7 +20,7 @@
 
 /* Заголовок плана */
 .pv__head {
-  padding: 4px 2px 12px;
+  padding: 0 2px 12px;
 }
 .pv__titlerow {
   display: flex;
@@ -152,13 +118,3 @@
   flex: 1;
   width: auto;
 }
-
-/* Футер «Продолжить обсуждение» (fade-bottom) */
-.pv__footer {
-  padding: 26px 18px 12px;
-}
-.pv__footer .btn-primary svg {
-  width: 20px;
-  height: 20px;
-}
-

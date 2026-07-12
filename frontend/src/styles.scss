@@ -61,10 +61,12 @@
 
   /* Лейаут страницы (единый ритм для всех экранов) */
   --page-pad-x: 20px;        /* горизонтальный отступ — одинаковый везде */
-  --page-pad-top: 16px;      /* верхний зазор контента (под шапкой или без) */
-  --page-pad-bottom: 16px;   /* нижний зазор контента (над футером или без) */
-  --page-header-h: 62px;     /* высота слота шапки: фикс и не-фикс совпадают */
-  --page-footer-h: 84px;     /* высота слота футера (кнопка + зазоры) */
+  --page-pad-y: 16px;        /* вертикальный паддинг шапки/футера */
+  --page-pad-top: 16px;      /* зазор между шапкой и контентом */
+  --page-pad-bottom: 16px;   /* зазор между контентом и футером */
+  --page-header-h: 50px;     /* высота КОНТЕНТА шапки (без паддинга) */
+  --page-footer-h: 57px;     /* высота КОНТЕНТА футера — кнопка (без паддинга) */
+  --page-footer-pad-b: 12px; /* нижний зазор футера до таб-бара */
   --ctl-h: 42px;             /* высота контролов в шапке: кнопки, иконки, пилюли */
 
   /* Шрифты */
@@ -326,8 +328,9 @@ ul {
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: var(--page-header-h);
-  padding: 8px var(--page-pad-x);
+  /* высота = контент + вертикальный паддинг (border-box) */
+  min-height: calc(var(--page-header-h) + 2 * var(--page-pad-y));
+  padding: var(--page-pad-y) var(--page-pad-x);
 }
 /* фиксированная шапка — поверх контента; фейд-блюр вешается классом .fade-top */
 .page__header--fixed {
@@ -353,10 +356,11 @@ ul {
 }
 .page__title {
   font-size: 27px;
-  line-height: 1.15;
+  line-height: 1.1;
 }
 .page__subtitle {
   font-size: 14px;
+  line-height: 1.3;
   color: var(--ink-2);
   margin: 0;
 }
@@ -378,19 +382,22 @@ ul {
   flex-direction: column;
   padding: var(--page-pad-top) var(--page-pad-x) var(--page-pad-bottom);
 }
-/* фикс-шапка не в потоке → освобождаем ей место сверху (зазор тот же, что без фикса) */
+/* фикс-шапка не в потоке → сдвигаем контент на всю её высоту (контент+паддинг) + зазор,
+   чтобы страница с фикс-шапкой и без выглядела одинаково */
 .page--header-fixed .page__inner {
-  padding-top: calc(var(--page-header-h) + var(--page-pad-top));
+  padding-top: calc(var(--page-header-h) + 2 * var(--page-pad-y) + var(--page-pad-top));
 }
-/* фикс-футер не в потоке → освобождаем место снизу */
+/* фикс-футер не в потоке → освобождаем его высоту (контент + паддинг) + зазор */
 .page--footer-fixed .page__inner {
-  padding-bottom: calc(var(--page-footer-h) + var(--page-pad-bottom));
+  padding-bottom: calc(
+    var(--page-footer-h) + var(--page-pad-y) + var(--page-footer-pad-b) + var(--page-pad-bottom)
+  );
 }
 
 /* --- Футер --- */
 .page__footer {
   flex-shrink: 0;
-  padding: var(--page-pad-top) var(--page-pad-x) 12px;
+  padding: var(--page-pad-y) var(--page-pad-x) var(--page-footer-pad-b);
 }
 .page__footer--fixed {
   position: absolute;
