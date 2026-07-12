@@ -1,0 +1,44 @@
+<div class="page page--header-fixed profile">
+  <header class="page__header page__header--fixed fade-top">
+    <div class="page__heading">
+      <h1 class="page__title">Профиль</h1>
+      <p class="page__subtitle">Настройки приложения</p>
+    </div>
+  </header>
+
+  <div class="page__inner">
+    <section class="card setting">
+      <h2 class="setting__label">Тема</h2>
+      <p class="setting__hint">«Система» подстраивается под настройки телефона</p>
+      <div class="seg" role="group" aria-label="Тема оформления">
+        @for (o of themeOptions; track o.value) {
+          <button
+            class="seg__opt"
+            type="button"
+            [class.seg__opt--on]="prefs.theme() === o.value"
+            (click)="prefs.setTheme(o.value)">
+            {{ o.label }}
+          </button>
+        }
+      </div>
+    </section>
+
+    <section class="card setting">
+      <h2 class="setting__label">Ассистент</h2>
+      <p class="setting__hint">Род, в котором ассистент пишет о себе</p>
+      <div class="seg" role="group" aria-label="Пол ассистента">
+        @for (o of genderOptions; track o.value) {
+          <button
+            class="seg__opt"
+            type="button"
+            [class.seg__opt--on]="prefs.gender() === o.value"
+            (click)="prefs.setGender(o.value)">
+            {{ o.label }}
+          </button>
+        }
+      </div>
+    </section>
+
+    <p class="profile__foot muted">Easy Week — меню на неделю под заморозку</p>
+  </div>
+</div>

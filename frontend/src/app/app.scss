@@ -31,7 +31,7 @@
   align-items: center;
   gap: 2px;
   padding: 10px 10px calc(10px + var(--safe-bottom));
-  background: rgba(255, 255, 255, 0.86);
+  background: var(--tabbar-bg);
   backdrop-filter: blur(18px);
   border-top: 1px solid var(--line);
   z-index: 20;

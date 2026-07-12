@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ChatMessage, Dish, PlanStatus, WeekPlan } from '../models/plan.model';
+import { Preferences } from './preferences';
 
 // Относительный путь: в проде nginx проксирует /api → бэкенд;
 // в деве — dev-прокси Angular (proxy.conf.json) на localhost:8000.
@@ -60,6 +61,7 @@ export interface ShoppingGroup {
 @Injectable({ providedIn: 'root' })
 export class EasyWeekApi {
   private readonly http = inject(HttpClient);
+  private readonly prefs = inject(Preferences);
 
   chat(
     message: string,
@@ -70,6 +72,7 @@ export class EasyWeekApi {
       message,
       conversationId,
       dishesCount,
+      gender: this.prefs.gender(),
     });
   }
 
@@ -83,6 +86,7 @@ export class EasyWeekApi {
     return this.http.post<ChatResponse>(`${API_BASE}/chat/edit`, {
       message,
       conversationId,
+      gender: this.prefs.gender(),
       ...opts,
     });
   }
@@ -99,7 +103,7 @@ export class EasyWeekApi {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, conversationId, dishesCount }),
+        body: JSON.stringify({ message, conversationId, dishesCount, gender: this.prefs.gender() }),
       },
       handlers.onError,
       (event, payload) => {

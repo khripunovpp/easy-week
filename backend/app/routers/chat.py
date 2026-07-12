@@ -91,7 +91,9 @@ async def chat_stream(
     provider = ""
 
     try:
-        async for kind, payload in generate_plan_stream(req.message, avoid, req.dishes_count):
+        async for kind, payload in generate_plan_stream(
+            req.message, avoid, req.dishes_count, req.gender
+        ):
             if kind == "meta":
                 title, week, reply = payload["title"], payload["week_label"], payload["reply"]
                 provider = payload.get("provider", "")
@@ -160,7 +162,7 @@ async def chat(req: ChatRequest, session: SessionDep) -> ChatResponse:
     avoid = _accepted_dish_names(session)
 
     try:
-        data = await generate_plan(req.message, avoid, req.dishes_count)
+        data = await generate_plan(req.message, avoid, req.dishes_count, req.gender)
     except CloudflareError as exc:
         raise HTTPException(status_code=502, detail=f"Генерация недоступна: {exc}") from exc
 
@@ -244,13 +246,13 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
         elif req.replace_dish_id:
             # Точечная замена по кнопке — минуя тул-коллинг (выбор функции).
             result = await replace_dish_by_id(
-                row.dishes or [], row.title, req.replace_dish_id, req.message
+                row.dishes or [], row.title, req.replace_dish_id, req.message, req.gender
             )
         elif req.add_dish:
             # Добавление по кнопке — минуя тул-коллинг.
-            result = await add_dish_direct(row.dishes or [], row.title, req.message)
+            result = await add_dish_direct(row.dishes or [], row.title, req.message, req.gender)
         else:
-            result = await edit_plan(row.dishes or [], row.title, req.message)
+            result = await edit_plan(row.dishes or [], row.title, req.message, req.gender)
     except CloudflareError as exc:
         raise HTTPException(status_code=502, detail=f"Правка недоступна: {exc}") from exc
 

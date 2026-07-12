@@ -160,13 +160,13 @@ def _clean_dish(i: int, d: dict) -> dict:
 
 
 async def generate_plan(
-    user_message: str, avoid_titles: list[str], count: int = 5
+    user_message: str, avoid_titles: list[str], count: int = 5, gender: str = "f"
 ) -> dict[str, Any]:
     """План через DeepSeek (блюда + короткие шаги); фолбэк — пайплайн Cloudflare."""
     if settings.deepseek_configured:
         try:
             parsed = await deepseek_json(
-                build_ds_plan_messages(user_message, avoid_titles, count),
+                build_ds_plan_messages(user_message, avoid_titles, count, gender),
                 max_tokens=3000,
                 label=f"план: {count} блюд + короткие шаги",
             )
@@ -184,11 +184,11 @@ async def generate_plan(
         except DeepSeekError as exc:
             logger.warning("DeepSeek недоступен (%s) — фолбэк на Cloudflare", str(exc)[:120])
 
-    return await _generate_plan_cloudflare(user_message, avoid_titles, count)
+    return await _generate_plan_cloudflare(user_message, avoid_titles, count, gender)
 
 
 async def generate_plan_stream(
-    user_message: str, avoid_titles: list[str], count: int = 5
+    user_message: str, avoid_titles: list[str], count: int = 5, gender: str = "f"
 ) -> AsyncIterator[tuple[str, Any]]:
     """Потоковый план: yield ('meta', {reply,title,week_label}) → ('dish', dish)… по одному.
 
@@ -202,7 +202,7 @@ async def generate_plan_stream(
         emitted = 0
         try:
             async for delta in deepseek_stream(
-                build_ds_plan_messages(user_message, avoid_titles, count),
+                build_ds_plan_messages(user_message, avoid_titles, count, gender),
                 max_tokens=3000,
                 label=f"план (поток): {count} блюд",
             ):
@@ -241,7 +241,7 @@ async def generate_plan_stream(
             logger.warning("DeepSeek-поток недоступен (%s) — фолбэк", str(exc)[:120])
 
     # Фолбэк: собираем план целиком и отдаём теми же событиями.
-    data = await _generate_plan_cloudflare(user_message, avoid_titles, count)
+    data = await _generate_plan_cloudflare(user_message, avoid_titles, count, gender)
     if not meta_sent:
         yield "meta", {
             "reply": data["reply"],
@@ -254,11 +254,11 @@ async def generate_plan_stream(
 
 
 async def _generate_plan_cloudflare(
-    user_message: str, avoid_titles: list[str], count: int = 5
+    user_message: str, avoid_titles: list[str], count: int = 5, gender: str = "f"
 ) -> dict[str, Any]:
     """Фолбэк-пайплайн: меню (mistral) → спеки (8b, параллельно) → валидация (mistral)."""
     names, _ = await run_json(
-        build_names_messages(user_message, avoid_titles, count),
+        build_names_messages(user_message, avoid_titles, count, gender),
         NAMES_SCHEMA,
         model=settings.cf_model_menu,
         max_tokens=120 + count * 110,
@@ -354,7 +354,7 @@ def _reid(dish: dict, i: int, existing_ids: set[str]) -> dict:
 
 
 async def edit_plan(
-    dishes: list[dict], title: str, user_message: str
+    dishes: list[dict], title: str, user_message: str, gender: str = "f"
 ) -> dict[str, Any]:
     """Правит существующий план по просьбе через function calling.
 
@@ -368,7 +368,7 @@ async def edit_plan(
     if settings.deepseek_configured:
         try:
             calls, reply_hint = await deepseek_tools(
-                build_edit_messages(title, _dish_names(work), user_message),
+                build_edit_messages(title, _dish_names(work), user_message, gender),
                 PLAN_TOOLS,
                 label="правка плана (tools)",
             )
@@ -389,20 +389,20 @@ async def edit_plan(
         if op == "remove_dish":
             idx = _match_index(work, args.get("name", ""))
             if idx is not None:
-                changed.append(f"убрала «{work[idx].get('name')}»")
+                changed.append(f"убрано «{work[idx].get('name')}»")
                 work.pop(idx)
         elif op == "add_dishes":
             cnt = max(1, min(int(args.get("count", 1) or 1), 6))
-            gen = await generate_plan(args.get("query", ""), _dish_names(work), cnt)
+            gen = await generate_plan(args.get("query", ""), _dish_names(work), cnt, gender)
             providers.add(gen.get("provider", PROVIDER_DEEPSEEK))
             ids = {d["id"] for d in work}
             for j, d in enumerate(gen["dishes"][:cnt]):
                 nd = _reid(d, len(work) + j, ids)
                 work.append(nd)
-                changed.append(f"добавила «{nd.get('name')}»")
+                changed.append(f"добавлено «{nd.get('name')}»")
         elif op == "replace_dish":
             idx = _match_index(work, args.get("old_name", ""))
-            gen = await generate_plan(args.get("query", ""), _dish_names(work), 1)
+            gen = await generate_plan(args.get("query", ""), _dish_names(work), 1, gender)
             providers.add(gen.get("provider", PROVIDER_DEEPSEEK))
             if gen["dishes"]:
                 ids = {d["id"] for d in work}
@@ -413,7 +413,7 @@ async def edit_plan(
                 else:
                     work.append(nd)
                 changed.append(
-                    f"заменила «{old}» на «{nd.get('name')}»" if old else f"добавила «{nd.get('name')}»"
+                    f"«{old}» заменено на «{nd.get('name')}»" if old else f"добавлено «{nd.get('name')}»"
                 )
         elif op == "edit_dish":
             idx = _match_index(work, args.get("name", ""))
@@ -434,19 +434,19 @@ async def edit_plan(
                 if detail.get("note"):
                     nd["storage"] = {**(dish.get("storage") or {}), "note": detail["note"]}
                 work[idx] = nd
-                changed.append(f"обновила рецепт «{dish.get('name')}» ({change})")
+                changed.append(f"рецепт «{dish.get('name')}» обновлён ({change})")
         elif op == "create_plan":
             cnt = max(2, min(int(args.get("count") or len(work) or 5), 12))
-            gen = await generate_plan(args.get("note", user_message), [], cnt)
+            gen = await generate_plan(args.get("note", user_message), [], cnt, gender)
             providers.add(gen.get("provider", PROVIDER_DEEPSEEK))
             work = gen["dishes"]
             new_title = gen.get("title", title)
-            changed = ["пересобрала меню"]
+            changed = ["меню пересобрано"]
 
     if changed:
         reply = "Готово: " + ", ".join(changed) + "."
     else:
-        reply = reply_hint.strip() or "Не поняла, что изменить в плане. Уточните?"
+        reply = reply_hint.strip() or "Не понятно, что изменить в плане. Уточните?"
 
     provider = PROVIDER_CLOUDFLARE if PROVIDER_CLOUDFLARE in providers else PROVIDER_DEEPSEEK
     logger.info("plan edited: ops=%d changed=%d provider=%s", len(calls), len(changed), provider)
@@ -460,7 +460,7 @@ async def edit_plan(
 
 
 async def replace_dish_by_id(
-    dishes: list[dict], title: str, dish_id: str, query: str
+    dishes: list[dict], title: str, dish_id: str, query: str, gender: str = "f"
 ) -> dict[str, Any]:
     """Точечная замена конкретного блюда (кнопка «заменить» в карточке): без выбора функции
     моделью — сразу генерим замену. query — пожелание пользователя (может быть пустым)."""
@@ -469,12 +469,12 @@ async def replace_dish_by_id(
     if idx is None:
         idx = _match_index(work, dish_id)  # запасной путь: трактуем как название
     if idx is None:
-        return {"reply": "Не нашла блюдо для замены.", "title": title,
+        return {"reply": "Не нашлось блюдо для замены.", "title": title,
                 "dishes": dishes, "provider": PROVIDER_DEEPSEEK, "changed": []}
 
     old = work[idx].get("name", "")
     q = query.strip() or f"другое блюдо взамен «{old}», отличное от остальных"
-    gen = await generate_plan(q, _dish_names(work), 1)
+    gen = await generate_plan(q, _dish_names(work), 1, gender)
     provider = gen.get("provider", PROVIDER_DEEPSEEK)
     if not gen["dishes"]:
         return {"reply": "Не удалось подобрать замену. Попробуйте ещё раз.", "title": title,
@@ -483,7 +483,7 @@ async def replace_dish_by_id(
     ids = {d["id"] for d in work}
     nd = _reid(gen["dishes"][0], idx, ids)
     work[idx] = nd
-    changed = [f"заменила «{old}» на «{nd.get('name')}»"]
+    changed = [f"«{old}» заменено на «{nd.get('name')}»"]
     return {"reply": "Готово: " + changed[0] + ".", "title": title,
             "dishes": work, "provider": provider, "changed": changed}
 
@@ -495,20 +495,22 @@ def remove_dish_by_id(dishes: list[dict], title: str, dish_id: str) -> dict[str,
     if idx is None:
         idx = _match_index(work, dish_id)
     if idx is None:
-        return {"reply": "Не нашла блюдо для удаления.", "title": title,
+        return {"reply": "Не нашлось блюдо для удаления.", "title": title,
                 "dishes": dishes, "provider": "", "changed": []}
     name = work.pop(idx).get("name", "")
-    changed = [f"убрала «{name}»"]
+    changed = [f"убрано «{name}»"]
     return {"reply": "Готово: " + changed[0] + ".", "title": title,
             "dishes": work, "provider": "", "changed": changed}
 
 
-async def add_dish_direct(dishes: list[dict], title: str, query: str) -> dict[str, Any]:
+async def add_dish_direct(
+    dishes: list[dict], title: str, query: str, gender: str = "f"
+) -> dict[str, Any]:
     """Добавить одно блюдо в существующий план (кнопка «Добавить блюдо») — без выбора функции
     моделью. query — пожелание пользователя (может быть пустым)."""
     work = [dict(d) for d in dishes]
     q = query.strip() or "ещё одно блюдо, отличное от остальных"
-    gen = await generate_plan(q, _dish_names(work), 1)
+    gen = await generate_plan(q, _dish_names(work), 1, gender)
     provider = gen.get("provider", PROVIDER_DEEPSEEK)
     if not gen["dishes"]:
         return {"reply": "Не удалось подобрать блюдо. Попробуйте ещё раз.", "title": title,
@@ -516,7 +518,7 @@ async def add_dish_direct(dishes: list[dict], title: str, query: str) -> dict[st
     ids = {d["id"] for d in work}
     nd = _reid(gen["dishes"][0], len(work), ids)
     work.append(nd)
-    changed = [f"добавила «{nd.get('name')}»"]
+    changed = [f"добавлено «{nd.get('name')}»"]
     return {"reply": "Готово: " + changed[0] + ".", "title": title,
             "dishes": work, "provider": provider, "changed": changed}
 

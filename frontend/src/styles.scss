@@ -10,6 +10,7 @@
   --bg-bottom: #f4f0ed;
   --surface: #ffffff;
   --surface-sunk: #f7f3f0;
+  --tabbar-bg: rgba(255, 255, 255, 0.86); /* полупрозрачный фон таб-бара */
 
   --ink: #221d1a;
   --ink-2: #8d857f;
@@ -75,6 +76,60 @@
 
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* --- Тёмная тема: тёплая тёмная палитра, коралловый акцент сохраняем.
+   Переключается через data-theme на <html> (см. PreferencesService). --- */
+@mixin ew-dark {
+  --bg-top: #201a17;
+  --bg-bottom: #17130f;
+  --surface: #2a2320;
+  --surface-sunk: #221c19;
+  --tabbar-bg: rgba(30, 24, 21, 0.9);
+
+  --ink: #f2ebe6;
+  --ink-2: #b3a89f;
+  --ink-3: #7d746c;
+
+  --accent: #f07a58;
+  --accent-press: #d95a38;
+  --accent-soft: #3a2620;
+
+  --frost: #6bb2e6;
+  --frost-soft: #1e2f3b;
+  --frost-ink: #9cc4de;
+  --done: #9b8ff5;
+  --done-soft: #262138;
+
+  --line: #362e29;
+  --dash: #453b34;
+
+  --ok: #7ab663;
+  --ok-soft: #22301a;
+  --no: #e08163;
+  --no-soft: #35201a;
+
+  --pastel-peach: #3a2a24;
+  --pastel-green: #26301f;
+  --pastel-lilac: #2c2740;
+  --pastel-yellow: #38311d;
+  --pastel-blue: #223140;
+
+  --shadow-card: 0 14px 34px -18px rgba(0, 0, 0, 0.6);
+  --shadow-soft: 0 6px 18px -10px rgba(0, 0, 0, 0.5);
+  --shadow-float: 0 18px 40px -14px rgba(0, 0, 0, 0.7);
+}
+
+/* Ручной выбор тёмной темы */
+:root[data-theme='dark'] {
+  @include ew-dark;
+}
+
+/* Тема «Система»: тёмная, когда ОС тёмная и явный выбор не задан */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']):not([data-theme='dark']) {
+    @include ew-dark;
+  }
 }
 
 * {

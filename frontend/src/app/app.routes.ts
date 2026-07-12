@@ -36,8 +36,7 @@ export const routes: Routes = [
   },
   {
     path: 'profile',
-    loadComponent: () => import('./features/stub/stub').then((m) => m.Stub),
-    data: { title: 'Профиль', emoji: '🧑‍🍳' },
+    loadComponent: () => import('./features/profile/profile').then((m) => m.ProfilePage),
   },
   { path: '**', redirectTo: 'home' },
 ];

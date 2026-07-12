@@ -377,14 +377,13 @@ def _plan_summary(title: str, dish_names: list[str]) -> str:
 
 
 def build_edit_messages(
-    title: str, dish_names: list[str], user_message: str
+    title: str, dish_names: list[str], user_message: str, gender: str = "f"
 ) -> list[dict[str, str]]:
+    content = f"{_plan_summary(title, dish_names)}\n\nПросьба: {user_message.strip()}"
+    content += _gender_hint(gender)
     return [
         {"role": "system", "content": EDIT_SYSTEM},
-        {
-            "role": "user",
-            "content": f"{_plan_summary(title, dish_names)}\n\nПросьба: {user_message.strip()}",
-        },
+        {"role": "user", "content": content},
     ]
 
 
@@ -430,6 +429,13 @@ def build_edit_action_messages(
     ]
 
 
+def _gender_hint(gender: str) -> str:
+    # Пол ассистента влияет только на прозу модели; кладём в USER-сообщение (не в system),
+    # чтобы не менять кэшируемый общий префикс и чтобы смена пола применялась сразу.
+    role = "МУЖСКОМ" if gender == "m" else "ЖЕНСКОМ"
+    return f"\nО себе и своих действиях пиши в {role} роде."
+
+
 def _plan_count_hint(count: int) -> str:
     # count из селектора — это ДЕФОЛТ. Явное число в запросе пользователя важнее.
     return (
@@ -439,11 +445,12 @@ def _plan_count_hint(count: int) -> str:
 
 
 def build_ds_plan_messages(
-    user_message: str, avoid_titles: list[str], count: int
+    user_message: str, avoid_titles: list[str], count: int, gender: str = "f"
 ) -> list[dict[str, str]]:
     content = user_message.strip() + _plan_count_hint(count)
     if avoid_titles:
         content += "\nНедавно принятые блюда (не повторяй): " + ", ".join(avoid_titles[:12])
+    content += _gender_hint(gender)
     return [
         {"role": "system", "content": DEEPSEEK_PLAN_SYSTEM},
         {"role": "user", "content": content},
@@ -451,11 +458,12 @@ def build_ds_plan_messages(
 
 
 def build_names_messages(
-    user_message: str, avoid_titles: list[str], count: int = 5
+    user_message: str, avoid_titles: list[str], count: int = 5, gender: str = "f"
 ) -> list[dict[str, str]]:
     content = user_message.strip() + _plan_count_hint(count)
     if avoid_titles:
         content += "\nНедавно принятые блюда (не повторяй): " + ", ".join(avoid_titles[:12])
+    content += _gender_hint(gender)
     return [
         {"role": "system", "content": NAMES_SYSTEM},
         {"role": "user", "content": content},

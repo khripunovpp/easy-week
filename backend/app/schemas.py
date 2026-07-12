@@ -91,6 +91,8 @@ class ChatRequest(CamelModel):
     remove_dish_id: str | None = None
     # Если true — добавить одно блюдо в текущий план (кнопка «Добавить блюдо»), минуя тул-коллинг.
     add_dish: bool = False
+    # Пол ассистента — влияет на род в прозе модели (f — женский, m — мужской).
+    gender: str = "f"
 
 
 class ChatResponse(CamelModel):

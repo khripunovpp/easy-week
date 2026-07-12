@@ -1,0 +1,57 @@
+/* Каркас держит .page (styles.scss); host прозрачен */
+:host {
+  display: contents;
+}
+
+.profile .page__inner {
+  gap: 14px;
+}
+
+.setting {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 16px;
+}
+
+.setting__label {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.setting__hint {
+  font-size: 13px;
+  color: var(--ink-2);
+  margin-bottom: 6px;
+}
+
+/* Сегмент-контрол: пилюля с активным сегментом на акценте */
+.seg {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--r-pill);
+  background: var(--surface-sunk);
+}
+
+.seg__opt {
+  flex: 1;
+  padding: 9px 8px;
+  border-radius: var(--r-pill);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-2);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.seg__opt--on {
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: var(--shadow-soft);
+}
+
+.profile__foot {
+  text-align: center;
+  font-size: 12.5px;
+  padding: 8px 0 4px;
+}
