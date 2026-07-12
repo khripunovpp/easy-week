@@ -111,14 +111,14 @@ async def dish_details(plan_id: str, dish_id: str, session: SessionDep) -> Dish:
         raise HTTPException(status_code=404, detail="Блюдо не найдено")
 
     dish = dishes[idx]
-    if not dish.get("steps"):  # генерим только если ещё нет
+    if not dish.get("steps"):  # генерим только если ещё нет (старые планы без шагов)
         try:
             details = await generate_details(dish.get("name", ""), dish.get("ingredients", []))
         except CloudflareError as exc:
             raise HTTPException(status_code=502, detail=f"Не удалось получить рецепт: {exc}") from exc
         dish = {**dish, **details}
         dishes[idx] = dish
-        row.dishes = dishes  # переприсваиваем целиком, чтобы JSON-колонка обновилась
+        row.dishes = dishes
         session.add(row)
         session.commit()
 

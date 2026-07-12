@@ -1,0 +1,21 @@
+import { chromium, devices } from 'playwright';
+const OUT=process.argv[2], base='http://127.0.0.1:4200';
+const b=await chromium.launch(); const p=await (await b.newContext({...devices['iPhone 13']})).newPage();
+await p.goto(base+'/chat',{waitUntil:'networkidle'});
+await p.fill('.composer__input','итальянское, без свинины'); await p.click('.composer__send');
+await p.waitForSelector('.plan',{timeout:60000});
+await p.click('.dish__main');
+await p.waitForSelector('.steps .step',{timeout:20000});
+await p.waitForTimeout(400);
+await p.screenshot({path:`${OUT}/dish-short.png`});
+console.log('short steps:', await p.$$eval('.steps .step', els=>els.length));
+// expand
+await p.click('.d__expand');
+await p.waitForSelector('.d__expand-spin',{timeout:5000}).catch(()=>{});
+await p.waitForФunction?0:0;
+await p.waitForTimeout(1000);
+await p.waitForSelector('.d__expand', {state:'detached', timeout:40000}).catch(()=>{});
+await p.waitForTimeout(600);
+await p.screenshot({path:`${OUT}/dish-detailed.png`});
+console.log('detailed steps:', await p.$$eval('.steps .step', els=>els.length));
+await b.close();
