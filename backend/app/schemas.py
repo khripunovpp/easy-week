@@ -33,6 +33,8 @@ class Dish(CamelModel):
     tips: list[str] = []
     steps: list[str] = []
     ingredients: list[Ingredient] = []
+    # Какой моделью сгенерирован развёрнутый рецепт (пусто, пока деталь не грузили).
+    detail_provider: str = ""
 
 
 class WeekPlan(CamelModel):
@@ -41,6 +43,8 @@ class WeekPlan(CamelModel):
     title: str
     week_label: str
     status: str
+    # Модель, составившая план (DeepSeek | Cloudflare).
+    provider: str = ""
     dishes: list[Dish]
 
 

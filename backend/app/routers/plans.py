@@ -43,6 +43,7 @@ def _merge_detail(dish: dict, detail: dict) -> dict:
         "ingredients": detail.get("ingredients") or [],
         "steps": detail.get("steps") or [],
         "tips": detail.get("tips") or [],
+        "detail_provider": detail.get("provider") or "",
     }
     if detail.get("note"):
         d["storage"] = {**(dish.get("storage") or {}), "note": detail["note"]}

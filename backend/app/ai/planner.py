@@ -1,4 +1,5 @@
 import asyncio
+import difflib
 import logging
 import re
 from collections.abc import AsyncIterator
@@ -6,8 +7,8 @@ from datetime import date, timedelta
 from typing import Any
 
 from ..config import settings
-from .cloudflare import run_json
-from .deepseek import DeepSeekError, deepseek_json, deepseek_stream
+from .cloudflare import CloudflareError, run_json
+from .deepseek import DeepSeekError, deepseek_json, deepseek_stream, deepseek_tools
 from .stream_parse import PlanStreamParser
 
 _MONTHS_GEN = [
@@ -38,18 +39,26 @@ def _clean_title(title: str) -> str:
 from .prompt import (
     DISH_DETAIL_SCHEMA,
     DISH_SCHEMA,
+    EDIT_ACTION_SCHEMA,
     NAMES_SCHEMA,
+    PLAN_TOOLS,
     SHOP_SCHEMA,
     VALIDATE_SCHEMA,
     build_dish_detail_messages,
     build_dish_messages,
     build_ds_plan_messages,
+    build_edit_action_messages,
+    build_edit_messages,
     build_names_messages,
     build_shop_normalize_messages,
     build_validate_messages,
 )
 
 logger = logging.getLogger("easy_week.planner")
+
+# Метки провайдера — храним у плана/детали, чтобы показать в чате смену модели.
+PROVIDER_DEEPSEEK = "DeepSeek"
+PROVIDER_CLOUDFLARE = "Cloudflare"
 
 
 def _slug(text: str, i: int) -> str:
@@ -165,6 +174,7 @@ async def generate_plan(
                     "title": _clean_title(parsed.get("title") or "План на неделю"),
                     "week_label": _week_label(),
                     "dishes": dishes,
+                    "provider": PROVIDER_DEEPSEEK,
                 }
             logger.warning("DeepSeek вернул пустой план — фолбэк на Cloudflare")
         except DeepSeekError as exc:
@@ -201,6 +211,7 @@ async def generate_plan_stream(
                             "reply": meta["reply"] or "Готово — вот план на неделю.",
                             "title": _clean_title(meta["title"] or "План на неделю"),
                             "week_label": week,
+                            "provider": PROVIDER_DEEPSEEK,
                         }
                 for d in parser.new_dishes():
                     if emitted >= count:
@@ -211,6 +222,7 @@ async def generate_plan_stream(
                             "reply": "Готово — вот план на неделю.",
                             "title": "План на неделю",
                             "week_label": week,
+                            "provider": PROVIDER_DEEPSEEK,
                         }
                     yield "dish", _clean_dish(emitted, d)
                     emitted += 1
@@ -231,6 +243,7 @@ async def generate_plan_stream(
             "reply": data["reply"],
             "title": data["title"],
             "week_label": data["week_label"],
+            "provider": data.get("provider", PROVIDER_CLOUDFLARE),
         }
     for d in data["dishes"]:
         yield "dish", d
@@ -266,6 +279,7 @@ async def _generate_plan_cloudflare(
         "title": _clean_title(names.get("title") or "План на неделю"),
         "week_label": _week_label(),
         "dishes": dishes,
+        "provider": PROVIDER_CLOUDFLARE,
     }
 
 
@@ -281,7 +295,7 @@ async def generate_dish_detail(name: str, servings: int = 4) -> dict:
                 label=f"деталь блюда: {name}",
             )
             if parsed.get("ingredients") or parsed.get("steps"):
-                return _clean_detail(parsed)
+                return _clean_detail(parsed, PROVIDER_DEEPSEEK)
         except DeepSeekError as exc:
             logger.warning("DeepSeek деталь недоступна (%s) — фолбэк на Cloudflare", str(exc)[:120])
     parsed, _ = await run_json(
@@ -291,16 +305,166 @@ async def generate_dish_detail(name: str, servings: int = 4) -> dict:
         max_tokens=1400,
         label=f"деталь блюда (фолбэк): {name}",
     )
-    return _clean_detail(parsed)
+    return _clean_detail(parsed, PROVIDER_CLOUDFLARE)
 
 
-def _clean_detail(parsed: dict) -> dict:
+def _clean_detail(parsed: dict, provider: str = "") -> dict:
     return {
         "ingredients": parsed.get("ingredients") or [],
         "steps": parsed.get("steps") or [],
         "tips": parsed.get("tips") or [],
         "note": (parsed.get("note") or "").strip(),
+        "provider": provider,
     }
+
+
+def _dish_names(dishes: list[dict]) -> list[str]:
+    return [str(d.get("name", "")) for d in dishes if d.get("name")]
+
+
+def _match_index(dishes: list[dict], name: str) -> int | None:
+    """Индекс блюда, лучше всего совпадающего с name (fuzzy). None — если не нашли."""
+    name = (name or "").strip().lower()
+    if not name:
+        return None
+    names = [str(d.get("name", "")).lower() for d in dishes]
+    for i, n in enumerate(names):  # точное/подстрочное совпадение — в приоритете
+        if n == name or name in n or n in name:
+            return i
+    close = difflib.get_close_matches(name, names, n=1, cutoff=0.6)
+    return names.index(close[0]) if close else None
+
+
+def _reid(dish: dict, i: int, existing_ids: set[str]) -> dict:
+    """Присваивает блюду уникальный id, не конфликтующий с existing_ids."""
+    base = _slug(dish.get("name", "блюдо"), i)
+    new_id, k = base, i
+    while new_id in existing_ids:
+        k += 1
+        new_id = _slug(dish.get("name", "блюдо"), k)
+    dish = {**dish, "id": new_id}
+    existing_ids.add(new_id)
+    return dish
+
+
+async def edit_plan(
+    dishes: list[dict], title: str, user_message: str
+) -> dict[str, Any]:
+    """Правит существующий план по просьбе через function calling.
+
+    Модель выбирает функции (add/remove/replace/create); исполняем их над копией dishes,
+    переиспользуя generate_plan для новых «шапок». Возвращает {reply, title, dishes, provider}."""
+    work = [dict(d) for d in dishes]
+    calls: list[dict[str, Any]] = []
+    tool_provider = PROVIDER_DEEPSEEK
+    reply_hint = ""
+
+    if settings.deepseek_configured:
+        try:
+            calls, reply_hint = await deepseek_tools(
+                build_edit_messages(title, _dish_names(work), user_message),
+                PLAN_TOOLS,
+                label="правка плана (tools)",
+            )
+        except DeepSeekError as exc:
+            logger.warning("DeepSeek tools недоступны (%s) — фолбэк на Cloudflare", str(exc)[:120])
+            calls, reply_hint, tool_provider = await _edit_actions_cloudflare(
+                title, work, user_message
+            )
+    else:
+        calls, reply_hint, tool_provider = await _edit_actions_cloudflare(title, work, user_message)
+
+    providers = {tool_provider}
+    changed: list[str] = []
+    new_title = title
+
+    for call in calls:
+        op, args = call.get("name", ""), call.get("args", {})
+        if op == "remove_dish":
+            idx = _match_index(work, args.get("name", ""))
+            if idx is not None:
+                changed.append(f"убрала «{work[idx].get('name')}»")
+                work.pop(idx)
+        elif op == "add_dishes":
+            cnt = max(1, min(int(args.get("count", 1) or 1), 6))
+            gen = await generate_plan(args.get("query", ""), _dish_names(work), cnt)
+            providers.add(gen.get("provider", PROVIDER_DEEPSEEK))
+            ids = {d["id"] for d in work}
+            for j, d in enumerate(gen["dishes"][:cnt]):
+                nd = _reid(d, len(work) + j, ids)
+                work.append(nd)
+                changed.append(f"добавила «{nd.get('name')}»")
+        elif op == "replace_dish":
+            idx = _match_index(work, args.get("old_name", ""))
+            gen = await generate_plan(args.get("query", ""), _dish_names(work), 1)
+            providers.add(gen.get("provider", PROVIDER_DEEPSEEK))
+            if gen["dishes"]:
+                ids = {d["id"] for d in work}
+                nd = _reid(gen["dishes"][0], (idx if idx is not None else len(work)), ids)
+                old = work[idx].get("name") if idx is not None else None
+                if idx is not None:
+                    work[idx] = nd
+                else:
+                    work.append(nd)
+                changed.append(
+                    f"заменила «{old}» на «{nd.get('name')}»" if old else f"добавила «{nd.get('name')}»"
+                )
+        elif op == "create_plan":
+            cnt = max(2, min(int(args.get("count") or len(work) or 5), 12))
+            gen = await generate_plan(args.get("note", user_message), [], cnt)
+            providers.add(gen.get("provider", PROVIDER_DEEPSEEK))
+            work = gen["dishes"]
+            new_title = gen.get("title", title)
+            changed = ["пересобрала меню"]
+
+    if changed:
+        reply = "Готово: " + ", ".join(changed) + "."
+    else:
+        reply = reply_hint.strip() or "Не поняла, что изменить в плане. Уточните?"
+
+    provider = PROVIDER_CLOUDFLARE if PROVIDER_CLOUDFLARE in providers else PROVIDER_DEEPSEEK
+    logger.info("plan edited: ops=%d changed=%d provider=%s", len(calls), len(changed), provider)
+    return {"reply": reply, "title": new_title, "dishes": work, "provider": provider}
+
+
+async def _edit_actions_cloudflare(
+    title: str, dishes: list[dict], user_message: str
+) -> tuple[list[dict[str, Any]], str, str]:
+    """Фолбэк без tools API: structured actions → приводим к формату tool_calls."""
+    try:
+        parsed, _ = await run_json(
+            build_edit_action_messages(title, _dish_names(dishes), user_message),
+            EDIT_ACTION_SCHEMA,
+            model=settings.cf_model_judge,
+            max_tokens=500,
+            label="правка плана (actions, фолбэк)",
+        )
+    except CloudflareError as exc:
+        logger.warning("CF actions недоступны: %s", str(exc)[:120])
+        return [], "", PROVIDER_CLOUDFLARE
+
+    op_map = {
+        "add": "add_dishes",
+        "remove": "remove_dish",
+        "replace": "replace_dish",
+        "create": "create_plan",
+    }
+    calls: list[dict[str, Any]] = []
+    for a in parsed.get("actions") or []:
+        name = op_map.get(str(a.get("op", "")).lower())
+        if not name:
+            continue
+        calls.append({
+            "name": name,
+            "args": {
+                "query": a.get("query", ""),
+                "note": a.get("query", ""),
+                "name": a.get("name", ""),
+                "old_name": a.get("name", ""),
+                "count": a.get("count", 1),
+            },
+        })
+    return calls, parsed.get("reply", ""), PROVIDER_CLOUDFLARE
 
 
 async def normalize_shopping(items: list[dict]) -> list[dict]:

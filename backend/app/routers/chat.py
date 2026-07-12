@@ -7,7 +7,7 @@ from fastapi.sse import EventSourceResponse, ServerSentEvent
 from sqlmodel import Session, select
 
 from ..ai.cloudflare import CloudflareError
-from ..ai.planner import _week_label, generate_plan, generate_plan_stream
+from ..ai.planner import _week_label, edit_plan, generate_plan, generate_plan_stream
 from ..db import get_session
 from ..models import Conversation, MessageRow, PlanRow
 from ..schemas import ChatMessageOut, ChatRequest, ChatResponse, Dish
@@ -77,11 +77,13 @@ async def chat_stream(
     title = "План на неделю"
     reply = "Готово — вот план на неделю."
     week = ""  # заполнится из события meta (оно всегда раньше блюд)
+    provider = ""
 
     try:
         async for kind, payload in generate_plan_stream(req.message, avoid, req.dishes_count):
             if kind == "meta":
                 title, week, reply = payload["title"], payload["week_label"], payload["reply"]
+                provider = payload.get("provider", "")
                 yield ServerSentEvent(
                     event="meta",
                     data={
@@ -90,6 +92,7 @@ async def chat_stream(
                         "title": title,
                         "weekLabel": week,
                         "reply": reply,
+                        "provider": provider,
                     },
                 )
             elif kind == "dish":
@@ -111,6 +114,7 @@ async def chat_stream(
         title=title,
         week_label=week or _week_label(),
         status="draft",
+        provider=provider,
         dishes=dishes,
     )
     session.add(plan_row)
@@ -153,6 +157,7 @@ async def chat(req: ChatRequest, session: SessionDep) -> ChatResponse:
         title=data["title"],
         week_label=data["week_label"],
         status="draft",
+        provider=data.get("provider", ""),
         dishes=data["dishes"],
     )
     session.add(plan_row)
@@ -172,4 +177,60 @@ async def chat(req: ChatRequest, session: SessionDep) -> ChatResponse:
         conversation_id=conv.id,
         reply=data["reply"],
         plan=to_week_plan(plan_row),
+    )
+
+
+def _latest_plan(session: Session, conversation_id: str) -> PlanRow | None:
+    return session.exec(
+        select(PlanRow)
+        .where(PlanRow.conversation_id == conversation_id)
+        .order_by(PlanRow.created_at.desc())
+    ).first()
+
+
+@router.post("/chat/edit")
+async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
+    """Правка текущего плана диалога через function calling (добавить/убрать/заменить блюдо
+    или пересобрать меню). Обновляет существующий план на месте, а не создаёт новый."""
+    conv = session.get(Conversation, req.conversation_id) if req.conversation_id else None
+    if conv is None:
+        raise HTTPException(status_code=404, detail="Диалог не найден")
+
+    row = _latest_plan(session, conv.id)
+    if row is None:
+        # Плана ещё нет — вести себя как обычное создание.
+        return await chat(req, session)
+
+    session.add(
+        MessageRow(id=uuid4().hex, conversation_id=conv.id, role="user", text=req.message)
+    )
+    session.commit()
+
+    try:
+        result = await edit_plan(row.dishes or [], row.title, req.message)
+    except CloudflareError as exc:
+        raise HTTPException(status_code=502, detail=f"Правка недоступна: {exc}") from exc
+
+    row.dishes = result["dishes"]
+    row.title = result["title"]
+    if result.get("provider"):
+        row.provider = result["provider"]
+    row.shopping_sig = ""  # состав изменился — сбросить кэш списка покупок
+    session.add(row)
+    session.add(
+        MessageRow(
+            id=uuid4().hex,
+            conversation_id=conv.id,
+            role="assistant",
+            text=result["reply"],
+            plan_id=row.id,
+        )
+    )
+    session.commit()
+    session.refresh(row)
+
+    return ChatResponse(
+        conversation_id=conv.id,
+        reply=result["reply"],
+        plan=to_week_plan(row),
     )

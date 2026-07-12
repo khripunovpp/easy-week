@@ -55,6 +55,10 @@
             <span class="plan__count">{{ plan.dishes.length }} {{ dishWord(plan.dishes.length) }}</span>
           </div>
 
+          @if (plan.provider && plan.provider !== 'DeepSeek') {
+            <p class="plan__model">⚡ План собран запасной моделью ({{ plan.provider }}) — рецепты могут быть проще</p>
+          }
+
           @if (plan.status === 'rejected') {
             <!-- Отклонённый план сворачиваем до заголовка и статуса -->
             <div class="plan__decided">

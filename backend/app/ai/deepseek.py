@@ -64,6 +64,57 @@ async def deepseek_stream(
     log_ai_call("DeepSeek", settings.deepseek_model, label, messages, "".join(full), usage)
 
 
+async def deepseek_tools(
+    messages: list[dict[str, Any]],
+    tools: list[dict[str, Any]],
+    *,
+    max_tokens: int = 800,
+    label: str = "",
+) -> tuple[list[dict[str, Any]], str]:
+    """Вызов DeepSeek с function calling. Возвращает (tool_calls, content).
+
+    tool_calls — список {"name": str, "args": dict} (аргументы уже распарсены из JSON).
+    content — текстовый ответ модели (обычно пустой, если она вызвала функции)."""
+    if not settings.deepseek_configured:
+        raise DeepSeekError("DeepSeek не настроен: нет DEEPSEEK_API_KEY")
+
+    logger.info("AI → DeepSeek · %s · %s (tools)", settings.deepseek_model, label or "?")
+    url = f"{settings.deepseek_base_url}/chat/completions"
+    payload = {
+        "model": settings.deepseek_model,
+        "messages": messages,
+        "tools": tools,
+        "tool_choice": "auto",
+        "max_tokens": max_tokens,
+        "temperature": 0.3,
+    }
+    headers = {"Authorization": f"Bearer {settings.deepseek_api_key}"}
+
+    async with httpx.AsyncClient(timeout=90.0) as client:
+        resp = await client.post(url, json=payload, headers=headers)
+    if resp.status_code != 200:
+        raise DeepSeekError(f"DeepSeek {resp.status_code}: {resp.text[:300]}")
+    body = resp.json()
+    message = body["choices"][0]["message"]
+    content = message.get("content") or ""
+
+    calls: list[dict[str, Any]] = []
+    for tc in message.get("tool_calls") or []:
+        fn = tc.get("function") or {}
+        raw = fn.get("arguments") or "{}"
+        try:
+            args = json.loads(raw) if isinstance(raw, str) else raw
+        except json.JSONDecodeError:
+            args = {}
+        calls.append({"name": fn.get("name", ""), "args": args if isinstance(args, dict) else {}})
+
+    log_ai_call(
+        "DeepSeek", settings.deepseek_model, label, messages,
+        content or json.dumps(calls, ensure_ascii=False), body.get("usage", {})
+    )
+    return calls, content
+
+
 async def deepseek_json(
     messages: list[dict[str, str]], *, max_tokens: int = 2048, retries: int = 2, label: str = ""
 ) -> dict[str, Any]:

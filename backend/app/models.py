@@ -19,6 +19,8 @@ class PlanRow(SQLModel, table=True):
     title: str
     week_label: str
     status: str = Field(default="draft", index=True)  # draft | accepted | rejected
+    # Какой моделью составлен план (DeepSeek | Cloudflare) — для показа смены модели в чате.
+    provider: str = Field(default="")
     # Полный список блюд плана — как JSON (snake_case, см. schemas.Dish).
     dishes: list = Field(default_factory=list, sa_column=Column(JSON))
     # Кэш нормализованного списка покупок (mistral) + подпись состава.

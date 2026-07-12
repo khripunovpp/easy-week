@@ -253,6 +253,142 @@ def build_dish_detail_messages(name: str, servings: int) -> list[dict[str, str]]
     ]
 
 
+# --- Правка существующего плана через function calling ---
+
+EDIT_SYSTEM = _SHARED_PREFIX + (
+    "Пользователь редактирует УЖЕ СОСТАВЛЕННЫЙ план на неделю (он показан ниже). "
+    "Твоя задача — вызвать подходящие функции, чтобы применить его просьбу к ЭТОМУ плану. "
+    "НЕ пересобирай меню целиком, если об этом явно не просят: для точечных правок используй "
+    "add_dishes / remove_dish / replace_dish. create_plan вызывай ТОЛЬКО когда просят совсем "
+    "другое меню (напр. «сделай вегетарианское», «сгенерируй заново»). "
+    "Можно вызвать несколько функций за раз (напр. убрать одно и добавить другое). "
+    "Если просьба не про изменение плана — не вызывай функции, коротко ответь текстом на русском. "
+    "Названия блюд в remove_dish/replace_dish бери из списка ниже."
+)
+
+PLAN_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "add_dishes",
+            "description": "Добавить в план новые блюда под описание пользователя.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Что за блюда добавить, напр. 'рыбное на пару', 'вегетарианское'",
+                    },
+                    "count": {"type": "integer", "description": "Сколько блюд добавить", "default": 1},
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "remove_dish",
+            "description": "Убрать блюдо из плана по названию.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Название блюда из текущего плана"},
+                },
+                "required": ["name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "replace_dish",
+            "description": "Заменить блюдо из плана на новое под описание.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "old_name": {"type": "string", "description": "Название заменяемого блюда"},
+                    "query": {"type": "string", "description": "Каким блюдом заменить"},
+                },
+                "required": ["old_name", "query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_plan",
+            "description": "Пересобрать меню целиком (только по явной просьбе о другом меню).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer", "description": "Сколько блюд в новом плане"},
+                    "note": {"type": "string", "description": "Пожелания к новому меню"},
+                },
+                "required": ["note"],
+            },
+        },
+    },
+]
+
+
+def _plan_summary(title: str, dish_names: list[str]) -> str:
+    lines = "\n".join(f"- {n}" for n in dish_names) or "(пусто)"
+    return f"Текущий план «{title}», блюда:\n{lines}"
+
+
+def build_edit_messages(
+    title: str, dish_names: list[str], user_message: str
+) -> list[dict[str, str]]:
+    return [
+        {"role": "system", "content": EDIT_SYSTEM},
+        {
+            "role": "user",
+            "content": f"{_plan_summary(title, dish_names)}\n\nПросьба: {user_message.strip()}",
+        },
+    ]
+
+
+# Фолбэк без tools API (Cloudflare): та же логика через structured JSON.
+EDIT_ACTION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "reply": {"type": "string", "description": "Короткая реплика в чат, на русском"},
+        "actions": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "op": {"type": "string", "description": "add|remove|replace|create"},
+                    "query": {"type": "string"},
+                    "name": {"type": "string"},
+                    "count": {"type": "integer"},
+                },
+                "required": ["op"],
+            },
+        },
+    },
+    "required": ["reply", "actions"],
+}
+
+
+def build_edit_action_messages(
+    title: str, dish_names: list[str], user_message: str
+) -> list[dict[str, str]]:
+    system = EDIT_SYSTEM + (
+        " Верни СТРОГО JSON: {\"reply\": \"...\", \"actions\": [{\"op\": \"add|remove|replace|create\", "
+        "\"query\": \"...\", \"name\": \"...\", \"count\": число}]}. Для remove/replace указывай name "
+        "заменяемого блюда; для add/create — query/note в поле query; count — при add/create."
+    )
+    return [
+        {"role": "system", "content": system},
+        {
+            "role": "user",
+            "content": f"{_plan_summary(title, dish_names)}\n\nПросьба: {user_message.strip()}",
+        },
+    ]
+
+
 def build_ds_plan_messages(
     user_message: str, avoid_titles: list[str], count: int
 ) -> list[dict[str, str]]:

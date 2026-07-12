@@ -38,6 +38,7 @@ export interface Dish {
   tips: string[];
   steps: string[];
   ingredients: Ingredient[];
+  detailProvider?: string; // какая модель сгенерила развёрнутый рецепт
 }
 
 export interface WeekPlan {
@@ -46,6 +47,7 @@ export interface WeekPlan {
   title: string;
   weekLabel: string; // напр. «14–20 июля»
   status: PlanStatus;
+  provider?: string; // модель, составившая план (DeepSeek | Cloudflare)
   dishes: Dish[];
 }
 

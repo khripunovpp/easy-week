@@ -62,6 +62,12 @@ export class ChatStore {
     this.draft.set('');
     this.loading.set(true);
 
+    // Если в диалоге уже есть план — это правка (tool calling), а не новый план.
+    if (this.conversationId && this.messages().some((m) => m.plan)) {
+      this.editCurrentPlan(text);
+      return;
+    }
+
     // Потоковый приём: сначала meta (карточка плана), потом блюда по одному.
     const msgId = `a-${this.seq++}`;
     let planStarted = false;
@@ -83,6 +89,7 @@ export class ChatStore {
               title: m.title,
               weekLabel: m.weekLabel,
               status: 'draft',
+              provider: m.provider,
               dishes: [],
             },
           },
@@ -110,6 +117,41 @@ export class ChatStore {
             },
           ]);
         }
+        this.loading.set(false);
+      },
+    });
+  }
+
+  // Правка текущего плана: обновляем карточку на месте + добавляем реплику бота.
+  private editCurrentPlan(text: string): void {
+    const convId = this.conversationId;
+    if (!convId) {
+      this.loading.set(false);
+      return;
+    }
+    this.api.editPlan(convId, text).subscribe({
+      next: (res) => {
+        const plan = res.plan;
+        if (plan) {
+          this.messages.update((list) =>
+            list.map((m) => (m.plan && m.plan.id === plan.id ? { ...m, plan } : m)),
+          );
+        }
+        this.messages.update((list) => [
+          ...list,
+          { id: `a-${this.seq++}`, role: 'assistant', text: res.reply },
+        ]);
+        this.loading.set(false);
+      },
+      error: () => {
+        this.messages.update((list) => [
+          ...list,
+          {
+            id: `e-${this.seq++}`,
+            role: 'assistant',
+            text: 'Не получилось изменить план. Попробуйте ещё раз.',
+          },
+        ]);
         this.loading.set(false);
       },
     });

@@ -10,6 +10,7 @@ def to_week_plan(row: PlanRow) -> WeekPlan:
         title=row.title,
         week_label=row.week_label,
         status=row.status,
+        provider=row.provider,
         dishes=dishes,
     )
 

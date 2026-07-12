@@ -19,6 +19,7 @@ export interface ChatStreamMeta {
   title: string;
   weekLabel: string;
   reply: string;
+  provider?: string;
 }
 
 export interface ChatStreamHandlers {
@@ -69,6 +70,14 @@ export class EasyWeekApi {
       message,
       conversationId,
       dishesCount,
+    });
+  }
+
+  // Правка текущего плана диалога (tool calling на бэке): вернёт обновлённый план.
+  editPlan(conversationId: string, message: string): Observable<ChatResponse> {
+    return this.http.post<ChatResponse>(`${API_BASE}/chat/edit`, {
+      message,
+      conversationId,
     });
   }
 
