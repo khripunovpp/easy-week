@@ -15,13 +15,6 @@ export class Chat {
 
   readonly menuOpen = signal(false);
   readonly countOptions = [3, 4, 5, 6, 7, 8];
-  readonly cookingPhrases = [
-    'Подбираю блюда',
-    'Считаю тайминги',
-    'Проверяю рецепты',
-    'Раскладываю по неделе',
-    'Собираю ингредиенты',
-  ];
   readonly suggestions = ['Без свинины', 'На 2 порции', 'Побыстрее', 'Вегетарианские'];
 
   pastel(i: number): string {

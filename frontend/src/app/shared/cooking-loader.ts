@@ -1,16 +1,5 @@
-import { Component, DestroyRef, effect, inject, input, signal } from '@angular/core';
-
-const DEFAULT_PHRASES = [
-  'Подбираю блюда',
-  'Нарезаю',
-  'Тушу',
-  'Помешиваю',
-  'Приправляю',
-  'Довожу до вкуса',
-  'Раскладываю по порциям',
-  'Вакуумирую',
-  'Замораживаю',
-];
+import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { COOKING_PHRASES } from './cooking-phrases';
 
 // Кулинарный «лоадер»: кастрюлька с поднимающимся паром + смена фраз.
 @Component({
@@ -101,22 +90,14 @@ const DEFAULT_PHRASES = [
   ],
 })
 export class CookingLoader {
-  readonly phrases = input<string[]>(DEFAULT_PHRASES);
-  readonly phrase = signal(DEFAULT_PHRASES[0]);
-
-  private idx = 0;
+  // случайный старт по пулу — чтобы фразы не повторялись от раза к разу
+  private idx = Math.floor(Math.random() * COOKING_PHRASES.length);
+  readonly phrase = signal(COOKING_PHRASES[this.idx]);
 
   constructor() {
-    // показать первую фразу переданного набора
-    effect(() => {
-      const list = this.phrases();
-      if (list.length) this.phrase.set(list[this.idx % list.length]);
-    });
     const id = setInterval(() => {
-      const list = this.phrases();
-      if (!list.length) return;
-      this.idx = (this.idx + 1) % list.length;
-      this.phrase.set(list[this.idx]);
+      this.idx = (this.idx + 1) % COOKING_PHRASES.length;
+      this.phrase.set(COOKING_PHRASES[this.idx]);
     }, 1700);
     inject(DestroyRef).onDestroy(() => clearInterval(id));
   }

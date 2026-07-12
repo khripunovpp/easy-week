@@ -8,7 +8,7 @@
 
 @if (loading()) {
   <div class="d__state">
-    <ew-cooking [phrases]="['Готовлю рецепт','Нарезаю','Пишу шаги','Довожу до вкуса']" />
+    <ew-cooking />
   </div>
 } @else if (dish(); as d) {
   <div class="d__scroll">
