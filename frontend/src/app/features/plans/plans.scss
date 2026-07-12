@@ -1,30 +1,9 @@
+/* Лейаут держит общий каркас .page (styles.scss); host прозрачен */
 :host {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
+  display: contents;
 }
 
-/* Шапка — фейд-блюр через глобальный класс .fade-top */
-.pl__top {
-  padding: 20px 22px 18px;
-}
-.pl__top h1 {
-  font-size: 27px;
-}
-.pl__top .muted {
-  font-size: 14px;
-  margin: 3px 0 0;
-}
-
-.pl__scroll {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 92px 18px 100px;
-}
-
+/* Пустое состояние / загрузка — по центру свободной области */
 .pl__state {
   flex: 1;
   display: flex;
@@ -39,14 +18,15 @@
   font-size: 44px;
 }
 
+/* Подзаголовки групп */
 .pl__label {
   font-size: 13px;
   font-weight: 600;
   color: var(--ink-3);
-  margin: 14px 4px 8px;
+  margin: 14px 2px 8px;
 }
 .pl__label:first-child {
-  margin-top: 4px;
+  margin-top: 0;
 }
 
 /* Строка плана */
@@ -79,13 +59,3 @@
   font-size: 13px;
   margin-top: 2px;
 }
-
-/* Футер с кнопкой — фейд-блюр через глобальный класс .fade-bottom */
-.pl__footer {
-  padding: 26px 18px 12px;
-}
-.pl__new svg {
-  width: 20px;
-  height: 20px;
-}
-

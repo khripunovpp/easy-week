@@ -59,6 +59,14 @@
   --space-5: 30px;
   --space: 16px;
 
+  /* Лейаут страницы (единый ритм для всех экранов) */
+  --page-pad-x: 20px;        /* горизонтальный отступ — одинаковый везде */
+  --page-pad-top: 16px;      /* верхний зазор контента (под шапкой или без) */
+  --page-pad-bottom: 16px;   /* нижний зазор контента (над футером или без) */
+  --page-header-h: 62px;     /* высота слота шапки: фикс и не-фикс совпадают */
+  --page-footer-h: 84px;     /* высота слота футера (кнопка + зазоры) */
+  --ctl-h: 42px;             /* высота контролов в шапке: кнопки, иконки, пилюли */
+
   /* Шрифты */
   --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
   --font-body: 'Inter', system-ui, -apple-system, sans-serif;
@@ -152,6 +160,12 @@ ul {
 .btn-primary:active {
   transform: scale(0.98);
   background: var(--accent-press);
+}
+.btn-primary svg,
+.btn-ghost svg {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
 }
 .btn-ghost {
   background: var(--surface-sunk);
@@ -290,6 +304,121 @@ ul {
 .fade-bottom > * {
   position: relative;
   z-index: 1;
+}
+
+/* ===========================================================================
+   Лейаут страницы — единый каркас для всех экранов
+   .page → .page__header (+ --fixed) · .page__inner (скролл) · .page__footer (+ --fixed)
+   Модификаторы .page--header-fixed / .page--footer-fixed задают отступы контента
+   так, чтобы страница с фикс-панелью и без неё выглядела одинаково.
+   =========================================================================== */
+.page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* --- Шапка --- */
+.page__header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--page-header-h);
+  padding: 8px var(--page-pad-x);
+}
+/* фиксированная шапка — поверх контента; фейд-блюр вешается классом .fade-top */
+.page__header--fixed {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+}
+
+/* Кнопка «назад» слева */
+.page__back {
+  flex-shrink: 0;
+}
+
+/* Заголовок: тайтл + опциональный сабтайтл */
+.page__heading {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+}
+.page__title {
+  font-size: 27px;
+  line-height: 1.15;
+}
+.page__subtitle {
+  font-size: 14px;
+  color: var(--ink-2);
+  margin: 0;
+}
+
+/* Правый блок: контролы, кнопки, иконки, выпадашка, ссылки — прижаты вправо */
+.page__actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* --- Контент (скролл) --- */
+.page__inner {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: var(--page-pad-top) var(--page-pad-x) var(--page-pad-bottom);
+}
+/* фикс-шапка не в потоке → освобождаем ей место сверху (зазор тот же, что без фикса) */
+.page--header-fixed .page__inner {
+  padding-top: calc(var(--page-header-h) + var(--page-pad-top));
+}
+/* фикс-футер не в потоке → освобождаем место снизу */
+.page--footer-fixed .page__inner {
+  padding-bottom: calc(var(--page-footer-h) + var(--page-pad-bottom));
+}
+
+/* --- Футер --- */
+.page__footer {
+  flex-shrink: 0;
+  padding: var(--page-pad-top) var(--page-pad-x) 12px;
+}
+.page__footer--fixed {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+}
+
+/* Иконка-кнопка для шапок (назад, экспорт, новый чат …) — единая высота --ctl-h */
+.icon-btn {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: var(--ctl-h);
+  height: var(--ctl-h);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-soft);
+  transition: transform 0.12s ease;
+}
+.icon-btn:active {
+  transform: scale(0.94);
+}
+.icon-btn svg {
+  width: 20px;
+  height: 20px;
 }
 
 @media (prefers-reduced-motion: reduce) {
