@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -26,6 +28,11 @@ class Settings(BaseSettings):
     # База и сеть
     db_path: str = "data/easy_week.db"
     cors_origins: str = "http://localhost:4200,http://127.0.0.1:4200"
+
+    @property
+    def ai_log_dir(self) -> str:
+        # рядом с БД (persist): data/ai-logs (native) или /data/ai-logs (Docker)
+        return str(Path(self.db_path).parent / "ai-logs")
 
     @property
     def cf_configured(self) -> bool:

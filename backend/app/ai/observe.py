@@ -1,9 +1,28 @@
-"""Единое логирование AI-вызовов: полный промпт, ответ и usage (в т.ч. кэш токенов)."""
+"""Единое логирование AI-вызовов: полный промпт, ответ и usage (в т.ч. кэш токенов).
+
+Пишем и в консоль (читаемо), и в файл-за-день JSONL (для анализа):
+`<data>/ai-logs/ai-YYYY-MM-DD.jsonl` — одна строка = один вызов модели.
+"""
 
 import json
 import logging
+from datetime import date, datetime, timezone
+from pathlib import Path
+
+from ..config import settings
 
 logger = logging.getLogger("easy_week.ai")
+
+
+def _write_file_record(record: dict) -> None:
+    try:
+        d = Path(settings.ai_log_dir)
+        d.mkdir(parents=True, exist_ok=True)
+        fname = d / f"ai-{date.today().isoformat()}.jsonl"
+        with fname.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except Exception as exc:  # noqa: BLE001 — лог в файл не должен ронять запрос
+        logger.warning("не удалось записать AI-лог в файл: %s", str(exc)[:150])
 
 
 def _usage_summary(usage: dict) -> str:
@@ -33,3 +52,15 @@ def log_ai_call(
     logger.info("  usage: %s", _usage_summary(usage or {}))
     logger.info("  prompt: %s", json.dumps(messages, ensure_ascii=False))
     logger.info("  response: %s", resp)
+
+    _write_file_record(
+        {
+            "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "provider": provider,
+            "model": model,
+            "label": label,
+            "usage": usage or {},
+            "messages": messages,
+            "response": response,
+        }
+    )
