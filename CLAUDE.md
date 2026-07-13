@@ -18,6 +18,7 @@
 Провайдеры логируются с меткой: `AI → DeepSeek · …` / `AI → Gemini · …` / `AI → Cloudflare · …`.
 
 ### Архитектура (гейты)
+Наглядная схема (потоки + классы + матрица задач) — [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 Каждый провайдер — подкласс `ModelGate` (`ai/base.py`): `complete_json` (шаблонный метод с
 ретраями/логом), хуки `_request_json`/`stream_json`/`call_tools`. Реестр и выбор — `ai/gates.py`
 (`gate_for(model_key)`). `ai/planner.py` роутит по выбранной модели, без `try/except → другой провайдер`.
