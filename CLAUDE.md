@@ -47,11 +47,25 @@
 - **Обычные логи приложения:** `logging.getLogger("easy_week.<модуль>")` (INFO) → stdout → journald
   (`journalctl -u easy-week-backend`). Свой логгер не изобретать.
 - **Метрики:** `/metrics` (prometheus-fastapi-instrumentator). На Пае проброшен nginx: `:8080/metrics`.
-- **Стек мониторинга — в `monitoring/`** (Prometheus + Loki + Promtail + Grafana). Локально Docker
-  (`monitoring/docker-compose.yml`), на Пае native (`monitoring/install-pi.sh`).
+- **Стек мониторинга — в `monitoring/`** (Prometheus + Loki + Promtail + Grafana). Локально —
+  через Docker из `docker/` (см. ниже), на Пае native (`monitoring/install-pi.sh`).
   Grafana на Пае: `http://192.168.1.230:3002`. Логи смотреть в Grafana → Explore → Loki:
   `{job="easy-week-ai"}` (AI-вызовы) или `{job="easy-week-backend"}` (сервис).
 
+## Docker (локальный запуск всего из одного места)
+
+Все docker-конфиги — в **`docker/`** (compose + Dockerfile'ы). Запускать оттуда: `cd docker`.
+- `docker compose up -d --build` — бэкенд + фронт (порт 8080).
+- `docker compose --profile monitoring up -d --build` — то же + Prometheus/Loki/Promtail/Grafana.
+- Dev-оверрайд (`docker-compose.override.yml`) подхватывается сам: бэкенд `--reload` + монтирование кода.
+
+Один compose-проект `easy-week`: приложение и мониторинг в общей сети и на одном томе
+`easy-week_ewdata` (AI-логи), поэтому мониторинг просто профиль — без external-сети/тома.
+Build-контексты остаются `backend/` и `frontend/` (там `requirements.txt`/`package.json`),
+Dockerfile'ы вынесены в `docker/*.Dockerfile`. Конфиги самих сервисов мониторинга
+(`*.docker.yml`, дашборды) остаются в `monitoring/` рядом с нативным Пай-деплоем и монтируются
+из compose. На Пае — по-прежнему native (systemd), не через этот compose (см. `deploy/README.md`).
+
 ## Прочее
-- Бэклог и хотелки — в `ROADMAP.md`. Мониторинг — в `monitoring/README.md`.
+- Бэклог и хотелки — в `ROADMAP.md`. Мониторинг — в `monitoring/README.md`. Docker — в `docker/README.md`.
 - Единицы ингредиентов задаём у источника: только `г` / `мл`, `шт` — редко (штучное).

@@ -37,7 +37,7 @@
   кэшируются. Output плана упал ~70%. Закрыло правило «generate_details → DeepSeek».
 - **Мониторинг** (Prometheus + Grafana + Loki + Promtail): `/metrics` бэкенда
   (токены, кэш, HTTP), логи (journald + AI-JSONL) в Loki, дашборд в Grafana.
-  Локально — Docker (`monitoring/docker-compose.yml`), на Пае — native (`install-pi.sh`).
+  Локально — Docker (`docker/`, профиль `monitoring`), на Пае — native (`install-pi.sh`).
 - **Полное логирование AI** — консоль + файл-за-день JSONL (промпт/ответ/usage/кэш).
 - **Удаление планов** с подтверждением (модалка, необратимо) + `.btn-danger`.
 - **Общее время готовки** плана — на вью плана и в списке.

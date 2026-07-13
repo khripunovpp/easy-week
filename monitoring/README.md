@@ -15,12 +15,14 @@
 
 ## Локально (Docker)
 
-Мониторинг цепляется к сети и тому основного стека, поэтому сначала подними приложение:
+Приложение и мониторинг — один compose-проект в `docker/`. Мониторинг — профиль `monitoring`:
 ```bash
-docker compose up -d                                   # backend + frontend
-docker compose -f monitoring/docker-compose.yml up -d  # prometheus + loki + promtail + grafana
+cd docker
+docker compose --profile monitoring up -d --build  # backend + frontend + prometheus/loki/promtail/grafana
 ```
-Grafana: http://localhost:3000 (admin / admin). Остановить: `docker compose -f monitoring/docker-compose.yml down`.
+Grafana: http://localhost:3000 (admin / admin). Остановить: `docker compose --profile monitoring down`.
+Конфиги сервисов мониторинга (`*.docker.yml`, дашборды) лежат здесь, в `monitoring/`, и монтируются
+из `docker/docker-compose.yml`. Подробнее про запуск — `docker/README.md`.
 
 ## На Raspberry Pi (native, без Docker)
 

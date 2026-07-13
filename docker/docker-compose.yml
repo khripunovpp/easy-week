@@ -1,0 +1,89 @@
+# Easy Week — весь стек из одного места (Docker).
+# Всё запускается отсюда: `cd docker`.
+#   docker compose up -d --build                     # бэкенд + фронт
+#   docker compose --profile monitoring up -d --build# + Prometheus/Loki/Promtail/Grafana
+# Перед первым запуском: заполнить ../backend/.env (см. ../backend/.env.example).
+# Приложение: http://localhost:8080 · Grafana: http://localhost:3000 (admin/admin).
+# На Пае деплой нативный (см. ../deploy/README.md) — этот compose для локали/опции.
+
+# Имя проекта фиксируем (иначе взялось бы имя папки docker) — стабильные имена
+# томов/сети (easy-week_ewdata и т.п.), данные не теряются между запусками.
+name: easy-week
+
+services:
+  backend:
+    build:
+      context: ../backend
+      dockerfile: ../docker/backend.Dockerfile
+    restart: unless-stopped
+    env_file: ../backend/.env
+    environment:
+      DB_PATH: /data/easy_week.db
+    volumes:
+      - ewdata:/data
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: ../docker/frontend.Dockerfile
+    restart: unless-stopped
+    ports:
+      - '${APP_PORT:-8080}:80'
+    depends_on:
+      - backend
+
+  # --- Мониторинг (профиль monitoring): в одном проекте с приложением,
+  # поэтому сеть и том ewdata с AI-логами общие — без external-хаков. ---
+  prometheus:
+    image: prom/prometheus:v2.53.2
+    profiles: [monitoring]
+    restart: unless-stopped
+    volumes:
+      - ../monitoring/prometheus/prometheus.docker.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=30d
+
+  loki:
+    image: grafana/loki:3.3.2
+    profiles: [monitoring]
+    restart: unless-stopped
+    user: root  # том lokidata создаётся root-овым; loki иначе не может писать (только локально)
+    volumes:
+      - ../monitoring/loki/loki-config.yml:/etc/loki/config.yml:ro
+      - lokidata:/var/lib/loki
+    command: -config.file=/etc/loki/config.yml
+
+  promtail:
+    image: grafana/promtail:3.3.2
+    profiles: [monitoring]
+    restart: unless-stopped
+    volumes:
+      - ../monitoring/promtail/promtail.docker.yml:/etc/promtail/config.yml:ro
+      - ewdata:/data:ro  # AI-логи пишет backend в тот же том
+    command: -config.file=/etc/promtail/config.yml
+    depends_on: [loki]
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    profiles: [monitoring]
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+    volumes:
+      - ../monitoring/grafana/datasources.docker.yml:/etc/grafana/provisioning/datasources/ds.yml:ro
+      - ../monitoring/grafana/dashboards-provider.yml:/etc/grafana/provisioning/dashboards/provider.yml:ro
+      - ../monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    depends_on: [prometheus, loki]
+
+volumes:
+  ewdata:
+  promdata:
+  lokidata:
+  grafanadata:

@@ -47,4 +47,5 @@ cd ~/easy-week && bash deploy/update.sh
 ```
 
 Полная пошаговая инструкция (первая настройка, порты, HTTPS-туннель) — в
-[`deploy/README.md`](./deploy/README.md). Есть и `docker-compose.yml` как опция.
+[`deploy/README.md`](./deploy/README.md). Локальный запуск всего стека через Docker —
+`docker/` ([`docker/README.md`](./docker/README.md)).

@@ -1,0 +1,8 @@
+# Dev-оверрайд (подхватывается автоматически при `docker compose` из этой папки):
+# live-reload бэкенда + монтирование кода, чтобы правки применялись без пересборки.
+services:
+  backend:
+    volumes:
+      - ../backend/app:/app/app
+    command:
+      ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8010", "--reload"]
