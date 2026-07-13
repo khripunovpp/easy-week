@@ -3,6 +3,7 @@ import { Component, effect, inject, input, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { Dish } from '../../models/plan.model';
 import { EasyWeekApi } from '../../services/api';
+import { ChatStore } from '../../services/chat-store';
 import { CookingLoader } from '../../shared/cooking-loader';
 
 @Component({
@@ -13,6 +14,7 @@ import { CookingLoader } from '../../shared/cooking-loader';
 })
 export class DishPage {
   private readonly api = inject(EasyWeekApi);
+  private readonly store = inject(ChatStore);
   private readonly location = inject(Location);
   private readonly router = inject(Router);
 
@@ -40,7 +42,7 @@ export class DishPage {
       if (!pid || !did) return;
       this.loading.set(true);
       this.failed.set(false);
-      this.api.dishDetails(pid, did).subscribe({
+      this.api.dishDetails(pid, did, this.store.recipeModel()).subscribe({
         next: (d) => {
           this.dish.set(d);
           this.loading.set(false);

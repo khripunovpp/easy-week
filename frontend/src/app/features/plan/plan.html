@@ -35,6 +35,9 @@
         <p class="pv__count muted">
           {{ p.dishes.length }} {{ dishWord(p.dishes.length) }} · готовка ~{{ cookTime() }}
         </p>
+        @if (p.provider) {
+          <span class="badge-frost pv__model">🤖 {{ p.provider }}</span>
+        }
       </div>
 
       <section class="pv__dishes">

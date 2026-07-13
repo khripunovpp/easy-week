@@ -20,6 +20,9 @@
         <span class="pill"><b>{{ d.prepMin }}</b> мин подготовка</span>
         <span class="pill"><b>{{ d.cookMin }}</b> мин готовка</span>
         <span class="pill"><b>{{ d.servings }}</b> порции</span>
+        @if (d.detailProvider) {
+          <span class="pill">🤖 {{ d.detailProvider }}</span>
+        }
       </div>
     </div>
 
@@ -74,7 +77,7 @@
     </section>
     } @else {
       <div class="d__state">
-        <p class="muted">Не удалось загрузить блюдо.</p>
+        <p class="muted">Модель недоступна — рецепт не собрать. Переключите модель или соберите новый план.</p>
         <a class="btn-primary" routerLink="/chat">В чат</a>
       </div>
     }

@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 from sqlmodel import Session, select
 
-from ..ai.cloudflare import CloudflareError
+from ..ai.base import AIError
 from ..ai.observe import record_conversation, record_plan
 from ..ai.planner import (
     _week_label,
@@ -92,7 +92,7 @@ async def chat_stream(
 
     try:
         async for kind, payload in generate_plan_stream(
-            req.message, avoid, req.dishes_count, req.gender
+            req.message, avoid, req.dishes_count, req.gender, req.recipe_model
         ):
             if kind == "meta":
                 title, week, reply = payload["title"], payload["week_label"], payload["reply"]
@@ -162,8 +162,10 @@ async def chat(req: ChatRequest, session: SessionDep) -> ChatResponse:
     avoid = _accepted_dish_names(session)
 
     try:
-        data = await generate_plan(req.message, avoid, req.dishes_count, req.gender)
-    except CloudflareError as exc:
+        data = await generate_plan(
+            req.message, avoid, req.dishes_count, req.gender, req.recipe_model
+        )
+    except AIError as exc:
         raise HTTPException(status_code=502, detail=f"Генерация недоступна: {exc}") from exc
 
     plan_row = PlanRow(
@@ -246,14 +248,19 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
         elif req.replace_dish_id:
             # Точечная замена по кнопке — минуя тул-коллинг (выбор функции).
             result = await replace_dish_by_id(
-                row.dishes or [], row.title, req.replace_dish_id, req.message, req.gender
+                row.dishes or [], row.title, req.replace_dish_id, req.message,
+                req.gender, req.recipe_model,
             )
         elif req.add_dish:
             # Добавление по кнопке — минуя тул-коллинг.
-            result = await add_dish_direct(row.dishes or [], row.title, req.message, req.gender)
+            result = await add_dish_direct(
+                row.dishes or [], row.title, req.message, req.gender, req.recipe_model
+            )
         else:
-            result = await edit_plan(row.dishes or [], row.title, req.message, req.gender)
-    except CloudflareError as exc:
+            result = await edit_plan(
+                row.dishes or [], row.title, req.message, req.gender, req.recipe_model
+            )
+    except AIError as exc:
         raise HTTPException(status_code=502, detail=f"Правка недоступна: {exc}") from exc
 
     reply = result["reply"]

@@ -1,6 +1,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { ChatMessage, WeekPlan } from '../models/plan.model';
 import { EasyWeekApi } from './api';
+import { Preferences, RecipeModel } from './preferences';
 
 // Действие, инициированное кнопкой карточки, — «висит» бейджем в композере до отправки.
 export type PendingAction =
@@ -18,6 +19,7 @@ const INTRO: ChatMessage = {
 @Injectable({ providedIn: 'root' })
 export class ChatStore {
   private readonly api = inject(EasyWeekApi);
+  private readonly prefs = inject(Preferences);
 
   readonly messages = signal<ChatMessage[]>([INTRO]);
   readonly draft = signal('');
@@ -25,6 +27,9 @@ export class ChatStore {
   // id сообщения-плана, который сейчас стримится (лоадер живёт внутри его карточки)
   readonly streamingMsgId = signal<string | null>(null);
   readonly dishCount = signal(5);
+  // Модель рецептов этого чата (override). Инициализируется дефолтом из профиля,
+  // но переключение здесь НЕ меняет глобальный выбор в профиле.
+  readonly recipeModel = signal<RecipeModel>(this.prefs.recipeModel());
   // Действие с карточки, ждущее отправки (бейдж в композере): замена блюда или добавление.
   readonly pending = signal<PendingAction | null>(null);
 
@@ -35,12 +40,19 @@ export class ChatStore {
     this.dishCount.set(n);
   }
 
+  // Переключение модели в чате — только в рамках этого чата, профиль не трогаем.
+  setModel(m: RecipeModel): void {
+    this.recipeModel.set(m);
+  }
+
   // Начать новый чат (сбрасываем переписку, но сохраняем выбор количества).
+  // Модель чата пере-сеиваем из актуального дефолта профиля.
   newChat(): void {
     this.messages.set([INTRO]);
     this.conversationId = null;
     this.draft.set('');
     this.loading.set(false);
+    this.recipeModel.set(this.prefs.recipeModel());
   }
 
   // Загрузить существующий диалог плана (для «Продолжить обсуждение»).
@@ -48,6 +60,7 @@ export class ChatStore {
     this.conversationId = conversationId;
     this.draft.set('');
     this.loading.set(true);
+    this.recipeModel.set(this.prefs.recipeModel());
     this.api.conversationMessages(conversationId).subscribe({
       next: (msgs) => {
         this.messages.set(msgs.length ? msgs : [INTRO]);
@@ -101,7 +114,7 @@ export class ChatStore {
     const msgId = `a-${this.seq++}`;
     let planStarted = false;
 
-    void this.api.chatStream(text, this.conversationId, this.dishCount(), {
+    void this.api.chatStream(text, this.conversationId, this.dishCount(), this.recipeModel(), {
       onMeta: (m) => {
         this.conversationId = m.conversationId;
         planStarted = true;
@@ -146,8 +159,8 @@ export class ChatStore {
               role: 'assistant',
               text:
                 message === 'Не удалось составить план'
-                  ? 'Не получилось составить план. Попробуйте ещё раз.'
-                  : `${message}. Попробуйте ещё раз.`,
+                  ? 'Не получилось составить план этой моделью. Переключите модель выше или попробуйте ещё раз.'
+                  : `${message}. Переключите модель выше или попробуйте ещё раз.`,
             },
           ]);
         }
@@ -173,7 +186,7 @@ export class ChatStore {
       this.loading.set(false);
       return;
     }
-    this.api.editPlan(convId, text, opts).subscribe({
+    this.api.editPlan(convId, text, this.recipeModel(), opts).subscribe({
       next: (res) => {
         if (res.plan) this.replaceCurrentPlan(res.plan);
         this.messages.update((list) => [
@@ -188,7 +201,7 @@ export class ChatStore {
           {
             id: `e-${this.seq++}`,
             role: 'assistant',
-            text: 'Не получилось изменить план. Попробуйте ещё раз.',
+            text: 'Не получилось изменить план этой моделью. Переключите модель выше или попробуйте ещё раз.',
           },
         ]);
         this.loading.set(false);
@@ -227,7 +240,7 @@ export class ChatStore {
     const convId = this.conversationId;
     if (!convId || this.loading()) return;
     this.loading.set(true);
-    this.api.editPlan(convId, '', { removeDishId: dishId }).subscribe({
+    this.api.editPlan(convId, '', this.recipeModel(), { removeDishId: dishId }).subscribe({
       next: (res) => {
         if (res.plan) this.replaceCurrentPlan(res.plan);
         this.loading.set(false);

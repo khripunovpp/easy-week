@@ -39,6 +39,22 @@
       </div>
     </section>
 
+    <section class="card setting">
+      <h2 class="setting__label">Модель рецептов</h2>
+      <p class="setting__hint">Кто придумывает блюда и рецепты. В чате можно выбрать другую — не меняя этот дефолт</p>
+      <div class="seg" role="group" aria-label="Модель рецептов">
+        @for (o of recipeModelOptions; track o.value) {
+          <button
+            class="seg__opt"
+            type="button"
+            [class.seg__opt--on]="prefs.recipeModel() === o.value"
+            (click)="prefs.setRecipeModel(o.value)">
+            {{ o.label }}
+          </button>
+        }
+      </div>
+    </section>
+
     <p class="profile__foot muted">Easy Week — меню на неделю под заморозку</p>
   </div>
 </div>

@@ -9,11 +9,11 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 from sqlmodel import Session, select
 
-from ..ai.cloudflare import CloudflareError
+from ..ai.base import AIError
 from ..ai.planner import generate_dish_detail, normalize_shopping
 from ..db import get_session
 from ..models import PlanRow
-from ..schemas import Dish, PlanSummary, ShoppingGroup, StatusRequest, WeekPlan
+from ..schemas import DetailRequest, Dish, PlanSummary, ShoppingGroup, StatusRequest, WeekPlan
 from ..services.export_pdf import build_plan_pdf
 from ..services.mapping import to_summary, to_week_plan
 from ..services.shopping import aggregate_ingredients, group_items
@@ -50,9 +50,12 @@ def _merge_detail(dish: dict, detail: dict) -> dict:
     return d
 
 
-async def _backfill_all(session: Session, row: PlanRow, need_steps: bool = False) -> list[dict]:
+async def _backfill_all(
+    session: Session, row: PlanRow, need_steps: bool = False, model: str = ""
+) -> list[dict]:
     """Догенерить детали для блюд, у которых их нет, параллельно. Кэш в row.dishes.
-    need_steps=False (покупки: нужны только ингредиенты), True (PDF: нужны и шаги)."""
+    need_steps=False (покупки: нужны только ингредиенты), True (PDF: нужны и шаги).
+    model — выбранная модель рецептов (пусто → дефолт из настроек)."""
     dishes = list(row.dishes or [])
     missing = [
         (i, d)
@@ -62,7 +65,10 @@ async def _backfill_all(session: Session, row: PlanRow, need_steps: bool = False
     if not missing:
         return dishes
     results = await asyncio.gather(
-        *(generate_dish_detail(d.get("name", ""), d.get("servings", 4)) for _, d in missing),
+        *(
+            generate_dish_detail(d.get("name", ""), d.get("servings", 4), model=model)
+            for _, d in missing
+        ),
         return_exceptions=True,
     )
     changed = False
@@ -130,7 +136,7 @@ async def shopping_list(plan_id: str, session: SessionDep) -> list[ShoppingGroup
 
     try:
         items = await normalize_shopping(base)
-    except Exception:  # noqa: BLE001 — модель не критична, есть фолбэк
+    except Exception:  # noqa: BLE001 — нормализация не критична: остаётся детерминированная база
         items = base
     if not items:
         items = base
@@ -196,18 +202,20 @@ async def plan_pdf(
 
 
 @router.post("/{plan_id}/full")
-async def full_plan(plan_id: str, session: SessionDep) -> WeekPlan:
+async def full_plan(plan_id: str, req: DetailRequest, session: SessionDep) -> WeekPlan:
     """Полный план со всеми деталями (догенерирует недостающие) — для экспорта в PDF."""
     row = _get_plan(session, plan_id)
     try:
-        await _backfill_all(session, row, need_steps=True)
-    except CloudflareError as exc:
+        await _backfill_all(session, row, need_steps=True, model=req.recipe_model)
+    except AIError as exc:
         raise HTTPException(status_code=502, detail=f"Не удалось собрать рецепты: {exc}") from exc
     return to_week_plan(row)
 
 
 @router.post("/{plan_id}/dishes/{dish_id}/details")
-async def dish_details(plan_id: str, dish_id: str, session: SessionDep) -> Dish:
+async def dish_details(
+    plan_id: str, dish_id: str, req: DetailRequest, session: SessionDep
+) -> Dish:
     """Ленивая догенерация ПОЛНОЙ детали блюда (ингредиенты+шаги+советы). Кэшируется в плане."""
     row = _get_plan(session, plan_id)
     dishes = list(row.dishes or [])
@@ -218,8 +226,10 @@ async def dish_details(plan_id: str, dish_id: str, session: SessionDep) -> Dish:
     dish = dishes[idx]
     if not dish.get("ingredients") or not dish.get("steps"):  # генерим деталь, если её ещё нет
         try:
-            detail = await generate_dish_detail(dish.get("name", ""), dish.get("servings", 4))
-        except CloudflareError as exc:
+            detail = await generate_dish_detail(
+                dish.get("name", ""), dish.get("servings", 4), model=req.recipe_model
+            )
+        except AIError as exc:
             raise HTTPException(status_code=502, detail=f"Не удалось получить рецепт: {exc}") from exc
         dish = _merge_detail(dish, detail)
         dishes[idx] = dish

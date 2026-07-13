@@ -25,6 +25,19 @@ class Settings(BaseSettings):
     def deepseek_configured(self) -> bool:
         return bool(self.deepseek_api_key)
 
+    # Gemini (Google AI Studio) — придумывание рецептов.
+    # gemini-flash-latest — алиас на актуальную flash-модель (2.5-flash недоступна новым ключам).
+    gemini_api_key: str = ""
+    gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta"
+    gemini_model: str = "gemini-flash-latest"
+
+    @property
+    def gemini_configured(self) -> bool:
+        return bool(self.gemini_api_key)
+
+    # Модель рецептов по умолчанию, если фронт не прислал: deepseek | gemini | cloudflare
+    recipe_model_default: str = "deepseek"
+
     # База и сеть
     db_path: str = "data/easy_week.db"
     cors_origins: str = "http://localhost:4200,http://127.0.0.1:4200"

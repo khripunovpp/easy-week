@@ -256,13 +256,13 @@
   padding: 14px 4px;
 }
 
-/* Уведомление о запасной модели (не DeepSeek) */
+/* Нейтральная метка: какой моделью собран план */
 .plan__model {
   margin: -2px 4px 2px;
-  padding: 8px 12px;
+  padding: 6px 12px;
   border-radius: var(--r-md);
-  background: var(--no-soft);
-  color: var(--no);
+  background: var(--surface-sunk);
+  color: var(--ink-2);
   font-size: 12.5px;
   line-height: 1.35;
 }

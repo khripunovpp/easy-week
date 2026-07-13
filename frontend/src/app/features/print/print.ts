@@ -2,6 +2,7 @@ import { Location } from '@angular/common';
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { WeekPlan } from '../../models/plan.model';
 import { EasyWeekApi, ShoppingGroup } from '../../services/api';
+import { ChatStore } from '../../services/chat-store';
 import { CookingLoader } from '../../shared/cooking-loader';
 
 @Component({
@@ -12,6 +13,7 @@ import { CookingLoader } from '../../shared/cooking-loader';
 })
 export class PrintPage {
   private readonly api = inject(EasyWeekApi);
+  private readonly store = inject(ChatStore);
   private readonly location = inject(Location);
 
   readonly planId = input<string>('');
@@ -39,7 +41,7 @@ export class PrintPage {
 
   private loadAll(planId: string): void {
     this.loading.set(true);
-    this.api.fullPlan(planId).subscribe({
+    this.api.fullPlan(planId, this.store.recipeModel()).subscribe({
       next: (plan) => {
         this.plan.set(plan);
         this.api.shoppingList(planId).subscribe({

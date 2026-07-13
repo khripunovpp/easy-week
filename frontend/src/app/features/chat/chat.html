@@ -33,6 +33,30 @@
           </div>
         }
       </div>
+
+      <!-- Выбор модели рецептов (только для этого чата) -->
+      <div class="count">
+        <button class="count__btn" type="button" (click)="toggleModelMenu()" [class.count__btn--open]="modelMenuOpen()">
+          <span class="count__num">{{ modelLabel(store.recipeModel()) }}</span>
+          <svg class="count__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </button>
+
+        @if (modelMenuOpen()) {
+          <div class="count__menu">
+            @for (o of modelOptions; track o.value) {
+              <button
+                class="count__opt"
+                type="button"
+                [class.count__opt--active]="o.value === store.recipeModel()"
+                (click)="pickModel(o.value)">
+                {{ o.label }}
+              </button>
+            }
+          </div>
+        }
+      </div>
     </div>
   </header>
 
@@ -55,8 +79,8 @@
             <span class="plan__count">{{ plan.dishes.length }} {{ dishWord(plan.dishes.length) }}</span>
           </div>
 
-          @if (plan.provider && plan.provider !== 'DeepSeek') {
-            <p class="plan__model">⚡ План собран запасной моделью ({{ plan.provider }}) — рецепты могут быть проще</p>
+          @if (plan.provider) {
+            <p class="plan__model">🤖 Собрано моделью {{ plan.provider }}</p>
           }
 
           @if (plan.status === 'rejected') {

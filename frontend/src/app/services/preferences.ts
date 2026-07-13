@@ -2,9 +2,11 @@ import { Injectable, effect, signal } from '@angular/core';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type Gender = 'f' | 'm';
+export type RecipeModel = 'deepseek' | 'gemini' | 'cloudflare';
 
 const THEME_KEY = 'ew.theme';
 const GENDER_KEY = 'ew.gender';
+const MODEL_KEY = 'ew.recipeModel';
 const BAR_LIGHT = '#fbe9e1';
 const BAR_DARK = '#201a17';
 
@@ -13,6 +15,8 @@ const BAR_DARK = '#201a17';
 export class Preferences {
   readonly theme = signal<ThemeMode>(this.readTheme());
   readonly gender = signal<Gender>(this.readGender());
+  // Глобальный дефолт модели рецептов. Переключатель в чате его НЕ меняет (там свой override).
+  readonly recipeModel = signal<RecipeModel>(this.readModel());
 
   private readonly darkMql = window.matchMedia('(prefers-color-scheme: dark)');
 
@@ -25,6 +29,7 @@ export class Preferences {
       localStorage.setItem(THEME_KEY, t);
     });
     effect(() => localStorage.setItem(GENDER_KEY, this.gender()));
+    effect(() => localStorage.setItem(MODEL_KEY, this.recipeModel()));
     // При теме «Система» следим за системной сменой светлая/тёмная.
     this.darkMql.addEventListener('change', () => {
       if (this.theme() === 'system') this.applyTheme('system');
@@ -36,6 +41,9 @@ export class Preferences {
   }
   setGender(g: Gender): void {
     this.gender.set(g);
+  }
+  setRecipeModel(m: RecipeModel): void {
+    this.recipeModel.set(m);
   }
 
   private applyTheme(mode: ThemeMode): void {
@@ -62,5 +70,9 @@ export class Preferences {
   }
   private readGender(): Gender {
     return localStorage.getItem(GENDER_KEY) === 'm' ? 'm' : 'f';
+  }
+  private readModel(): RecipeModel {
+    const v = localStorage.getItem(MODEL_KEY);
+    return v === 'gemini' || v === 'cloudflare' ? v : 'deepseek';
   }
 }

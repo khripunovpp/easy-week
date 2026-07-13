@@ -1,4 +1,3 @@
-import asyncio
 import json
 import logging
 from typing import Any
@@ -6,85 +5,72 @@ from typing import Any
 import httpx
 
 from ..config import settings
-from .observe import log_ai_call
+from .base import AIError, ModelGate
 
 _BASE = "https://api.cloudflare.com/client/v4/accounts"
 logger = logging.getLogger("easy_week.cloudflare")
 
 
-class CloudflareError(RuntimeError):
-    pass
+class CloudflareGate(ModelGate):
+    """Cloudflare Workers AI: структурированный вывод по json_schema.
 
-
-async def _run_once(
-    messages: list[dict[str, str]],
-    json_schema: dict[str, Any],
-    model: str,
-    max_tokens: int,
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    url = f"{_BASE}/{settings.cf_account_id}/ai/run/{model}"
-    payload = {
-        "messages": messages,
-        "response_format": {"type": "json_schema", "json_schema": json_schema},
-        "max_tokens": max_tokens,
-    }
-    headers = {"Authorization": f"Bearer {settings.cf_api_token}"}
-
-    async with httpx.AsyncClient(timeout=90.0) as client:
-        resp = await client.post(url, json=payload, headers=headers)
-
-    if resp.status_code != 200:
-        raise CloudflareError(f"Workers AI {resp.status_code}: {resp.text[:300]}")
-
-    body = resp.json()
-    if not body.get("success", True):
-        raise CloudflareError(f"Workers AI errors: {body.get('errors')}")
-
-    result = body.get("result", {})
-    response = result.get("response")
-    if response is None:
-        raise CloudflareError(f"Пустой ответ Workers AI: {str(body)[:200]}")
-
-    if isinstance(response, str):
-        try:
-            parsed = json.loads(response)
-        except json.JSONDecodeError as exc:
-            raise CloudflareError(f"Ответ не JSON: {response[:200]}") from exc
-    else:
-        parsed = response
-
-    return parsed, result.get("usage", {}) or {}
-
-
-async def run_json(
-    messages: list[dict[str, str]],
-    json_schema: dict[str, Any],
-    *,
-    model: str | None = None,
-    max_tokens: int = 2048,
-    retries: int = 2,
-    label: str = "",
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Вызов Workers AI со структурированным выводом (json_schema), с ретраями.
-
-    8b иногда возвращает обрезанный/битый JSON — повторяем несколько раз.
+    Штатно используется как один из выбираемых провайдеров рецептов (пайплайн
+    меню→спеки→валидатор в planner) и для вспомогательных задач (список покупок).
     """
-    if not settings.cf_configured:
-        raise CloudflareError("Cloudflare не настроен: нет CF_ACCOUNT_ID / CF_API_TOKEN")
 
-    model = model or settings.cf_model
-    short = model.split("/")[-1]
-    logger.info("AI → Cloudflare · %s · %s", short, label or "?")
-    last: Exception | None = None
-    for attempt in range(retries + 1):
-        try:
-            parsed, usage = await _run_once(messages, json_schema, model, max_tokens)
-            log_ai_call("Cloudflare", short, label, messages, parsed, usage)
-            return parsed, usage
-        except (CloudflareError, httpx.HTTPError) as exc:
-            last = exc
-            logger.warning("Workers AI attempt %d failed: %s", attempt + 1, str(exc)[:150])
-            if attempt < retries:
-                await asyncio.sleep(0.4 * (attempt + 1))
+    key = "cloudflare"
+    provider = "Cloudflare"
+    supports_stream = False
+    supports_tools = False
 
-    raise CloudflareError(f"Workers AI не ответил после {retries + 1} попыток: {last}")
+    @property
+    def configured(self) -> bool:
+        return settings.cf_configured
+
+    @property
+    def default_model(self) -> str:
+        return settings.cf_model
+
+    def _log_model(self, model: str) -> str:
+        return model.split("/")[-1]
+
+    async def _request_json(
+        self,
+        messages: list[dict[str, Any]],
+        schema: dict[str, Any] | None,
+        model: str,
+        max_tokens: int,
+        temperature: float,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        if schema is None:
+            raise AIError("Cloudflare требует json_schema (schema=...)")
+
+        url = f"{_BASE}/{settings.cf_account_id}/ai/run/{model}"
+        payload = {
+            "messages": messages,
+            "response_format": {"type": "json_schema", "json_schema": schema},
+            "max_tokens": max_tokens,
+        }
+        headers = {"Authorization": f"Bearer {settings.cf_api_token}"}
+
+        async with httpx.AsyncClient(timeout=90.0) as client:
+            resp = await client.post(url, json=payload, headers=headers)
+
+        if resp.status_code != 200:
+            raise AIError(f"Workers AI {resp.status_code}: {resp.text[:300]}")
+
+        body = resp.json()
+        if not body.get("success", True):
+            raise AIError(f"Workers AI errors: {body.get('errors')}")
+
+        result = body.get("result", {})
+        response = result.get("response")
+        if response is None:
+            raise AIError(f"Пустой ответ Workers AI: {str(body)[:200]}")
+
+        if isinstance(response, str):
+            parsed = json.loads(response)  # битый JSON → ValueError → ретрай в базе
+        else:
+            parsed = response
+
+        return parsed, result.get("usage", {}) or {}

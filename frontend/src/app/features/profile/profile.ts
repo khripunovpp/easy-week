@@ -1,5 +1,5 @@
 import { Component, inject } from '@angular/core';
-import { Gender, Preferences, ThemeMode } from '../../services/preferences';
+import { Gender, Preferences, RecipeModel, ThemeMode } from '../../services/preferences';
 
 @Component({
   selector: 'ew-profile',
@@ -18,5 +18,11 @@ export class ProfilePage {
   readonly genderOptions: { value: Gender; label: string }[] = [
     { value: 'f', label: 'Женский' },
     { value: 'm', label: 'Мужской' },
+  ];
+
+  readonly recipeModelOptions: { value: RecipeModel; label: string }[] = [
+    { value: 'deepseek', label: 'DeepSeek' },
+    { value: 'gemini', label: 'Gemini' },
+    { value: 'cloudflare', label: 'Cloudflare' },
   ];
 }

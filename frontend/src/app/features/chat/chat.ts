@@ -2,6 +2,7 @@ import { Component, ElementRef, effect, inject, signal, viewChild } from '@angul
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { ChatStore } from '../../services/chat-store';
+import { RecipeModel } from '../../services/preferences';
 import { CookingLoader } from '../../shared/cooking-loader';
 
 @Component({
@@ -15,7 +16,13 @@ export class Chat {
   private readonly router = inject(Router);
 
   readonly menuOpen = signal(false);
+  readonly modelMenuOpen = signal(false);
   readonly countOptions = [2, 3, 4, 5, 6, 7, 8];
+  readonly modelOptions: { value: RecipeModel; label: string }[] = [
+    { value: 'deepseek', label: 'DeepSeek' },
+    { value: 'gemini', label: 'Gemini' },
+    { value: 'cloudflare', label: 'Cloudflare' },
+  ];
   readonly suggestions = ['Без свинины', 'На 2 порции', 'Побыстрее', 'Вегетарианские'];
 
   private readonly streamEl = viewChild<ElementRef<HTMLElement>>('stream');
@@ -83,6 +90,19 @@ export class Chat {
   pickCount(n: number): void {
     this.store.setCount(n);
     this.menuOpen.set(false);
+  }
+
+  modelLabel(value: RecipeModel): string {
+    return this.modelOptions.find((o) => o.value === value)?.label ?? value;
+  }
+
+  toggleModelMenu(): void {
+    this.modelMenuOpen.update((v) => !v);
+  }
+
+  pickModel(m: RecipeModel): void {
+    this.store.setModel(m);
+    this.modelMenuOpen.set(false);
   }
 
   useSuggestion(text: string): void {

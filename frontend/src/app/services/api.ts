@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ChatMessage, Dish, PlanStatus, WeekPlan } from '../models/plan.model';
-import { Preferences } from './preferences';
+import { Preferences, RecipeModel } from './preferences';
 
 // Относительный путь: в проде nginx проксирует /api → бэкенд;
 // в деве — dev-прокси Angular (proxy.conf.json) на localhost:8000.
@@ -67,12 +67,14 @@ export class EasyWeekApi {
     message: string,
     conversationId: string | null,
     dishesCount = 5,
+    recipeModel: RecipeModel = 'deepseek',
   ): Observable<ChatResponse> {
     return this.http.post<ChatResponse>(`${API_BASE}/chat`, {
       message,
       conversationId,
       dishesCount,
       gender: this.prefs.gender(),
+      recipeModel,
     });
   }
 
@@ -81,12 +83,14 @@ export class EasyWeekApi {
   editPlan(
     conversationId: string,
     message: string,
+    recipeModel: RecipeModel,
     opts: { replaceDishId?: string; removeDishId?: string; addDish?: boolean } = {},
   ): Observable<ChatResponse> {
     return this.http.post<ChatResponse>(`${API_BASE}/chat/edit`, {
       message,
       conversationId,
       gender: this.prefs.gender(),
+      recipeModel,
       ...opts,
     });
   }
@@ -96,6 +100,7 @@ export class EasyWeekApi {
     message: string,
     conversationId: string | null,
     dishesCount: number,
+    recipeModel: RecipeModel,
     handlers: ChatStreamHandlers,
   ): Promise<void> {
     await this.openSse(
@@ -103,7 +108,13 @@ export class EasyWeekApi {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, conversationId, dishesCount, gender: this.prefs.gender() }),
+        body: JSON.stringify({
+          message,
+          conversationId,
+          dishesCount,
+          gender: this.prefs.gender(),
+          recipeModel,
+        }),
       },
       handlers.onError,
       (event, payload) => {
@@ -195,8 +206,8 @@ export class EasyWeekApi {
   }
 
   // Полный план со всеми шагами (догенерирует недостающие) — для экспорта в PDF.
-  fullPlan(planId: string): Observable<WeekPlan> {
-    return this.http.post<WeekPlan>(`${API_BASE}/plans/${planId}/full`, {});
+  fullPlan(planId: string, recipeModel: RecipeModel): Observable<WeekPlan> {
+    return this.http.post<WeekPlan>(`${API_BASE}/plans/${planId}/full`, { recipeModel });
   }
 
   setStatus(planId: string, status: PlanStatus): Observable<WeekPlan> {
@@ -211,8 +222,11 @@ export class EasyWeekApi {
     return this.http.get<ShoppingGroup[]>(`${API_BASE}/plans/${planId}/shopping-list`);
   }
 
-  dishDetails(planId: string, dishId: string): Observable<Dish> {
-    return this.http.post<Dish>(`${API_BASE}/plans/${planId}/dishes/${dishId}/details`, {});
+  dishDetails(planId: string, dishId: string, recipeModel: RecipeModel): Observable<Dish> {
+    return this.http.post<Dish>(
+      `${API_BASE}/plans/${planId}/dishes/${dishId}/details`,
+      { recipeModel },
+    );
   }
 
   conversationMessages(conversationId: string): Observable<ChatMessage[]> {

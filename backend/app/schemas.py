@@ -93,6 +93,9 @@ class ChatRequest(CamelModel):
     add_dish: bool = False
     # Пол ассистента — влияет на род в прозе модели (f — женский, m — мужской).
     gender: str = "f"
+    # Модель рецептов, выбранная в чате/профиле: deepseek | gemini | cloudflare.
+    # Пусто → дефолт из настроек (recipe_model_default). Без фолбэков между моделями.
+    recipe_model: str = ""
 
 
 class ChatResponse(CamelModel):
@@ -103,3 +106,8 @@ class ChatResponse(CamelModel):
 
 class StatusRequest(CamelModel):
     status: str  # accepted | rejected | draft
+
+
+class DetailRequest(CamelModel):
+    # Модель для ленивой догенерации рецепта (та же, что выбрана в чате).
+    recipe_model: str = ""
