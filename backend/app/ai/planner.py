@@ -241,8 +241,9 @@ async def generate_plan_stream(
         logger.info("plan stream via %s: dishes=%d", gate.provider, emitted)
         return
 
-    # Cloudflare: стрима нет — собираем план целиком и отдаём теми же событиями.
-    data = await _generate_plan_cloudflare(user_message, avoid_titles, count, gender)
+    # Нестриминговые гейты (Cloudflare-пайплайн, Gemini — у него стрим JSON рвётся):
+    # собираем план целиком и отдаём теми же событиями. count_plan=False — лимит уже учтён выше.
+    data = await generate_plan(user_message, avoid_titles, count, gender, model, count_plan=False)
     yield "meta", {
         "reply": data["reply"],
         "title": data["title"],

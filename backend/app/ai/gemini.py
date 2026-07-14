@@ -69,7 +69,9 @@ class GeminiGate(ModelGate):
 
     key = "gemini"
     provider = "Gemini"
-    supports_stream = True
+    # Стриминг JSON у Gemini ненадёжен (обрывается после reply, до dishes не доходит) —
+    # план собираем не-стримом через complete_json. stream_json оставлен для будущего.
+    supports_stream = False
     supports_tools = False
 
     @property
