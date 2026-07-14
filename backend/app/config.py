@@ -35,7 +35,16 @@ class Settings(BaseSettings):
     def gemini_configured(self) -> bool:
         return bool(self.gemini_api_key)
 
-    # Модель рецептов по умолчанию, если фронт не прислал: deepseek | gemini | cloudflare
+    # Anthropic (Claude) — придумывание рецептов. Ключ из console.anthropic.com.
+    anthropic_api_key: str = ""
+    anthropic_base_url: str = "https://api.anthropic.com"
+    anthropic_model: str = "claude-opus-4-8"
+
+    @property
+    def anthropic_configured(self) -> bool:
+        return bool(self.anthropic_api_key)
+
+    # Модель рецептов по умолчанию: deepseek | gemini | cloudflare | anthropic
     recipe_model_default: str = "deepseek"
 
     # База и сеть

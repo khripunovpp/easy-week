@@ -3,8 +3,9 @@
 ## Роутинг AI-моделей (главное правило)
 
 **Рецепты придумывает модель, выбранная пользователем.** Выбор — в профиле (глобальный дефолт)
-и в чате (override только для этого чата, профиль не трогает). Три модели: **DeepSeek**
-(`deepseek-chat`), **Gemini** (`gemini-flash-latest`), **Cloudflare** (mistral-пайплайн).
+и в чате (override только для этого чата, профиль не трогает). Модели: **DeepSeek**
+(`deepseek-chat`), **Gemini** (`gemini-flash-latest`), **Claude** (`claude-opus-4-8`, Anthropic API —
+нужен баланс кредитов в console.anthropic.com), **Cloudflare** (mistral-пайплайн).
 Сюда входит генерация плана (блюда + короткие шаги) и развёрнутые пошаговые рецепты —
 всё той же выбранной моделью (деталь = текущая модель чата, не пиннится к модели плана).
 
@@ -22,9 +23,11 @@
 Каждый провайдер — подкласс `ModelGate` (`ai/base.py`): `complete_json` (шаблонный метод с
 ретраями/логом), хуки `_request_json`/`stream_json`/`call_tools`. Реестр и выбор — `ai/gates.py`
 (`gate_for(model_key)`). `ai/planner.py` роутит по выбранной модели, без `try/except → другой провайдер`.
-- DeepSeek/Gemini — план одним запросом; Cloudflare — пайплайн меню→спеки→валидатор.
-- Правки: DeepSeek — function calling; Gemini/Cloudflare — structured actions.
+- DeepSeek/Gemini/Claude — план одним запросом; Cloudflare — пайплайн меню→спеки→валидатор.
+- Правки: DeepSeek — function calling; Gemini/Claude/Cloudflare — structured actions.
 - Gemini: `thinkingBudget=0` (рецептам reasoning не нужен, иначе обрывает JSON).
+- Claude: system — отдельным полем; температуру не шлём (Opus 4.8/4.7 её отвергают); JSON-режима
+  нет — просим строгий JSON в промпте и лениво парсим (снимаем ```-ограждение).
 - Новый ключ Google не даёт `gemini-2.5-flash` — используем алиас `gemini-flash-latest`.
 
 ## Дизайн (обязательно)

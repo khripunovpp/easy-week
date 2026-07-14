@@ -21,6 +21,7 @@ export class Chat {
   readonly modelOptions: { value: RecipeModel; label: string }[] = [
     { value: 'deepseek', label: 'DeepSeek' },
     { value: 'gemini', label: 'Gemini' },
+    { value: 'anthropic', label: 'Claude' },
     { value: 'cloudflare', label: 'Cloudflare' },
   ];
   readonly suggestions = ['Без свинины', 'На 2 порции', 'Побыстрее', 'Вегетарианские'];

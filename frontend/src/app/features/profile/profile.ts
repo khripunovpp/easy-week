@@ -23,6 +23,7 @@ export class ProfilePage {
   readonly recipeModelOptions: { value: RecipeModel; label: string }[] = [
     { value: 'deepseek', label: 'DeepSeek' },
     { value: 'gemini', label: 'Gemini' },
+    { value: 'anthropic', label: 'Claude' },
     { value: 'cloudflare', label: 'Cloudflare' },
   ];
 }

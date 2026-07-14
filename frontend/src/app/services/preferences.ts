@@ -2,7 +2,7 @@ import { Injectable, effect, signal } from '@angular/core';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type Gender = 'f' | 'm';
-export type RecipeModel = 'deepseek' | 'gemini' | 'cloudflare';
+export type RecipeModel = 'deepseek' | 'gemini' | 'cloudflare' | 'anthropic';
 
 const THEME_KEY = 'ew.theme';
 const GENDER_KEY = 'ew.gender';
@@ -73,6 +73,6 @@ export class Preferences {
   }
   private readModel(): RecipeModel {
     const v = localStorage.getItem(MODEL_KEY);
-    return v === 'gemini' || v === 'cloudflare' ? v : 'deepseek';
+    return v === 'gemini' || v === 'cloudflare' || v === 'anthropic' ? v : 'deepseek';
   }
 }
