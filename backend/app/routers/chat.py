@@ -8,6 +8,7 @@ from fastapi.sse import EventSourceResponse, ServerSentEvent
 from sqlmodel import Session, select
 
 from ..ai.base import AIError
+from ..ai.limits import LimitError
 from ..ai.observe import record_conversation, record_plan
 from ..ai.planner import (
     _week_label,
@@ -90,6 +91,7 @@ async def chat_stream(
     week = ""  # заполнится из события meta (оно всегда раньше блюд)
     provider = ""
 
+    err_msg = ""
     try:
         async for kind, payload in generate_plan_stream(
             req.message, avoid, req.dishes_count, req.gender, req.recipe_model
@@ -114,11 +116,15 @@ async def chat_stream(
                     event="dish",
                     data=Dish.model_validate(payload).model_dump(by_alias=True),
                 )
+    except AIError as exc:  # лимит/недоступность модели — покажем понятный текст
+        err_msg = str(exc)
     except Exception as exc:  # noqa: BLE001 — сохраняем то, что успели собрать
         logger.warning("chat_stream оборвался: %s", str(exc)[:150])
 
     if not dishes:
-        yield ServerSentEvent(event="error", data={"message": "Не удалось составить план"})
+        yield ServerSentEvent(
+            event="error", data={"message": err_msg or "Не удалось составить план"}
+        )
         return
 
     plan_row = PlanRow(
@@ -165,6 +171,8 @@ async def chat(req: ChatRequest, session: SessionDep) -> ChatResponse:
         data = await generate_plan(
             req.message, avoid, req.dishes_count, req.gender, req.recipe_model
         )
+    except LimitError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
     except AIError as exc:
         raise HTTPException(status_code=502, detail=f"Генерация недоступна: {exc}") from exc
 
@@ -260,6 +268,8 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
             result = await edit_plan(
                 row.dishes or [], row.title, req.message, req.gender, req.recipe_model
             )
+    except LimitError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
     except AIError as exc:
         raise HTTPException(status_code=502, detail=f"Правка недоступна: {exc}") from exc
 

@@ -10,6 +10,7 @@ from fastapi.sse import EventSourceResponse, ServerSentEvent
 from sqlmodel import Session, select
 
 from ..ai.base import AIError
+from ..ai.limits import LimitError
 from ..ai.planner import generate_dish_detail, normalize_shopping
 from ..db import get_session
 from ..models import PlanRow
@@ -229,6 +230,8 @@ async def dish_details(
             detail = await generate_dish_detail(
                 dish.get("name", ""), dish.get("servings", 4), model=req.recipe_model
             )
+        except LimitError as exc:
+            raise HTTPException(status_code=429, detail=str(exc)) from exc
         except AIError as exc:
             raise HTTPException(status_code=502, detail=f"Не удалось получить рецепт: {exc}") from exc
         dish = _merge_detail(dish, detail)

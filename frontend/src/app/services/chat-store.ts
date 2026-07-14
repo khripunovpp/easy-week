@@ -195,13 +195,17 @@ export class ChatStore {
         ]);
         this.loading.set(false);
       },
-      error: () => {
+      error: (err) => {
+        // 429 (дневной лимит Claude) и пр. — показываем текст с бэка, если есть
+        const detail = err?.error?.detail as string | undefined;
         this.messages.update((list) => [
           ...list,
           {
             id: `e-${this.seq++}`,
             role: 'assistant',
-            text: 'Не получилось изменить план этой моделью. Переключите модель выше или попробуйте ещё раз.',
+            text:
+              detail ||
+              'Не получилось изменить план этой моделью. Переключите модель выше или попробуйте ещё раз.',
           },
         ]);
         this.loading.set(false);

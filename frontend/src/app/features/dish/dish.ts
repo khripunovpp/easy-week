@@ -33,6 +33,7 @@ export class DishPage {
   readonly dish = signal<Dish | null>(null);
   readonly loading = signal(true);
   readonly failed = signal(false);
+  readonly errorMsg = signal('');
 
   constructor() {
     // Догружаем блюдо (с ленивой генерацией шагов на бэкенде) при смене маршрута.
@@ -47,7 +48,9 @@ export class DishPage {
           this.dish.set(d);
           this.loading.set(false);
         },
-        error: () => {
+        error: (err) => {
+          // 429 (дневной лимит) и прочие ошибки — показываем текст с бэка, если есть
+          this.errorMsg.set(err?.error?.detail ?? '');
           this.failed.set(true);
           this.loading.set(false);
         },

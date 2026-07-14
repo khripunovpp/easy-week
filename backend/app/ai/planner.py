@@ -9,6 +9,7 @@ from typing import Any
 from ..config import settings
 from .base import AIError
 from .gates import cloudflare, gate_for
+from .limits import enforce_daily
 from .prompt import (
     DISH_DETAIL_SCHEMA,
     DISH_SCHEMA,
@@ -158,13 +159,16 @@ def _clean_dish(i: int, d: dict) -> dict:
 
 async def generate_plan(
     user_message: str, avoid_titles: list[str], count: int = 5, gender: str = "f",
-    model: str = "",
+    model: str = "", count_plan: bool = True,
 ) -> dict[str, Any]:
     """План выбранной моделью. Без фолбэков: модель либо отвечает, либо кидает AIError.
 
     DeepSeek/Gemini — один запрос (весь план); Cloudflare — пайплайн меню→спеки→валидатор.
+    count_plan=False — вызов изнутри правки (add/replace/create), не считаем как отдельный план.
     """
     gate = gate_for(model)
+    if count_plan:
+        enforce_daily(gate, "plan")  # дневной лимит на Claude (no-op для остальных)
     if gate is cloudflare:
         return await _generate_plan_cloudflare(user_message, avoid_titles, count, gender)
 
@@ -197,6 +201,7 @@ async def generate_plan_stream(
     падение модели пробрасывается наверх (роутер отдаёт event: error)."""
     week = _week_label()
     gate = gate_for(model)
+    enforce_daily(gate, "plan")  # дневной лимит на Claude (no-op для остальных)
 
     if gate.supports_stream:
         parser = PlanStreamParser()
@@ -292,6 +297,7 @@ async def generate_dish_detail(
 
     Генерит текущая выбранная модель. Без фолбэков — падение пробрасывается наверх."""
     gate = gate_for(model)
+    enforce_daily(gate, "recipe")  # дневной лимит на Claude (no-op для остальных)
     label = f"деталь блюда: {name}" + (f" ({change})" if change else "")
     messages = build_dish_detail_messages(name, servings, change)
     if gate is cloudflare:
@@ -411,7 +417,7 @@ async def edit_plan(
                 work.pop(idx)
         elif op == "add_dishes":
             cnt = max(1, min(int(args.get("count", 1) or 1), 6))
-            gen = await generate_plan(args.get("query", ""), _dish_names(work), cnt, gender, model)
+            gen = await generate_plan(args.get("query", ""), _dish_names(work), cnt, gender, model, count_plan=False)
             ids = {d["id"] for d in work}
             for j, d in enumerate(gen["dishes"][:cnt]):
                 nd = _reid(d, len(work) + j, ids)
@@ -419,7 +425,7 @@ async def edit_plan(
                 changed.append(f"добавлено «{nd.get('name')}»")
         elif op == "replace_dish":
             idx = _match_index(work, args.get("old_name", ""))
-            gen = await generate_plan(args.get("query", ""), _dish_names(work), 1, gender, model)
+            gen = await generate_plan(args.get("query", ""), _dish_names(work), 1, gender, model, count_plan=False)
             if gen["dishes"]:
                 ids = {d["id"] for d in work}
                 nd = _reid(gen["dishes"][0], (idx if idx is not None else len(work)), ids)
@@ -452,7 +458,7 @@ async def edit_plan(
                 changed.append(f"рецепт «{dish.get('name')}» обновлён ({change})")
         elif op == "create_plan":
             cnt = max(2, min(int(args.get("count") or len(work) or 5), 12))
-            gen = await generate_plan(args.get("note", user_message), [], cnt, gender, model)
+            gen = await generate_plan(args.get("note", user_message), [], cnt, gender, model, count_plan=False)
             work = gen["dishes"]
             new_title = gen.get("title", title)
             changed = ["меню пересобрано"]
@@ -488,7 +494,7 @@ async def replace_dish_by_id(
 
     old = work[idx].get("name", "")
     q = query.strip() or f"другое блюдо взамен «{old}», отличное от остальных"
-    gen = await generate_plan(q, _dish_names(work), 1, gender, model)
+    gen = await generate_plan(q, _dish_names(work), 1, gender, model, count_plan=False)
     if not gen["dishes"]:
         return {"reply": "Не удалось подобрать замену. Попробуйте ещё раз.", "title": title,
                 "dishes": dishes, "provider": gate.provider, "changed": []}
@@ -524,7 +530,7 @@ async def add_dish_direct(
     gate = gate_for(model)
     work = [dict(d) for d in dishes]
     q = query.strip() or "ещё одно блюдо, отличное от остальных"
-    gen = await generate_plan(q, _dish_names(work), 1, gender, model)
+    gen = await generate_plan(q, _dish_names(work), 1, gender, model, count_plan=False)
     if not gen["dishes"]:
         return {"reply": "Не удалось подобрать блюдо. Попробуйте ещё раз.", "title": title,
                 "dishes": dishes, "provider": gate.provider, "changed": []}

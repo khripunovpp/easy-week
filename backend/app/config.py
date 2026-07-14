@@ -45,6 +45,11 @@ class Settings(BaseSettings):
     def anthropic_configured(self) -> bool:
         return bool(self.anthropic_api_key)
 
+    # Дневные лимиты генерации на Claude (дорогая модель), 0 = без лимита.
+    # Задаются через .env: ANTHROPIC_DAILY_PLANS / ANTHROPIC_DAILY_RECIPES.
+    anthropic_daily_plans: int = 2
+    anthropic_daily_recipes: int = 10
+
     # Модель рецептов по умолчанию: deepseek | gemini | cloudflare | anthropic
     recipe_model_default: str = "deepseek"
 
