@@ -43,6 +43,15 @@ export interface ShoppingStreamHandlers {
   onError: (message: string) => void;
 }
 
+export interface DailyLimit {
+  used: number;
+  limit: number;
+  remaining: number;
+}
+export interface LimitsStatus {
+  anthropic: { plans: DailyLimit; recipes: DailyLimit };
+}
+
 export interface PlanSummary {
   id: string;
   title: string;
@@ -195,6 +204,10 @@ export class EasyWeekApi {
     } catch {
       return null;
     }
+  }
+
+  limits(): Observable<LimitsStatus> {
+    return this.http.get<LimitsStatus>(`${API_BASE}/limits`);
   }
 
   listPlans(): Observable<PlanSummary[]> {

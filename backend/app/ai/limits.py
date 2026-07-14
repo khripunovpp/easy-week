@@ -56,6 +56,18 @@ def _write(data: dict) -> None:
         logger.warning("limits write failed: %s", str(exc)[:120])
 
 
+def status() -> dict:
+    """Текущий расход дневных лимитов Claude за сегодня: used/limit/remaining."""
+    data = _read_today()
+
+    def one(kind: str) -> dict:
+        limit = _limit_for(kind)
+        used = int(data.get(f"anthropic_{kind}", 0))
+        return {"used": used, "limit": limit, "remaining": max(0, limit - used)}
+
+    return {"plans": one("plan"), "recipes": one("recipe")}
+
+
 def enforce_daily(gate, kind: str) -> None:
     """Проверить и увеличить дневной счётчик. Только для Claude, иначе no-op.
 

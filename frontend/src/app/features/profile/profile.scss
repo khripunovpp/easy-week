@@ -25,6 +25,14 @@
   margin-bottom: 6px;
 }
 
+.setting__limit {
+  margin: 10px 0 0;
+}
+.setting__limit b {
+  color: var(--ink);
+  font-weight: 650;
+}
+
 /* Сегмент-контрол: пилюля с активным сегментом на акценте */
 .seg {
   display: flex;

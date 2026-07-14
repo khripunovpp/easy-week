@@ -1,4 +1,5 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
+import { EasyWeekApi, LimitsStatus } from '../../services/api';
 import { Gender, Preferences, RecipeModel, ThemeMode } from '../../services/preferences';
 
 @Component({
@@ -8,6 +9,14 @@ import { Gender, Preferences, RecipeModel, ThemeMode } from '../../services/pref
 })
 export class ProfilePage {
   readonly prefs = inject(Preferences);
+  private readonly api = inject(EasyWeekApi);
+
+  // Остаток дневного лимита Claude (планы/рецепты) — грузим при открытии профиля.
+  readonly limits = signal<LimitsStatus | null>(null);
+
+  constructor() {
+    this.api.limits().subscribe({ next: (l) => this.limits.set(l) });
+  }
 
   readonly themeOptions: { value: ThemeMode; label: string }[] = [
     { value: 'system', label: 'Система' },

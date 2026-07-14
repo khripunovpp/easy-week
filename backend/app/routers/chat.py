@@ -8,7 +8,7 @@ from fastapi.sse import EventSourceResponse, ServerSentEvent
 from sqlmodel import Session, select
 
 from ..ai.base import AIError
-from ..ai.limits import LimitError
+from ..ai.limits import LimitError, status as limits_status
 from ..ai.observe import record_conversation, record_plan
 from ..ai.planner import (
     _week_label,
@@ -42,6 +42,12 @@ def _accepted_dish_names(session: Session, limit: int = 12) -> list[str]:
             if name:
                 names.append(name)
     return names[:limit]
+
+
+@router.get("/limits")
+async def get_limits() -> dict:
+    """Дневные лимиты генерации Claude за сегодня (used/limit/remaining)."""
+    return {"anthropic": limits_status()}
 
 
 @router.get("/conversations/{conversation_id}/messages")
