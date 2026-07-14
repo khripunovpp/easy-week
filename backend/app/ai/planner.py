@@ -297,10 +297,10 @@ async def generate_dish_detail(
     if gate is cloudflare:
         parsed, _ = await gate.complete_json(
             messages, schema=DISH_DETAIL_SCHEMA, model=settings.cf_model_judge,
-            max_tokens=1400, label=label,
+            max_tokens=3000, label=label,
         )
     else:
-        parsed, _ = await gate.complete_json(messages, max_tokens=1400, label=label)
+        parsed, _ = await gate.complete_json(messages, max_tokens=3000, label=label)
     return _clean_detail(parsed, gate.provider)
 
 

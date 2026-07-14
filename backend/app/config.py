@@ -38,7 +38,8 @@ class Settings(BaseSettings):
     # Anthropic (Claude) — придумывание рецептов. Ключ из console.anthropic.com.
     anthropic_api_key: str = ""
     anthropic_base_url: str = "https://api.anthropic.com"
-    anthropic_model: str = "claude-opus-4-8"
+    # haiku-4-5 — самая дешёвая актуальная модель ($1/$5), но вполне толковая.
+    anthropic_model: str = "claude-haiku-4-5"
 
     @property
     def anthropic_configured(self) -> bool:
