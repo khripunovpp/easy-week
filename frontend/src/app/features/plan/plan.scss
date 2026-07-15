@@ -4,7 +4,8 @@
 }
 
 .pv__state {
-  flex: 1;
+  /* заполняем видимую область (.page__inner — block) и центрируем лоадер/пусто */
+  min-height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;

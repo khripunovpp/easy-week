@@ -3,8 +3,11 @@
   display: contents;
 }
 
-/* Приветствие центрируем по вертикали */
+/* Приветствие центрируем по вертикали. .page__inner теперь block —
+   возвращаем flex-колонку явно, чтобы justify-content работал. */
 .home__inner {
+  display: flex;
+  flex-direction: column;
   justify-content: center;
 }
 

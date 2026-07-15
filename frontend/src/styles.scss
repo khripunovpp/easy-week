@@ -461,14 +461,13 @@ ul {
   /* скролл не «прочёсывается» на документ (iOS bounce) + плавный momentum */
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  display: flex;
-  flex-direction: column;
+  /* БЛОК, не flex. WebKit (iOS Safari) в flex-column-контейнере с overflow:auto
+     обрезает НЕБОЛЬШОЕ переполнение вместо скролла (проверено в webkit: 4 блюда —
+     контент 618 в боксе 550 не скроллился; block — скроллится). Вертикальная
+     раскладка детей в блоке нативная. Кому нужен flex (чат-лента с align-self) —
+     переопределяет сам (.chat__stream). */
+  display: block;
   padding: var(--page-pad-top) var(--page-pad-x) var(--page-pad-bottom);
-}
-/* дети не сжимаются по высоте — иначе при переполнении список «утрамбовывается»
-   в контейнер вместо скролла (flex-shrink по умолчанию = 1) */
-.page__inner > * {
-  flex-shrink: 0;
 }
 /* фикс-шапка не в потоке → сдвигаем контент ровно на её высоту (контент + паддинг).
    Зазор до контента даёт нижний паддинг самой шапки (--page-pad-y) — не добавляем ещё раз. */
