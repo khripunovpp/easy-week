@@ -148,6 +148,11 @@ body {
 }
 
 body {
+  /* Жёсткий лок документа на iOS: body вынут из потока и прибит к вьюпорту,
+     поэтому рубер-бэнд/скролл всего документа невозможен — едет только .page__inner. */
+  position: fixed;
+  inset: 0;
+  width: 100%;
   font-family: var(--font-body);
   color: var(--ink);
   background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 34%);
@@ -511,8 +516,9 @@ ul {
 @media print {
   html,
   body {
+    position: static; /* снимаем фикс-лок — иначе печать обрежется одной страницей */
     height: auto;
-    overflow: visible; /* снимаем лок скролла — иначе печать обрежется одной страницей */
+    overflow: visible;
   }
   .tabbar {
     display: none !important;

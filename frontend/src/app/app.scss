@@ -4,7 +4,9 @@
   flex-direction: column;
   width: 100%;
   max-width: 430px;
-  height: 100dvh;
+  /* тянемся на всё тело (body прибит к вьюпорту через position:fixed);
+     100% надёжнее 100dvh — нет рассинхрона с тулбаром iOS */
+  height: 100%;
   margin: 0 auto;
   overflow: hidden;
 }
