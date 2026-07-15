@@ -150,14 +150,13 @@ body {
 body {
   /* Жёсткий лок документа на iOS: body вынут из потока и прибит к вьюпорту,
      поэтому рубер-бэнд/скролл всего документа невозможен — едет только .page__inner.
-     Высота — из --app-h (visualViewport, ставит app.ts): точная ВИДИМАЯ область,
-     в отличие от inset:0 / 100dvh, которые на iOS равны БОЛЬШОМУ вьюпорту (без тулбара)
-     и уводят низ (фикс-футер плана) под адресную строку. */
+     Высота — 100dvh (dynamic viewport): отслеживает тулбар/клавиатуру самой CSS,
+     без JS. Определённая высота body → вниз по цепочке до .page (см. .page height:100%). */
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
-  height: var(--app-h, 100dvh);
+  height: 100dvh;
   font-family: var(--font-body);
   color: var(--ink);
   background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 34%);
@@ -391,6 +390,11 @@ ul {
   display: flex;
   flex-direction: column;
   flex: 1;
+  /* Явная высота обязательна: iOS Safari не считает flex-высоту .page «определённой»
+     для дочернего flex через :host{display:contents} (h=0) → .page__inner не обрезался
+     до .page и переполнял его за экран (скролл пропадал). height:100% резолвится к
+     .app__main (у body определённая 100dvh) → .page__inner корректно скроллится. */
+  height: 100%;
   min-height: 0;
 }
 
