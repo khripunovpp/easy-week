@@ -149,10 +149,15 @@ body {
 
 body {
   /* Жёсткий лок документа на iOS: body вынут из потока и прибит к вьюпорту,
-     поэтому рубер-бэнд/скролл всего документа невозможен — едет только .page__inner. */
+     поэтому рубер-бэнд/скролл всего документа невозможен — едет только .page__inner.
+     Высота — из --app-h (visualViewport, ставит app.ts): точная ВИДИМАЯ область,
+     в отличие от inset:0 / 100dvh, которые на iOS равны БОЛЬШОМУ вьюпорту (без тулбара)
+     и уводят низ (фикс-футер плана) под адресную строку. */
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
   width: 100%;
+  height: var(--app-h, 100dvh);
   font-family: var(--font-body);
   color: var(--ink);
   background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 34%);
