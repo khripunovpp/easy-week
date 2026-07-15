@@ -141,6 +141,10 @@ body {
   margin: 0;
   padding: 0;
   height: 100%;
+  /* Документ залочен — скроллится только .page__inner. Иначе на iOS при
+     сворачивании тулбара (граница высоты) рубер-бэндит внешний контейнер. */
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 body {
@@ -440,6 +444,9 @@ ul {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* скролл не «прочёсывается» на документ (iOS bounce) + плавный momentum */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   display: flex;
   flex-direction: column;
   padding: var(--page-pad-top) var(--page-pad-x) var(--page-pad-bottom);
@@ -502,6 +509,11 @@ ul {
 
 /* Печать: убираем чрому приложения, документ на всю страницу */
 @media print {
+  html,
+  body {
+    height: auto;
+    overflow: visible; /* снимаем лок скролла — иначе печать обрежется одной страницей */
+  }
   .tabbar {
     display: none !important;
   }
