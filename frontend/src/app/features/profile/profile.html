@@ -53,7 +53,7 @@
           </button>
         }
       </div>
-      @if (limits(); as l) {
+      @if (prefs.recipeModel() === 'anthropic' && limits(); as l) {
         <p class="setting__hint setting__limit">
           Дневной лимит Claude: планы <b>{{ l.anthropic.plans.used }}/{{ l.anthropic.plans.limit }}</b>,
           рецепты <b>{{ l.anthropic.recipes.used }}/{{ l.anthropic.recipes.limit }}</b>
