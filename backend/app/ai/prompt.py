@@ -1,3 +1,5 @@
+from .prefs import as_hint
+
 NAMES_SYSTEM = (
     "Ты — помощник по меню на неделю для заготовок впрок (вакуум + заморозка). "
     "Подбери блюда под запрос, которые удобно заморозить порциями. "
@@ -261,6 +263,7 @@ def build_dish_detail_messages(
     content = f"Блюдо: {name}. Порций: {servings}."
     if change:
         content += f" Изменение рецепта (обязательно учти): {change}."
+    content += as_hint()
     return [
         {"role": "system", "content": DISH_DETAIL_SYSTEM},
         {"role": "user", "content": content},
@@ -450,7 +453,7 @@ def build_ds_plan_messages(
     content = user_message.strip() + _plan_count_hint(count)
     if avoid_titles:
         content += "\nНедавно принятые блюда (не повторяй): " + ", ".join(avoid_titles[:12])
-    content += _gender_hint(gender)
+    content += _gender_hint(gender) + as_hint()
     return [
         {"role": "system", "content": DEEPSEEK_PLAN_SYSTEM},
         {"role": "user", "content": content},
@@ -463,7 +466,7 @@ def build_names_messages(
     content = user_message.strip() + _plan_count_hint(count)
     if avoid_titles:
         content += "\nНедавно принятые блюда (не повторяй): " + ", ".join(avoid_titles[:12])
-    content += _gender_hint(gender)
+    content += _gender_hint(gender) + as_hint()
     return [
         {"role": "system", "content": NAMES_SYSTEM},
         {"role": "user", "content": content},
@@ -471,10 +474,11 @@ def build_names_messages(
 
 
 def build_dish_messages(name: str, user_message: str) -> list[dict[str, str]]:
+    content = (
+        f"Блюдо: {name}. Общий запрос пользователя (учти порции/ограничения): {user_message}"
+        + as_hint()
+    )
     return [
         {"role": "system", "content": DISH_SYSTEM},
-        {
-            "role": "user",
-            "content": f"Блюдо: {name}. Общий запрос пользователя (учти порции/ограничения): {user_message}",
-        },
+        {"role": "user", "content": content},
     ]

@@ -1,6 +1,8 @@
 import { Component, inject, signal } from '@angular/core';
-import { EasyWeekApi, LimitsStatus } from '../../services/api';
+import { EasyWeekApi, FoodPrefs, LimitsStatus } from '../../services/api';
 import { Gender, Preferences, RecipeModel, ThemeMode } from '../../services/preferences';
+
+type PrefKind = 'dislikes' | 'likes';
 
 @Component({
   selector: 'ew-profile',
@@ -13,9 +15,30 @@ export class ProfilePage {
 
   // Остаток дневного лимита Claude (планы/рецепты) — грузим при открытии профиля.
   readonly limits = signal<LimitsStatus | null>(null);
+  // Пищевые предпочтения (что любит / не любит) — учитываются во всех генерациях.
+  readonly foodPrefs = signal<FoodPrefs>({ dislikes: [], likes: [] });
 
   constructor() {
     this.api.limits().subscribe({ next: (l) => this.limits.set(l) });
+    this.api.getPreferences().subscribe({ next: (p) => this.foodPrefs.set(p) });
+  }
+
+  private savePrefs(next: FoodPrefs): void {
+    this.foodPrefs.set(next); // оптимистично
+    this.api.setPreferences(next).subscribe({ next: (p) => this.foodPrefs.set(p) });
+  }
+
+  addPref(kind: PrefKind, value: string): void {
+    const v = value.trim();
+    if (!v) return;
+    const cur = this.foodPrefs();
+    if (cur[kind].some((x) => x.toLowerCase() === v.toLowerCase())) return;
+    this.savePrefs({ ...cur, [kind]: [...cur[kind], v] });
+  }
+
+  removePref(kind: PrefKind, item: string): void {
+    const cur = this.foodPrefs();
+    this.savePrefs({ ...cur, [kind]: cur[kind].filter((x) => x !== item) });
   }
 
   readonly themeOptions: { value: ThemeMode; label: string }[] = [

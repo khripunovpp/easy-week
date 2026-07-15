@@ -43,6 +43,11 @@ export interface ShoppingStreamHandlers {
   onError: (message: string) => void;
 }
 
+export interface FoodPrefs {
+  dislikes: string[];
+  likes: string[];
+}
+
 export interface DailyLimit {
   used: number;
   limit: number;
@@ -208,6 +213,13 @@ export class EasyWeekApi {
 
   limits(): Observable<LimitsStatus> {
     return this.http.get<LimitsStatus>(`${API_BASE}/limits`);
+  }
+
+  getPreferences(): Observable<FoodPrefs> {
+    return this.http.get<FoodPrefs>(`${API_BASE}/preferences`);
+  }
+  setPreferences(prefs: FoodPrefs): Observable<FoodPrefs> {
+    return this.http.put<FoodPrefs>(`${API_BASE}/preferences`, prefs);
   }
 
   listPlans(): Observable<PlanSummary[]> {

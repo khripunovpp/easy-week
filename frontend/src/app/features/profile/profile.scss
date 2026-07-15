@@ -58,6 +58,68 @@
   box-shadow: var(--shadow-soft);
 }
 
+/* Предпочтения: капшн + чипы с × */
+.pref {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 12px;
+}
+.pref__cap {
+  flex: none;
+  width: 72px;
+  padding-top: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.pref__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+}
+.pref__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: var(--r-pill);
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--surface-sunk);
+  color: var(--ink);
+  transition: background 0.12s ease;
+}
+.pref__chip span {
+  color: var(--ink-3);
+  font-size: 15px;
+  line-height: 1;
+}
+.pref__chip--no {
+  background: var(--no-soft);
+  color: var(--no);
+}
+.pref__chip--yes {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.pref__chip:active {
+  transform: scale(0.96);
+}
+.pref__add {
+  min-width: 96px;
+  flex: 1;
+  padding: 6px 10px;
+  border-radius: var(--r-pill);
+  background: var(--surface-sunk);
+  color: var(--ink);
+  font-size: 13px;
+}
+.pref__add::placeholder {
+  color: var(--ink-3);
+}
+
 .profile__foot {
   text-align: center;
   font-size: 12.5px;

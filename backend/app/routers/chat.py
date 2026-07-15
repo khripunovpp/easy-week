@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 from sqlmodel import Session, select
 
+from ..ai import prefs
 from ..ai.base import AIError
 from ..ai.limits import LimitError, status as limits_status
 from ..ai.observe import record_conversation, record_plan
@@ -21,7 +22,7 @@ from ..ai.planner import (
 )
 from ..db import get_session
 from ..models import Conversation, MessageRow, PlanRow
-from ..schemas import ChatMessageOut, ChatRequest, ChatResponse, Dish
+from ..schemas import ChatMessageOut, ChatRequest, ChatResponse, Dish, PreferencesBody
 from ..services.mapping import to_week_plan
 
 import logging
@@ -48,6 +49,18 @@ def _accepted_dish_names(session: Session, limit: int = 12) -> list[str]:
 async def get_limits() -> dict:
     """Дневные лимиты генерации Claude за сегодня (used/limit/remaining)."""
     return {"anthropic": limits_status()}
+
+
+@router.get("/preferences")
+async def get_preferences() -> dict:
+    """Пищевые предпочтения пользователя (что любит / не любит)."""
+    return prefs.load()
+
+
+@router.put("/preferences")
+async def put_preferences(body: PreferencesBody) -> dict:
+    """Полная замена предпочтений (правка из профиля)."""
+    return prefs.set_lists(body.dislikes, body.likes)
 
 
 @router.get("/conversations/{conversation_id}/messages")
@@ -88,6 +101,7 @@ async def chat_stream(
     )
     session.commit()
 
+    prefs.learn_async(req.message)  # фоново запоминаем предпочтения из сообщения (CF, бесплатно)
     avoid = _accepted_dish_names(session)
     plan_id = uuid4().hex
 
@@ -171,6 +185,7 @@ async def chat(req: ChatRequest, session: SessionDep) -> ChatResponse:
     )
     session.commit()
 
+    prefs.learn_async(req.message)  # фоново запоминаем предпочтения из сообщения (CF, бесплатно)
     avoid = _accepted_dish_names(session)
 
     try:
@@ -255,6 +270,7 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
         )
         session.commit()
 
+    prefs.learn_async(req.message)  # фоново запоминаем предпочтения из правки (CF, бесплатно)
     try:
         if req.remove_dish_id:
             # Крестик — детерминированное удаление, вообще без модели.

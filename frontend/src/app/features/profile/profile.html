@@ -62,6 +62,47 @@
       }
     </section>
 
+    <section class="card setting">
+      <h2 class="setting__label">Предпочтения в еде</h2>
+      <p class="setting__hint">Учитываются во всех планах и рецептах. Можно просто написать в чате — «не люблю чечевицу».</p>
+
+      <div class="pref">
+        <span class="pref__cap">Не люблю</span>
+        <div class="pref__chips">
+          @for (x of foodPrefs().dislikes; track x) {
+            <button class="pref__chip pref__chip--no" type="button" (click)="removePref('dislikes', x)">
+              {{ x }} <span aria-hidden="true">×</span>
+            </button>
+          }
+          <input
+            class="pref__add"
+            #d
+            type="text"
+            placeholder="добавить…"
+            aria-label="Добавить нелюбимое"
+            (keyup.enter)="addPref('dislikes', d.value); d.value = ''" />
+        </div>
+      </div>
+
+      <div class="pref">
+        <span class="pref__cap">Люблю</span>
+        <div class="pref__chips">
+          @for (x of foodPrefs().likes; track x) {
+            <button class="pref__chip pref__chip--yes" type="button" (click)="removePref('likes', x)">
+              {{ x }} <span aria-hidden="true">×</span>
+            </button>
+          }
+          <input
+            class="pref__add"
+            #l
+            type="text"
+            placeholder="добавить…"
+            aria-label="Добавить любимое"
+            (keyup.enter)="addPref('likes', l.value); l.value = ''" />
+        </div>
+      </div>
+    </section>
+
     <p class="profile__foot muted">Easy Week — меню на неделю под заморозку</p>
   </div>
 </div>

@@ -111,3 +111,9 @@ class StatusRequest(CamelModel):
 class DetailRequest(CamelModel):
     # Модель для ленивой догенерации рецепта (та же, что выбрана в чате).
     recipe_model: str = ""
+
+
+class PreferencesBody(CamelModel):
+    # Пищевые предпочтения пользователя: что не любит / любит.
+    dislikes: list[str] = []
+    likes: list[str] = []
