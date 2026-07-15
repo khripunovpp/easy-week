@@ -1,4 +1,4 @@
-import { Component, ElementRef, effect, inject, signal, viewChild } from '@angular/core';
+import { afterNextRender, Component, ElementRef, effect, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { ChatStore } from '../../services/chat-store';
@@ -29,15 +29,21 @@ export class Chat {
   private readonly streamEl = viewChild<ElementRef<HTMLElement>>('stream');
 
   constructor() {
+    // При входе в чат — прижимаем ленту к низу, чтобы сразу видеть последние сообщения.
+    afterNextRender(() => this.scrollToBottom());
     // Пока идёт генерация — держим ленту прижатой к низу, чтобы новые блюда
     // и лоадер внутри карточки не уходили под композер.
     effect(() => {
       this.store.messages();
       this.store.streamingMsgId();
       if (!this.store.loading()) return;
-      const el = this.streamEl()?.nativeElement;
-      if (el) requestAnimationFrame(() => (el.scrollTop = el.scrollHeight));
+      this.scrollToBottom();
     });
+  }
+
+  private scrollToBottom(): void {
+    const el = this.streamEl()?.nativeElement;
+    if (el) requestAnimationFrame(() => (el.scrollTop = el.scrollHeight));
   }
 
   isStreaming(msgId: string): boolean {
