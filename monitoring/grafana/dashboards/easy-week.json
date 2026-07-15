@@ -424,13 +424,96 @@
    ]
   },
   {
+   "type": "timeseries",
+   "title": "Токены/мин по модели",
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 32
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 20,
+      "stacking": {
+       "mode": "normal"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "calcs": [
+      "sum"
+     ],
+     "placement": "right"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "60 * sum by (model) (rate(easyweek_ai_tokens_total{kind=~\"prompt|completion\"}[5m]))",
+     "legendFormat": "{{model}}"
+    }
+   ]
+  },
+  {
+   "type": "timeseries",
+   "title": "AI-вызовы/мин по модели",
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 32
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 15
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "calcs": [
+      "sum"
+     ],
+     "placement": "right"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "60 * sum by (model) (rate(easyweek_ai_calls_total[5m]))",
+     "legendFormat": "{{model}}"
+    }
+   ]
+  },
+  {
    "type": "logs",
    "title": "Логи (AI-вызовы + бэкенд)",
    "gridPos": {
     "h": 10,
     "w": 24,
     "x": 0,
-    "y": 32
+    "y": 40
    },
    "datasource": {
     "type": "loki",
