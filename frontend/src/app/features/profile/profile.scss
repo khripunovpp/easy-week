@@ -3,8 +3,13 @@
   display: contents;
 }
 
-.profile .page__inner {
+/* Контейнер настроек — flex-ритм между карточками. Живёт ВНУТРИ .page__inner
+   (тот — чистый блок-скроллер, iOS-safe): gap на самом .page__inner инертен (block). */
+.settings {
+  display: flex;
+  flex-direction: column;
   gap: 14px;
+  min-height: 100%;
 }
 
 .setting {
