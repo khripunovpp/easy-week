@@ -31,20 +31,11 @@
   font-size: 44px;
 }
 
-/* Категория */
-.group {
-  margin-top: 14px;
-}
-.group:first-child {
-  margin-top: 4px;
-}
-
 .group__label {
   font-size: 13px;
   font-weight: 600;
   color: var(--ink-3);
   margin: 0 0 2px;
-  padding-left: 2px;
 }
 
 /* Строка продукта */
@@ -53,7 +44,7 @@
   align-items: center;
   gap: 14px;
   width: 100%;
-  padding: 14px 2px;
+  padding: 14px 0;
   text-align: left;
   border-bottom: 1px solid var(--line);
   transition: opacity 0.15s ease;
