@@ -7,7 +7,8 @@
     </button>
   </header>
 
-  <div class="page__inner d__inner">
+  <div class="page__inner">
+    <div class="d__inner">
     @if (loading()) {
       <div class="d__state">
         <ew-cooking />
@@ -81,5 +82,6 @@
         <a class="btn-primary" routerLink="/chat">В чат</a>
       </div>
     }
+    </div>
   </div>
 </div>

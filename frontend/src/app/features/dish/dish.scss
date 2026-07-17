@@ -3,9 +3,15 @@
   display: contents;
 }
 
-/* Контент блюда — вертикальный ритм между секциями */
+/* Контент блюда — вертикальный ритм между секциями.
+   Живёт ВНУТРИ .page__inner (тот — чистый блок-скроллер, iOS-safe, styles.scss).
+   Flex держим здесь, а не на .page__inner, чтобы не ловить обрезку скролла в WebKit.
+   min-height:100% — чтобы состояния (.d__state) центрировались на всю высоту. */
 .d__inner {
+  display: flex;
+  flex-direction: column;
   gap: 14px;
+  min-height: 100%;
 }
 
 /* Заголовок блюда */
@@ -125,7 +131,7 @@
   font-size: 13px;
   font-weight: 600;
   color: var(--ink-3);
-  margin: 2px 0 10px 2px;
+  margin: 0 0 10px 0;
 }
 
 /* Шаги */
@@ -186,7 +192,8 @@
 }
 
 .d__state {
-  min-height: 100%;
+  /* .d__inner теперь flex-колонка — тянемся на всю её высоту (было min-height:100%) */
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
