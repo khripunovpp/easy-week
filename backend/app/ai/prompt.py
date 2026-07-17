@@ -7,6 +7,9 @@ NAMES_SYSTEM = (
     "не делай всё из одного (например, не все с курицей). Чередуй белки и основы: "
     "птица, говядина/телятина, рыба/морепродукты, бобовые/тофу, овощи. "
     "Разные способы готовки (тушение, запекание, суп, котлеты/тефтели). "
+    "Если пользователь задал число блюд категории (напр. «один суп») — соблюдай его точно, "
+    "не добавляй лишнее сверх запрошенного. Суп — любое жидкое блюдо на бульоне/воде "
+    "(борщ, солянка, том ям, рамен — тоже супы). "
     "Учитывай ограничения (аллергии, без свинины и т.п.). "
     "Не повторяй недавно принятые блюда. Ответ компактный, на русском. "
     "title — короткое название плана, 2–3 слова, без точки в конце. "
@@ -209,6 +212,9 @@ DEEPSEEK_PLAN_SYSTEM = _SHARED_PREFIX + (
     "Составляешь меню на неделю: подбери РАЗНЫЕ реалистичные блюда (разные белки: птица, "
     "говядина, рыба, бобовые/тофу, овощи), дружелюбные к заморозке, без выдуманных названий. "
     "Учитывай ограничения пользователя (без свинины и т.п.). "
+    "Если задано число блюд категории (напр. «один суп») — соблюдай его точно, не добавляй "
+    "лишнее сверх запрошенного. Суп — любое жидкое блюдо на бульоне/воде (борщ, солянка, "
+    "том ям, рамен — тоже супы). "
     "Верни СТРОГО JSON вида: "
     '{"reply": "короткая реплика", "title": "название плана 2-3 слова", '
     '"dishes": [{"name": "короткое название", "emoji": "1 эмодзи", "servings": число, '
@@ -221,6 +227,10 @@ DEEPSEEK_PLAN_SYSTEM = _SHARED_PREFIX + (
 
 # Ленивая ПОЛНАЯ деталь одного блюда: ингредиенты + развёрнутые шаги + советы + заметка хранения.
 DISH_DETAIL_SYSTEM = _SHARED_PREFIX + (
+    "Рецепт должен соответствовать сути и кухне блюда — НЕ добавляй чужеродные для него ноты, "
+    "специи и соусы (борщ не делай азиатским и без рыбного соуса, болоньезе — классический "
+    "итальянский, котлеты — традиционные, без имбиря). Стилевые предпочтения не применяй к блюду "
+    "с явно другой кухней. "
     "Дай ПОЛНЫЙ рецепт блюда. Верни СТРОГО JSON вида: "
     '{"ingredients": [{"name": "продукт", "qty": число, "unit": "г|мл|шт", "category": "категория"}], '
     '"steps": ["шаг 1", "шаг 2", "..."], "tips": ["совет"], "note": "как разморозить/разогреть"}. '
@@ -263,7 +273,7 @@ def build_dish_detail_messages(
     content = f"Блюдо: {name}. Порций: {servings}."
     if change:
         content += f" Изменение рецепта (обязательно учти): {change}."
-    content += as_hint()
+    content += as_hint(constraints_only=True)
     return [
         {"role": "system", "content": DISH_DETAIL_SYSTEM},
         {"role": "user", "content": content},
@@ -283,7 +293,18 @@ EDIT_SYSTEM = _SHARED_PREFIX + (
     "заменить продукт, сделать острее, меньше соли и т.п.) — это edit_dish, НЕ replace_dish "
     "(блюдо остаётся тем же, меняется только его рецепт). "
     "Если просьба не про изменение плана — не вызывай функции, коротко ответь текстом на русском. "
-    "Названия блюд в remove_dish/replace_dish/edit_dish бери из списка ниже."
+    "Названия блюд в remove_dish/replace_dish/edit_dish бери из списка ниже. "
+    "Ниже может быть исходный запрос и недавние реплики диалога — опирайся на них, чтобы понять, "
+    "какое блюдо имеется в виду (напр. «один суп» изначально значил конкретное блюдо); "
+    "свежие указания важнее старых. "
+    "Если из просьбы и контекста НЕ однозначно, КАКОЕ блюдо менять или убирать (подходят два и "
+    "более, а конкретное не названо) — НЕ выбирай сам и не гадай: не вызывай функции и задай ОДИН "
+    "короткий уточняющий вопрос (напр. «Убрать том ям или куриный суп?»). "
+    "То же при замене/добавлении: если не задано КОНКРЕТНО, чем заменить или что добавить (только "
+    "отрицание или размытая категория — «на не-суп», «что-нибудь простое») — не придумывай блюдо "
+    "сам, а уточни, чего хочется (рыбное/мясное/овощное и т.п.). "
+    "Исключение — когда явно просят «предложи сам / на твой вкус»: тогда подбирай без вопросов. "
+    "Действуй сразу только когда блюдо и операция однозначны."
 )
 
 PLAN_TOOLS = [
@@ -380,9 +401,12 @@ def _plan_summary(title: str, dish_names: list[str]) -> str:
 
 
 def build_edit_messages(
-    title: str, dish_names: list[str], user_message: str, gender: str = "f"
+    title: str, dish_names: list[str], user_message: str, gender: str = "f", context: str = ""
 ) -> list[dict[str, str]]:
-    content = f"{_plan_summary(title, dish_names)}\n\nПросьба: {user_message.strip()}"
+    content = _plan_summary(title, dish_names)
+    if context:
+        content += f"\n\n{context}"
+    content += f"\n\nПросьба: {user_message.strip()}"
     content += _gender_hint(gender)
     return [
         {"role": "system", "content": EDIT_SYSTEM},
@@ -415,20 +439,21 @@ EDIT_ACTION_SCHEMA = {
 
 
 def build_edit_action_messages(
-    title: str, dish_names: list[str], user_message: str
+    title: str, dish_names: list[str], user_message: str, context: str = ""
 ) -> list[dict[str, str]]:
     system = EDIT_SYSTEM + (
         " Верни СТРОГО JSON: {\"reply\": \"...\", \"actions\": [{\"op\": \"add|remove|replace|edit|create\", "
         "\"query\": \"...\", \"name\": \"...\", \"change\": \"...\", \"count\": число}]}. Для remove/replace/edit "
         "указывай name блюда; для edit — что поменять в поле change; для add/create — query/note в поле query; "
-        "count — при add/create."
+        "count — при add/create. Если нужно уточнить (см. правило про неоднозначность) — actions=[] и вопрос в reply."
     )
+    content = _plan_summary(title, dish_names)
+    if context:
+        content += f"\n\n{context}"
+    content += f"\n\nПросьба: {user_message.strip()}"
     return [
         {"role": "system", "content": system},
-        {
-            "role": "user",
-            "content": f"{_plan_summary(title, dish_names)}\n\nПросьба: {user_message.strip()}",
-        },
+        {"role": "user", "content": content},
     ]
 
 
@@ -476,7 +501,7 @@ def build_names_messages(
 def build_dish_messages(name: str, user_message: str) -> list[dict[str, str]]:
     content = (
         f"Блюдо: {name}. Общий запрос пользователя (учти порции/ограничения): {user_message}"
-        + as_hint()
+        + as_hint(constraints_only=True)
     )
     return [
         {"role": "system", "content": DISH_SYSTEM},

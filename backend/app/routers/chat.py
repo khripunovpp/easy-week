@@ -235,6 +235,34 @@ def _latest_plan(session: Session, conversation_id: str) -> PlanRow | None:
     ).first()
 
 
+def _edit_context(session: Session, conversation_id: str, current_text: str, max_recent: int = 2) -> str:
+    """Узкий контекст для правки плана: исходный запрос + последние реплики диалога.
+
+    Даёт модели понять, какое блюдо имеется в виду (напр. «один суп» → изначально куриный),
+    не пересобирая весь чат. Текущее сообщение (последняя user-реплика) в контекст не включаем —
+    оно уже приходит как «Просьба»."""
+    msgs = session.exec(
+        select(MessageRow)
+        .where(MessageRow.conversation_id == conversation_id)
+        .order_by(MessageRow.created_at)
+    ).all()
+    if not msgs:
+        return ""
+    original = next((m for m in msgs if m.role == "user" and m.text.strip()), None)
+    # Хвост без текущей user-реплики (её текст == current_text).
+    tail = msgs[:-1] if msgs[-1].role == "user" and msgs[-1].text == current_text else msgs
+    recent = [m for m in tail[-max_recent:] if m is not original and m.text.strip()]
+    parts: list[str] = []
+    if original:
+        parts.append(f"Исходный запрос: {original.text.strip()}")
+    if recent:
+        hist = "\n".join(
+            f"{'Пользователь' if m.role == 'user' else 'Ты'}: {m.text.strip()}" for m in recent
+        )
+        parts.append("Недавно в диалоге:\n" + hist)
+    return "\n".join(parts)
+
+
 @router.post("/chat/edit")
 async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
     """Правка текущего плана диалога через function calling (добавить/убрать/заменить блюдо
@@ -270,7 +298,10 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
         )
         session.commit()
 
-    prefs.learn_async(req.message)  # фоново запоминаем предпочтения из правки (CF, бесплатно)
+    context = _edit_context(session, conv.id, req.message)
+    # Правки — операции над планом, а не декларации вкусов: экстрактору даём структурный хинт +
+    # контекст, чтобы «замени на не-суп»/«где суп» не улетали в предпочтения (см. prefs._EXTRACT_SYSTEM).
+    prefs.learn_async(req.message, "Это правка уже составленного плана.\n" + context)
     try:
         if req.remove_dish_id:
             # Крестик — детерминированное удаление, вообще без модели.
@@ -288,7 +319,7 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
             )
         else:
             result = await edit_plan(
-                row.dishes or [], row.title, req.message, req.gender, req.recipe_model
+                row.dishes or [], row.title, req.message, req.gender, req.recipe_model, context
             )
     except LimitError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc

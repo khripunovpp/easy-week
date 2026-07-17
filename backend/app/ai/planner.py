@@ -351,11 +351,11 @@ def _reid(dish: dict, i: int, existing_ids: set[str]) -> dict:
 
 
 async def _edit_actions(
-    gate, title: str, dishes: list[dict], user_message: str
+    gate, title: str, dishes: list[dict], user_message: str, context: str = ""
 ) -> tuple[list[dict[str, Any]], str]:
     """Правки без tools API (Gemini/Cloudflare): structured actions → формат tool_calls."""
     parsed, _ = await gate.complete_json(
-        build_edit_action_messages(title, _dish_names(dishes), user_message),
+        build_edit_action_messages(title, _dish_names(dishes), user_message, context),
         schema=EDIT_ACTION_SCHEMA,
         model=(settings.cf_model_judge if gate is cloudflare else None),
         max_tokens=500,
@@ -388,23 +388,26 @@ async def _edit_actions(
 
 
 async def edit_plan(
-    dishes: list[dict], title: str, user_message: str, gender: str = "f", model: str = ""
+    dishes: list[dict], title: str, user_message: str, gender: str = "f", model: str = "",
+    context: str = "",
 ) -> dict[str, Any]:
     """Правит существующий план по просьбе выбранной моделью.
 
     DeepSeek — через function calling; Gemini/Cloudflare — через structured actions.
-    Подоперации (add/replace/edit/create) идут той же моделью. Без фолбэков."""
+    Подоперации (add/replace/edit/create) идут той же моделью. Без фолбэков.
+    context — узкая история диалога (исходный запрос + пара реплик), чтобы точнее понять,
+    какое блюдо имеется в виду; в пограничных случаях модель задаёт уточняющий вопрос."""
     gate = gate_for(model)
     work = [dict(d) for d in dishes]
 
     if gate.supports_tools:
         calls, reply_hint = await gate.call_tools(
-            build_edit_messages(title, _dish_names(work), user_message, gender),
+            build_edit_messages(title, _dish_names(work), user_message, gender, context),
             PLAN_TOOLS,
             label="правка плана (tools)",
         )
     else:
-        calls, reply_hint = await _edit_actions(gate, title, work, user_message)
+        calls, reply_hint = await _edit_actions(gate, title, work, user_message, context)
 
     changed: list[str] = []
     new_title = title

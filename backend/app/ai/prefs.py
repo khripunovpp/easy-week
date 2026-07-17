@@ -41,7 +41,12 @@ _EXTRACT_SYSTEM = (
     "— это НЕ предпочтение, НЕ добавляй.\n"
     "4) Разовые пожелания к конкретному плану/дню («сегодня хочу», «на этой неделе», «побыстрее») "
     "— НЕ предпочтения.\n"
-    "5) Если ЯВНЫХ предпочтений нет — верни ОБА списка пустыми.\n"
+    "5) ОПЕРАЦИИ НАД ТЕКУЩИМ ПЛАНОМ — это НЕ предпочтения, верни пусто: «убери/замени/добавь "
+    "<конкретное блюдо>», «замени X на не-суп», «где суп?!», «верни курицу». Здесь пользователь "
+    "правит план, а не рассказывает о вкусах. Особенно когда в контексте сказано, что это правка.\n"
+    "6) Контекст (если дан) — ТОЛЬКО чтобы понять, вкус это или разовая правка. Извлекай СТРОГО "
+    "из последнего сообщения, из контекста ничего не бери.\n"
+    "7) Если ЯВНЫХ предпочтений нет — верни ОБА списка пустыми.\n"
     "Названия — короткие, на русском."
 )
 
@@ -51,6 +56,10 @@ _EXTRACT_SHOTS = [
     ("сделай 5 ужинов побыстрее", {"dislikes": [], "likes": []}),
     ("обожаю острое, только без грибов", {"dislikes": ["грибы"], "likes": ["острое"]}),
     ("хочу план с курицей и рыбой на неделю", {"dislikes": [], "likes": []}),
+    # операции над планом — не предпочтения (частый источник ложных срабатываний)
+    ("замени том ям на блюдо не суп", {"dislikes": [], "likes": []}),
+    ("где куриный суп?! я просил один суп", {"dislikes": [], "likes": []}),
+    ("верни куриный, добавь суп в меню", {"dislikes": [], "likes": []}),
 ]
 
 
@@ -120,13 +129,18 @@ def merge(new_dislikes: list[str], new_likes: list[str]) -> dict:
     return out
 
 
-def as_hint() -> str:
-    """Хинт для промптов генерации. Пусто, если предпочтений нет."""
+def as_hint(constraints_only: bool = False) -> str:
+    """Хинт для промптов генерации. Пусто, если предпочтений нет.
+
+    dislikes (избегай/аллергии) — жёсткое ограничение, действует везде.
+    likes (особенно стиль кухни) — мягкое, только при ПОДБОРЕ блюд. В рецепт уже названного
+    блюда стилевые likes подмешивать нельзя (иначе «борщ с рыбным соусом»): для генерации
+    рецепта/детали вызывай с constraints_only=True — тогда отдаём только dislikes."""
     data = load()
     parts = []
     if data["dislikes"]:
         parts.append("НЕ используй и избегай: " + ", ".join(data["dislikes"]))
-    if data["likes"]:
+    if data["likes"] and not constraints_only:
         parts.append("по возможности предпочитай: " + ", ".join(data["likes"]))
     if not parts:
         return ""
@@ -137,8 +151,11 @@ def as_hint() -> str:
     )
 
 
-async def extract_and_merge(message: str) -> None:
-    """Извлечь предпочтения из сообщения (Cloudflare, бесплатно) и слить в профиль."""
+async def extract_and_merge(message: str, context: str = "") -> None:
+    """Извлечь предпочтения из сообщения (Cloudflare, бесплатно) и слить в профиль.
+
+    context — фон для оценки «вкус или разовая правка плана» (напр. «Это правка плана» +
+    пара реплик). Извлечение идёт СТРОГО из message; из контекста ничего не берём."""
     msg = (message or "").strip()
     if len(msg) < 3:
         return
@@ -146,7 +163,12 @@ async def extract_and_merge(message: str) -> None:
     for shot_in, shot_out in _EXTRACT_SHOTS:
         messages.append({"role": "user", "content": shot_in})
         messages.append({"role": "assistant", "content": json.dumps(shot_out, ensure_ascii=False)})
-    messages.append({"role": "user", "content": msg})
+    ctx = context.strip()
+    if ctx:
+        final = f"[Контекст — только для оценки, НЕ извлекай из него]\n{ctx}\n\n[Сообщение]: {msg}"
+    else:
+        final = msg
+    messages.append({"role": "user", "content": final})
     try:
         parsed, _ = await cloudflare.complete_json(
             messages,
@@ -167,10 +189,10 @@ async def extract_and_merge(message: str) -> None:
 _tasks: set = set()
 
 
-def learn_async(message: str) -> None:
+def learn_async(message: str, context: str = "") -> None:
     """Запустить извлечение предпочтений фоном — не блокирует основной флоу."""
     if len((message or "").strip()) < 3:
         return
-    task = asyncio.create_task(extract_and_merge(message))
+    task = asyncio.create_task(extract_and_merge(message, context))
     _tasks.add(task)
     task.add_done_callback(_tasks.discard)
