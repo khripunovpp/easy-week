@@ -20,14 +20,14 @@
   --accent-press: #d95a38;
   --accent-soft: #fdece5;
 
-  --frost: #4a9cd6;      /* «заморозка» */
+  --frost: #4a9cd6; /* «заморозка» */
   --frost-soft: #e4f1fa;
-  --frost-ink: #3f6b88;  /* текст заметок о хранении */
-  --done: #7c6ef0;       /* отмечено */
+  --frost-ink: #3f6b88; /* текст заметок о хранении */
+  --done: #7c6ef0; /* отмечено */
   --done-soft: #edeafd;
 
   --line: #efe9e4;
-  --dash: #e2d5cd;       /* пунктирные границы */
+  --dash: #e2d5cd; /* пунктирные границы */
 
   --ok: #4f8a3d;
   --ok-soft: #e4f1de;
@@ -44,7 +44,7 @@
   /* Радиусы, тени, ритм */
   --r-card: 28px;
   --r-md: 18px;
-  --r-badge: 16px;   /* эмодзи-бейджи блюд */
+  --r-badge: 16px; /* эмодзи-бейджи блюд */
   --r-sm: 12px;
   --r-pill: 999px;
 
@@ -61,14 +61,14 @@
   --space: 16px;
 
   /* Лейаут страницы (единый ритм для всех экранов) */
-  --page-pad-x: 20px;        /* горизонтальный отступ — одинаковый везде */
-  --page-pad-y: 16px;        /* вертикальный паддинг шапки/футера */
-  --page-pad-top: 16px;      /* зазор между шапкой и контентом */
-  --page-pad-bottom: 16px;   /* зазор между контентом и футером */
-  --page-header-h: 50px;     /* высота КОНТЕНТА шапки (без паддинга) */
-  --page-footer-h: 57px;     /* высота КОНТЕНТА футера — кнопка (без паддинга) */
+  --page-pad-x: 20px; /* горизонтальный отступ — одинаковый везде */
+  --page-pad-y: 16px; /* вертикальный паддинг шапки/футера */
+  --page-pad-top: 16px; /* зазор между шапкой и контентом */
+  --page-pad-bottom: 16px; /* зазор между контентом и футером */
+  --page-header-h: 50px; /* высота КОНТЕНТА шапки (без паддинга) */
+  --page-footer-h: 57px; /* высота КОНТЕНТА футера — кнопка (без паддинга) */
   --page-footer-pad-b: 12px; /* нижний зазор футера до таб-бара */
-  --ctl-h: 42px;             /* высота контролов в шапке: кнопки, иконки, пилюли */
+  --ctl-h: 42px; /* высота контролов в шапке: кнопки, иконки, пилюли */
 
   /* Шрифты */
   --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
@@ -225,27 +225,33 @@ ul {
   text-decoration: none;
   transition: transform 0.12s ease, background 0.15s ease;
 }
+
 .btn-danger {
   background: var(--no);
   color: #fff;
   box-shadow: var(--shadow-soft);
 }
+
 .btn-danger:active {
   transform: scale(0.98);
   filter: brightness(0.94);
 }
+
 .btn-danger:disabled {
   opacity: 0.6;
 }
+
 .btn-primary {
   background: var(--accent);
   color: #fff;
   box-shadow: var(--shadow-soft);
 }
+
 .btn-primary:active {
   transform: scale(0.98);
   background: var(--accent-press);
 }
+
 .btn-primary svg,
 .btn-ghost svg,
 .btn-danger svg {
@@ -253,10 +259,12 @@ ul {
   width: 20px;
   height: 20px;
 }
+
 .btn-ghost {
   background: var(--surface-sunk);
   color: var(--ink);
 }
+
 .btn-ghost:active {
   transform: scale(0.98);
   background: var(--line);
@@ -272,14 +280,17 @@ ul {
   background: var(--surface-sunk);
   color: var(--ink-2);
 }
+
 .tag--ok {
   background: var(--ok-soft);
   color: var(--ok);
 }
+
 .tag--no {
   background: var(--no-soft);
   color: var(--no);
 }
+
 .tag--draft {
   background: var(--accent-soft);
   color: var(--accent);
@@ -293,11 +304,25 @@ ul {
 }
 
 /* ===== Пастельные фоны эмодзи-бейджей ===== */
-.pastel-0 { background: var(--pastel-peach); }
-.pastel-1 { background: var(--pastel-green); }
-.pastel-2 { background: var(--pastel-lilac); }
-.pastel-3 { background: var(--pastel-yellow); }
-.pastel-4 { background: var(--pastel-blue); }
+.pastel-0 {
+  background: var(--pastel-peach);
+}
+
+.pastel-1 {
+  background: var(--pastel-green);
+}
+
+.pastel-2 {
+  background: var(--pastel-lilac);
+}
+
+.pastel-3 {
+  background: var(--pastel-yellow);
+}
+
+.pastel-4 {
+  background: var(--pastel-blue);
+}
 
 /* ===== Эмодзи-бейдж блюда ===== */
 .emoji-badge {
@@ -319,6 +344,7 @@ ul {
   font-weight: 500;
   color: var(--ink-2);
 }
+
 .meta-chip svg {
   width: 14px;
   height: 14px;
@@ -347,12 +373,15 @@ ul {
   right: 0;
   z-index: 10;
 }
+
 .fade-top {
   top: 0;
 }
+
 .fade-bottom {
   bottom: 0;
 }
+
 .fade-top::before,
 .fade-bottom::before {
   content: '';
@@ -362,16 +391,19 @@ ul {
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
+
 .fade-top::before {
   background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-top) 72%, transparent 100%);
   -webkit-mask: linear-gradient(180deg, #000 0%, #000 74%, transparent 100%);
   mask: linear-gradient(180deg, #000 0%, #000 74%, transparent 100%);
 }
+
 .fade-bottom::before {
   background: linear-gradient(180deg, transparent 0%, var(--bg-bottom) 55%);
   -webkit-mask: linear-gradient(180deg, transparent 0%, #000 52%);
   mask: linear-gradient(180deg, transparent 0%, #000 52%);
 }
+
 /* контент шапки/футера над блюр-слоем (иначе Safari прячет его) */
 .fade-top > *,
 .fade-bottom > * {
@@ -409,6 +441,7 @@ ul {
   min-height: calc(var(--page-header-h) + 2 * var(--page-pad-y));
   padding: var(--page-pad-y) var(--page-pad-x);
 }
+
 /* фиксированная шапка — поверх контента; фейд-блюр вешается классом .fade-top */
 .page__header--fixed {
   position: absolute;
@@ -421,6 +454,7 @@ ul {
 /* Кнопка «назад» слева */
 .page__back {
   flex-shrink: 0;
+  align-self: center;
 }
 
 /* Заголовок: тайтл + опциональный сабтайтл.
@@ -432,12 +466,13 @@ ul {
   justify-content: flex-start;
   gap: 2px;
   min-width: 0;
-  height: var(--page-header-h);
 }
+
 .page__title {
   font-size: 27px;
   line-height: 1.1;
 }
+
 .page__subtitle {
   font-size: 14px;
   line-height: 1.3;
@@ -450,7 +485,10 @@ ul {
   margin-left: auto;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
+  max-width: 50%;
+  min-width: 100px;
 }
 
 /* --- Контент (скролл) --- */
@@ -469,11 +507,13 @@ ul {
   display: block;
   padding: var(--page-pad-top) var(--page-pad-x) var(--page-pad-bottom);
 }
+
 /* фикс-шапка не в потоке → сдвигаем контент ровно на её высоту (контент + паддинг).
    Зазор до контента даёт нижний паддинг самой шапки (--page-pad-y) — не добавляем ещё раз. */
 .page--header-fixed .page__inner {
   padding-top: calc(var(--page-header-h) + 2 * var(--page-pad-y));
 }
+
 /* фикс-футер не в потоке → освобождаем ровно его высоту (контент + верхний и нижний паддинг) */
 .page--footer-fixed .page__inner {
   padding-bottom: calc(var(--page-footer-h) + var(--page-pad-y) + var(--page-footer-pad-b));
@@ -484,6 +524,7 @@ ul {
   flex-shrink: 0;
   padding: var(--page-pad-y) var(--page-pad-x) var(--page-footer-pad-b);
 }
+
 .page__footer--fixed {
   position: absolute;
   bottom: 0;
@@ -505,9 +546,11 @@ ul {
   box-shadow: var(--shadow-soft);
   transition: transform 0.12s ease;
 }
+
 .icon-btn:active {
   transform: scale(0.94);
 }
+
 .icon-btn svg {
   width: 20px;
   height: 20px;
