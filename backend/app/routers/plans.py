@@ -316,15 +316,11 @@ async def _resolve_dish_detail(
 
 
 def _cook_sig(row: PlanRow) -> str:
-    """Стабильная подпись состава плана для кэша готовки: названия блюд + их шаги.
-    Меняется, если поменялись блюда или их рецепты — тогда план готовки протух."""
-    base = [
-        {"name": str(d.get("name", "")), "steps": list(d.get("steps") or [])}
-        for d in (row.dishes or [])
-    ]
-    return hashlib.md5(
-        json.dumps(base, sort_keys=True, ensure_ascii=False).encode()
-    ).hexdigest()
+    """Подпись СОСТАВА плана (набор блюд) для кэша готовки. Меняется только при
+    добавлении/удалении/замене блюда — НЕ при переключении варианта рецепта отдельного
+    блюда (иначе план готовки пересобирался бы после каждого касания рецептов)."""
+    names = sorted(str(d.get("name", "")) for d in (row.dishes or []))
+    return hashlib.md5(json.dumps(names, ensure_ascii=False).encode()).hexdigest()
 
 
 def _cook_variants(row: PlanRow) -> dict:
