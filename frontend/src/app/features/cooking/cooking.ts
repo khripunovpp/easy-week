@@ -83,6 +83,8 @@ export class CookingPlanPage {
             list[0].id;
           this.selectedId.set(target);
           this.title.set(list.find((p) => p.id === target)?.title ?? '');
+          // Прямая ссылка на конкретный план → делаем его текущим (как выбор в селекторе).
+          if (inputPlanId && target === inputPlanId) this.api.setCurrentPlan(target).subscribe();
           this.loadWeekPlan(target);
           this.fetch(target);
         };
@@ -119,14 +121,6 @@ export class CookingPlanPage {
 
   // Блюда плана — для ссылок в рецепты.
   readonly dishes = computed<Dish[]>(() => this.weekPlan()?.dishes ?? []);
-
-  // Модели-варианты рецепта, КРОМЕ модели активного плана готовки (дедуп для скобок).
-  otherVariantLabels(dish: Dish): string[] {
-    const planModel = this.plan()?.activeModel;
-    return (dish.variantModels ?? [])
-      .filter((m) => m !== planModel)
-      .map((m) => this.modelLabel(m));
-  }
 
   private fetch(planId: string, model?: string, action: 'open' | 'select' = 'open'): void {
     this.currentPlanId.set(planId);

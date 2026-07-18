@@ -92,6 +92,8 @@ export class Shopping {
             list[0].id;
           this.selectedId.set(target);
           this.title.set(list.find((p) => p.id === target)?.title ?? '');
+          // Прямая ссылка на конкретный план → делаем его текущим (как выбор в селекторе).
+          if (inputPlanId && target === inputPlanId) this.api.setCurrentPlan(target).subscribe();
           this.fetch(target);
         };
         if (inputPlanId) resolve(null);

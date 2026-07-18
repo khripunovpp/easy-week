@@ -2,15 +2,13 @@
   <header class="page__header page__header--fixed fade-top">
     <div class="page__heading">
       <h1 class="page__title">Покупки</h1>
-      <div class="shop__sub">
-        @if (plans().length) {
-          <ew-plan-picker [plans]="plans()" [selectedId]="selectedId()" (pick)="onPickPlan($event)" />
-        }
-        @if (!loading() && !empty()) {
-          <span class="shop__progress">{{ doneCount() }}/{{ total() }}</span>
-        }
-      </div>
+      @if (!loading() && !empty()) {
+        <span class="shop__progress">{{ doneCount() }}/{{ total() }}</span>
+      }
     </div>
+    @if (plans().length) {
+      <ew-plan-picker [plans]="plans()" [selectedId]="selectedId()" (pick)="onPickPlan($event)" />
+    }
   </header>
 
   <div class="page__inner">

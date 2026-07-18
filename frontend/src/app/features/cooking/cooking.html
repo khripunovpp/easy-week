@@ -2,12 +2,10 @@
   <header class="page__header page__header--fixed fade-top">
     <div class="page__heading">
       <h1 class="page__title">Готовка</h1>
-      @if (plans().length) {
-        <div class="ck-sub">
-          <ew-plan-picker [plans]="plans()" [selectedId]="selectedId()" (pick)="onPickPlan($event)" />
-        </div>
-      }
     </div>
+    @if (plans().length) {
+      <ew-plan-picker [plans]="plans()" [selectedId]="selectedId()" (pick)="onPickPlan($event)" />
+    }
   </header>
 
   <div class="page__inner">
@@ -89,9 +87,6 @@
               [queryParams]="{ model: cp.activeModel }">
               <span class="ck-recipe__emoji">{{ d.emoji }}</span>
               <span class="ck-recipe__name">{{ d.name }}</span>
-              @if (otherVariantLabels(d).length) {
-                <span class="ck-recipe__models">({{ otherVariantLabels(d).join(', ') }})</span>
-              }
             </a>
           }
         </div>

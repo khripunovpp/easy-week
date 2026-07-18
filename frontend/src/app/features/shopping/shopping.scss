@@ -3,15 +3,13 @@
   display: contents;
 }
 
-/* Под тайтлом: селектор плана + прогресс */
-.shop__sub {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-top: 8px;
+/* Селектор плана — справа в шапке */
+ew-plan-picker {
+  margin-left: auto;
+  min-width: 0;
 }
 .shop__progress {
+  margin-top: 6px;
   flex-shrink: 0;
   font-size: 13px;
   font-weight: 600;
