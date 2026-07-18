@@ -237,6 +237,14 @@ export class EasyWeekApi {
     return this.http.get<PlanSummary[]>(`${API_BASE}/plans`);
   }
 
+  // Выбранный «текущий» план (общий для покупок/готовки, хранится на сервере).
+  getCurrentPlan(): Observable<{ planId: string | null }> {
+    return this.http.get<{ planId: string | null }>(`${API_BASE}/current-plan`);
+  }
+  setCurrentPlan(planId: string | null): Observable<{ planId: string | null }> {
+    return this.http.put<{ planId: string | null }>(`${API_BASE}/current-plan`, { planId });
+  }
+
   getPlan(planId: string): Observable<WeekPlan> {
     return this.http.get<WeekPlan>(`${API_BASE}/plans/${planId}`);
   }

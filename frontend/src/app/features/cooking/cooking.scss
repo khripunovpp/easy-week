@@ -201,6 +201,8 @@
 .ck-note {
   font-size: 13.5px;
   line-height: 1.5;
-  margin-top: 8px;
-  padding: 0 2px;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  background: var(--surface-sunk);
+  border-radius: var(--r-md);
 }

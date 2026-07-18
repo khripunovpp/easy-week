@@ -2,7 +2,9 @@
   <header class="page__header page__header--fixed fade-top">
     <div class="page__heading">
       <h1 class="page__title">Покупки</h1>
-      <p class="page__subtitle">{{ title() ?? ' ' }}</p>
+      @if (plans().length) {
+        <ew-plan-picker [plans]="plans()" [selectedId]="selectedId()" (pick)="onPickPlan($event)" />
+      }
     </div>
     <div class="page__actions">
       @if (!loading() && !empty()) {

@@ -158,6 +158,11 @@ class DetailRequest(CamelModel):
     action: str = "open"
 
 
+class CurrentPlanBody(CamelModel):
+    # Выбранный «текущий» план (для покупок/готовки). null — сбросить.
+    plan_id: str | None = None
+
+
 class PreferencesBody(CamelModel):
     # Пищевые предпочтения пользователя: что не любит / любит.
     dislikes: list[str] = []

@@ -2,7 +2,11 @@
   <header class="page__header page__header--fixed fade-top">
     <div class="page__heading">
       <h1 class="page__title">Готовка</h1>
-      <p class="page__subtitle">{{ title() || 'План заготовки' }}</p>
+    </div>
+    <div class="page__actions">
+      @if (plans().length) {
+        <ew-plan-picker [plans]="plans()" [selectedId]="selectedId()" (pick)="onPickPlan($event)" />
+      }
     </div>
   </header>
 
@@ -71,6 +75,10 @@
         }
       }
 
+      @if (cp.note) {
+        <p class="ck-note muted">{{ cp.note }}</p>
+      }
+
       <!-- Фазы и шаги -->
       @for (ph of phases(); track $index) {
         <section class="ck-phase">
@@ -89,10 +97,6 @@
             </div>
           }
         </section>
-      }
-
-      @if (cp.note) {
-        <p class="ck-note muted">{{ cp.note }}</p>
       }
     }
   </div>

@@ -1,0 +1,34 @@
+<div class="pp">
+  <button class="pp__btn" type="button" [class.pp__btn--open]="open()" (click)="toggle()">
+    <span class="pp__title">{{ current()?.title || 'Выбрать план' }}</span>
+    <svg class="pp__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+  </button>
+
+  @if (open()) {
+    <div class="pp__backdrop" (click)="close()"></div>
+    <div class="pp__menu">
+      @for (p of plans(); track p.id) {
+        <div class="pp__row" [class.pp__row--active]="p.id === selectedId()">
+          <button class="pp__opt" type="button" (click)="choose(p.id)">
+            <span class="pp__opt-title">{{ p.title }}</span>
+            <span class="pp__opt-sub">
+              {{ p.weekLabel }} ·
+              <span class="pp__st pp__st--{{ p.status }}">{{ statusLabel(p.status) }}</span>
+            </span>
+          </button>
+          <a
+            class="pp__go"
+            [routerLink]="['/plan', p.id]"
+            (click)="close()"
+            aria-label="Открыть план">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </a>
+        </div>
+      }
+    </div>
+  }
+</div>

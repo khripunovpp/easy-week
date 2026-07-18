@@ -22,7 +22,15 @@ from ..ai.planner import (
 )
 from ..db import get_session
 from ..models import Conversation, MessageRow, PlanRow
-from ..schemas import ChatMessageOut, ChatRequest, ChatResponse, Dish, PreferencesBody
+from ..schemas import (
+    ChatMessageOut,
+    ChatRequest,
+    ChatResponse,
+    CurrentPlanBody,
+    Dish,
+    PreferencesBody,
+)
+from ..services import appstate
 from ..services.mapping import to_week_plan
 
 import logging
@@ -61,6 +69,25 @@ async def get_preferences() -> dict:
 async def put_preferences(body: PreferencesBody) -> dict:
     """Полная замена предпочтений (правка из профиля)."""
     return prefs.set_lists(body.dislikes, body.likes)
+
+
+@router.get("/current-plan")
+async def get_current_plan(session: SessionDep) -> dict:
+    """Выбранный «текущий» план (общий для покупок/готовки). null, если не выбран/удалён."""
+    pid = appstate.get_current_plan()
+    if pid and session.get(PlanRow, pid) is None:
+        pid = None
+    return {"planId": pid}
+
+
+@router.put("/current-plan")
+async def set_current_plan(body: CurrentPlanBody, session: SessionDep) -> dict:
+    """Выбрать «текущий» план (для покупок/готовки), общий для всех устройств."""
+    pid = body.plan_id
+    if pid and session.get(PlanRow, pid) is None:
+        raise HTTPException(status_code=404, detail="План не найден")
+    appstate.set_current_plan(pid)
+    return {"planId": pid}
 
 
 @router.get("/conversations/{conversation_id}/messages")

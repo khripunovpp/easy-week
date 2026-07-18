@@ -1,7 +1,8 @@
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { EasyWeekApi, ShoppingGroup, ShoppingListItem } from '../../services/api';
+import { EasyWeekApi, PlanSummary, ShoppingGroup, ShoppingListItem } from '../../services/api';
 import { CookingLoader } from '../../shared/cooking-loader';
+import { PlanPicker } from '../../shared/plan-picker';
 
 // Порядок категорий в списке (как на бэке). Незнакомые — в конце.
 const CATEGORY_ORDER = [
@@ -16,17 +17,19 @@ const CATEGORY_ORDER = [
 
 @Component({
   selector: 'ew-shopping',
-  imports: [RouterLink, CookingLoader],
+  imports: [RouterLink, CookingLoader, PlanPicker],
   templateUrl: './shopping.html',
   styleUrl: './shopping.scss',
 })
 export class Shopping {
   private readonly api = inject(EasyWeekApi);
 
-  // /shopping/:planId — конкретный план; /shopping — последний.
+  // /shopping/:planId — конкретный план; /shopping — выбранный «текущий» (или принятый/первый).
   readonly planId = input<string>('');
 
   readonly items = signal<ShoppingListItem[]>([]);
+  readonly plans = signal<PlanSummary[]>([]);
+  readonly selectedId = signal('');
   readonly loading = signal(true);
   readonly empty = signal(false);
   readonly title = signal('');
@@ -69,32 +72,49 @@ export class Shopping {
     });
   }
 
-  private load(planId: string): void {
+  private load(inputPlanId: string): void {
     this.loading.set(true);
     this.empty.set(false);
     this.items.set([]);
-
-    if (planId) {
-      this.fetch(planId);
-      return;
-    }
-    // Без явного плана — берём последний (принятый в приоритете).
     this.api.listPlans().subscribe({
-      next: (plans) => {
-        if (!plans.length) {
+      next: (list) => {
+        this.plans.set(list);
+        if (!list.length) {
           this.loading.set(false);
           this.empty.set(true);
           return;
         }
-        const target = plans.find((p) => p.status === 'accepted') ?? plans[0];
-        this.title.set(target.title);
-        this.fetch(target.id);
+        const resolve = (curId: string | null) => {
+          const inList = (id: string) => list.some((p) => p.id === id);
+          const target =
+            (inputPlanId && inList(inputPlanId) && inputPlanId) ||
+            (curId && inList(curId) && curId) ||
+            list.find((p) => p.status === 'accepted')?.id ||
+            list[0].id;
+          this.selectedId.set(target);
+          this.title.set(list.find((p) => p.id === target)?.title ?? '');
+          this.fetch(target);
+        };
+        if (inputPlanId) resolve(null);
+        else
+          this.api.getCurrentPlan().subscribe({
+            next: (r) => resolve(r.planId),
+            error: () => resolve(null),
+          });
       },
       error: () => {
         this.loading.set(false);
         this.empty.set(true);
       },
     });
+  }
+
+  // Смена плана из селектора: сохраняем выбор на сервере (общий) и грузим его.
+  onPickPlan(id: string): void {
+    this.selectedId.set(id);
+    this.title.set(this.plans().find((p) => p.id === id)?.title ?? '');
+    this.api.setCurrentPlan(id).subscribe();
+    this.fetch(id);
   }
 
   private fetch(planId: string): void {

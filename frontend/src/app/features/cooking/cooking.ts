@@ -1,13 +1,14 @@
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { CookingPlan, CookingStep, EasyWeekApi } from '../../services/api';
+import { CookingPlan, CookingStep, EasyWeekApi, PlanSummary } from '../../services/api';
 import { ChatStore } from '../../services/chat-store';
 import { ALL_MODELS, MODEL_LABELS, RecipeModel } from '../../services/preferences';
 import { CookingLoader } from '../../shared/cooking-loader';
+import { PlanPicker } from '../../shared/plan-picker';
 
 @Component({
   selector: 'ew-cooking-plan',
-  imports: [RouterLink, CookingLoader],
+  imports: [RouterLink, CookingLoader, PlanPicker],
   templateUrl: './cooking.html',
   styleUrl: './cooking.scss',
 })
@@ -15,10 +16,12 @@ export class CookingPlanPage {
   private readonly api = inject(EasyWeekApi);
   private readonly store = inject(ChatStore);
 
-  // /cooking/:planId — конкретный план; /cooking — последний (принятый в приоритете).
+  // /cooking/:planId — конкретный план; /cooking — выбранный «текущий» (или принятый/первый).
   readonly planId = input<string>('');
 
   readonly plan = signal<CookingPlan | null>(null);
+  readonly plans = signal<PlanSummary[]>([]);
+  readonly selectedId = signal('');
   readonly loading = signal(true);
   readonly failed = signal(false);
   readonly errorMsg = signal('');
@@ -56,32 +59,51 @@ export class CookingPlanPage {
     });
   }
 
-  private load(planId: string): void {
+  private load(inputPlanId: string): void {
     this.loading.set(true);
     this.failed.set(false);
     this.empty.set(false);
     this.plan.set(null);
-    if (planId) {
-      this.fetch(planId);
-      return;
-    }
-    // Без явного плана — берём последний (принятый в приоритете), как в покупках.
     this.api.listPlans().subscribe({
-      next: (plans) => {
-        if (!plans.length) {
+      next: (list) => {
+        this.plans.set(list);
+        if (!list.length) {
           this.loading.set(false);
           this.empty.set(true);
           return;
         }
-        const target = plans.find((p) => p.status === 'accepted') ?? plans[0];
-        this.title.set(target.title);
-        this.fetch(target.id);
+        const resolve = (curId: string | null) => {
+          const inList = (id: string) => list.some((p) => p.id === id);
+          const target =
+            (inputPlanId && inList(inputPlanId) && inputPlanId) ||
+            (curId && inList(curId) && curId) ||
+            list.find((p) => p.status === 'accepted')?.id ||
+            list[0].id;
+          this.selectedId.set(target);
+          this.title.set(list.find((p) => p.id === target)?.title ?? '');
+          this.fetch(target);
+        };
+        // Явный план в URL важнее; иначе — выбранный «текущий» с сервера.
+        if (inputPlanId) resolve(null);
+        else
+          this.api.getCurrentPlan().subscribe({
+            next: (r) => resolve(r.planId),
+            error: () => resolve(null),
+          });
       },
       error: () => {
         this.loading.set(false);
         this.empty.set(true);
       },
     });
+  }
+
+  // Смена плана из селектора: сохраняем выбор на сервере (общий) и грузим его.
+  onPickPlan(id: string): void {
+    this.selectedId.set(id);
+    this.title.set(this.plans().find((p) => p.id === id)?.title ?? '');
+    this.api.setCurrentPlan(id).subscribe();
+    this.fetch(id);
   }
 
   private fetch(planId: string, model?: string, action: 'open' | 'select' = 'open'): void {
