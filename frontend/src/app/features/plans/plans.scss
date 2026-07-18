@@ -95,6 +95,12 @@
   font-size: 16px;
   font-weight: 700;
 }
+/* Отклонённый план в истории — только зачёркнутое название */
+.prow__title--rejected {
+  text-decoration: line-through;
+  color: var(--ink-3);
+  font-weight: 600;
+}
 
 .prow__sub {
   font-size: 13px;

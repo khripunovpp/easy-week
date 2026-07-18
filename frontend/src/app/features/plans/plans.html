@@ -48,8 +48,12 @@
             <a class="prow__link" [routerLink]="['/plan', plan.id]">
               <span class="emoji-badge" [class]="'pastel-' + (i % 5)">{{ plan.emoji }}</span>
               <span class="prow__body">
-                <span class="prow__title">{{ plan.title }}</span>
-                <span class="prow__sub muted">{{ plan.weekLabel }} · {{ plan.dishesCount }} блюд@if (plan.totalCookMin) { · ~{{ cookTime(plan.totalCookMin) }}}</span>
+                <span
+                  class="prow__title"
+                  [class.prow__title--rejected]="plan.status === 'rejected'">{{ plan.title }}</span>
+                @if (plan.status !== 'rejected') {
+                  <span class="prow__sub muted">{{ plan.weekLabel }} · {{ plan.dishesCount }} блюд@if (plan.totalCookMin) { · ~{{ cookTime(plan.totalCookMin) }}}</span>
+                }
               </span>
               <span
                 class="tag"
