@@ -87,6 +87,12 @@
 .d__model--active {
   color: var(--accent);
 }
+.d__model:disabled,
+.d__refresh:disabled,
+.d__model-opt:disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
 .d__refresh {
   display: grid;
   place-items: center;

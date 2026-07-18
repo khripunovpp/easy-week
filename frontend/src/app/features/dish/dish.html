@@ -27,6 +27,7 @@
               type="button"
               class="d__model"
               [class.d__model--active]="m === d.activeModel"
+              [disabled]="loading()"
               (click)="chooseModel(m)">
               {{ modelLabel(m) }}
             </button>
@@ -37,6 +38,7 @@
               type="button"
               class="d__refresh"
               [class.d__refresh--open]="modelMenuOpen()"
+              [disabled]="loading()"
               (click)="toggleModelMenu()"
               aria-label="Перегенерить другой моделью">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -54,7 +56,7 @@
               <p class="d__modal-title">Перегенерить другой моделью?</p>
               <div class="d__modal-list">
                 @for (m of remainingModels(); track m) {
-                  <button type="button" class="d__model-opt" (click)="chooseModel(m)">
+                  <button type="button" class="d__model-opt" [disabled]="loading()" (click)="chooseModel(m)">
                     🤖 {{ modelLabel(m) }}
                   </button>
                 }

@@ -259,6 +259,25 @@ def _apply_variant(dish: dict, model: str, variants: dict) -> dict:
     }
 
 
+# Склейка одинаковых запросов генерации (single-flight): пока идёт генерация рецепта
+# для (plan_id, dish_id, model), параллельные такие же запросы ждут ТОТ ЖЕ результат —
+# без повторного вызова модели и двойной записи в БД. Процесс один (uvicorn без --workers),
+# поэтому in-process словаря достаточно; очереди/брокер не нужны.
+_inflight: dict[tuple, "asyncio.Future"] = {}
+
+
+async def _single_flight(key: tuple, factory):
+    running = _inflight.get(key)
+    if running is not None:
+        return await running
+    fut = asyncio.ensure_future(factory())
+    _inflight[key] = fut
+    try:
+        return await fut
+    finally:
+        _inflight.pop(key, None)
+
+
 @router.post("/{plan_id}/dishes/{dish_id}/details")
 async def dish_details(
     plan_id: str, dish_id: str, req: DetailRequest, session: SessionDep
@@ -267,7 +286,18 @@ async def dish_details(
 
     action=open — вернуть активный вариант (сгенерить первый, если деталей ещё нет);
     action=select — сделать recipe_model активным (сгенерить его вариант, если ещё нет).
-    Одной моделью повторно не генерим — если вариант уже есть, просто переключаемся."""
+    Одной моделью повторно не генерим — если вариант уже есть, просто переключаемся.
+    Параллельные одинаковые запросы склеиваются (single-flight)."""
+    action = (req.action or "open").lower()
+    key = (plan_id, dish_id, action, gate_for(req.recipe_model).key)
+    return await _single_flight(
+        key, lambda: _resolve_dish_detail(plan_id, dish_id, req, action, session)
+    )
+
+
+async def _resolve_dish_detail(
+    plan_id: str, dish_id: str, req: DetailRequest, action: str, session: SessionDep
+) -> Dish:
     row = _get_plan(session, plan_id)
     dishes = list(row.dishes or [])
     idx = next((i for i, d in enumerate(dishes) if d.get("id") == dish_id), None)
@@ -278,7 +308,7 @@ async def dish_details(
     variants = _dish_variants(dish)
     resolved = gate_for(req.recipe_model).key  # реальный ключ модели (учёт дефолта)
 
-    if (req.action or "open").lower() == "select":
+    if action == "select":
         target = resolved
     else:  # open — держим активный, если он есть; иначе генерим resolved как первый
         active = dish.get("active_model") or next(iter(variants), "")
