@@ -15,6 +15,9 @@
 .ck-emoji {
   font-size: 40px;
 }
+.ck-sub {
+  margin-top: 8px;
+}
 
 /* Вкладки моделей (как у рецепта) */
 .ck-models {
@@ -124,6 +127,39 @@
 .ck-model-opt:active {
   background: var(--accent-soft);
   color: var(--accent);
+}
+
+/* Рецепты плана — чипы-ссылки */
+.ck-recipes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.ck-recipe {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px 6px 8px;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 13.5px;
+}
+.ck-recipe__emoji {
+  font-size: 15px;
+}
+.ck-recipe__name {
+  font-weight: 600;
+}
+.ck-recipe__models {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.ck-recipe:active {
+  transform: scale(0.97);
 }
 
 /* Фазы и шаги */

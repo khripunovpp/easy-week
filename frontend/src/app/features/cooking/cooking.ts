@@ -1,6 +1,7 @@
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { CookingPlan, CookingStep, EasyWeekApi, PlanSummary } from '../../services/api';
+import { Dish, WeekPlan } from '../../models/plan.model';
 import { ChatStore } from '../../services/chat-store';
 import { ALL_MODELS, MODEL_LABELS, RecipeModel } from '../../services/preferences';
 import { CookingLoader } from '../../shared/cooking-loader';
@@ -20,6 +21,7 @@ export class CookingPlanPage {
   readonly planId = input<string>('');
 
   readonly plan = signal<CookingPlan | null>(null);
+  readonly weekPlan = signal<WeekPlan | null>(null); // блюда плана — для ссылок в рецепты
   readonly plans = signal<PlanSummary[]>([]);
   readonly selectedId = signal('');
   readonly loading = signal(true);
@@ -81,6 +83,7 @@ export class CookingPlanPage {
             list[0].id;
           this.selectedId.set(target);
           this.title.set(list.find((p) => p.id === target)?.title ?? '');
+          this.loadWeekPlan(target);
           this.fetch(target);
         };
         // Явный план в URL важнее; иначе — выбранный «текущий» с сервера.
@@ -103,7 +106,26 @@ export class CookingPlanPage {
     this.selectedId.set(id);
     this.title.set(this.plans().find((p) => p.id === id)?.title ?? '');
     this.api.setCurrentPlan(id).subscribe();
+    this.loadWeekPlan(id);
     this.fetch(id);
+  }
+
+  private loadWeekPlan(id: string): void {
+    this.api.getPlan(id).subscribe({
+      next: (p) => this.weekPlan.set(p),
+      error: () => this.weekPlan.set(null),
+    });
+  }
+
+  // Блюда плана — для ссылок в рецепты.
+  readonly dishes = computed<Dish[]>(() => this.weekPlan()?.dishes ?? []);
+
+  // Модели-варианты рецепта, КРОМЕ модели активного плана готовки (дедуп для скобок).
+  otherVariantLabels(dish: Dish): string[] {
+    const planModel = this.plan()?.activeModel;
+    return (dish.variantModels ?? [])
+      .filter((m) => m !== planModel)
+      .map((m) => this.modelLabel(m));
   }
 
   private fetch(planId: string, model?: string, action: 'open' | 'select' = 'open'): void {

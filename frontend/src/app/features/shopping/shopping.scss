@@ -3,8 +3,16 @@
   display: contents;
 }
 
-/* Прогресс отмеченного — пилюля в правом блоке шапки */
+/* Под тайтлом: селектор плана + прогресс */
+.shop__sub {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
 .shop__progress {
+  flex-shrink: 0;
   font-size: 13px;
   font-weight: 600;
   color: var(--accent);

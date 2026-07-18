@@ -1,5 +1,4 @@
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
 import { EasyWeekApi, PlanSummary, ShoppingGroup, ShoppingListItem } from '../../services/api';
 import { CookingLoader } from '../../shared/cooking-loader';
 import { PlanPicker } from '../../shared/plan-picker';
@@ -17,7 +16,7 @@ const CATEGORY_ORDER = [
 
 @Component({
   selector: 'ew-shopping',
-  imports: [RouterLink, CookingLoader, PlanPicker],
+  imports: [CookingLoader, PlanPicker],
   templateUrl: './shopping.html',
   styleUrl: './shopping.scss',
 })

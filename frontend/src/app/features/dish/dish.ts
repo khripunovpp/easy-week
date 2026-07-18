@@ -21,6 +21,8 @@ export class DishPage {
 
   readonly planId = input<string>('');
   readonly dishId = input<string>('');
+  // ?model=<ключ> — открыть вариант конкретной модели (напр. из готовки — модель плана).
+  readonly model = input<string>('');
 
   // Назад — туда, откуда пришли (план или чат). Если истории нет — на план.
   back(): void {
@@ -49,7 +51,11 @@ export class DishPage {
       const pid = this.planId();
       const did = this.dishId();
       if (!pid || !did) return;
-      this.load(pid, did, this.store.recipeModel(), 'open');
+      // Если пришли с ?model= (напр. из готовки — модель плана) — открываем именно её вариант
+      // (сгенерится, если ещё нет); иначе — активный/дефолтный вариант.
+      const m = this.model();
+      if (m) this.load(pid, did, m, 'select');
+      else this.load(pid, did, this.store.recipeModel(), 'open');
     });
   }
 

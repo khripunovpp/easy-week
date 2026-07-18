@@ -2,10 +2,10 @@
   <header class="page__header page__header--fixed fade-top">
     <div class="page__heading">
       <h1 class="page__title">Готовка</h1>
-    </div>
-    <div class="page__actions">
       @if (plans().length) {
-        <ew-plan-picker [plans]="plans()" [selectedId]="selectedId()" (pick)="onPickPlan($event)" />
+        <div class="ck-sub">
+          <ew-plan-picker [plans]="plans()" [selectedId]="selectedId()" (pick)="onPickPlan($event)" />
+        </div>
       }
     </div>
   </header>
@@ -77,6 +77,24 @@
 
       @if (cp.note) {
         <p class="ck-note muted">{{ cp.note }}</p>
+      }
+
+      <!-- Рецепты плана: переход к блюду (в варианте модели плана); в скобках — прочие варианты -->
+      @if (dishes().length) {
+        <div class="ck-recipes">
+          @for (d of dishes(); track d.id) {
+            <a
+              class="ck-recipe"
+              [routerLink]="['/plan', selectedId(), 'dish', d.id]"
+              [queryParams]="{ model: cp.activeModel }">
+              <span class="ck-recipe__emoji">{{ d.emoji }}</span>
+              <span class="ck-recipe__name">{{ d.name }}</span>
+              @if (otherVariantLabels(d).length) {
+                <span class="ck-recipe__models">({{ otherVariantLabels(d).join(', ') }})</span>
+              }
+            </a>
+          }
+        </div>
       }
 
       <!-- Фазы и шаги -->
