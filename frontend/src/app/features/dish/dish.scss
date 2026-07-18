@@ -244,6 +244,7 @@
   min-height: 0; /* iOS: без этого flex-контейнер клипает overflow вместо скролла */
   overflow: auto;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain; /* у края не тянуть/не уводить модалку и страницу */
   padding: 0 0 24px;
 }
 .d__cmp {
@@ -253,11 +254,15 @@
 }
 .d__cmp th,
 .d__cmp td {
-  width: 150px; /* модельные колонки одинаковой ширины → таблицы выровнены между собой */
+  width: 225px; /* модельные колонки одинаковой ширины (+50%) → таблицы выровнены между собой */
   padding: 8px 10px;
   text-align: left;
   vertical-align: top;
   border-bottom: 1px solid var(--line);
+}
+/* Первый столбец — единой ширины в обеих таблицах, чуть шире */
+.d__cmp .d__cmp-h0 {
+  width: 160px;
 }
 .d__cmp thead th {
   position: sticky;
@@ -274,7 +279,6 @@
   position: sticky;
   left: 0;
   z-index: 1;
-  width: 120px;
   background: var(--surface);
   font-weight: 600;
 }
