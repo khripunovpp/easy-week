@@ -69,7 +69,37 @@ sudo nginx -t && sudo systemctl reload nginx
 В домашней сети уже доступно: **http://192.168.1.230:8080**
 (но PWA-установка/офлайн заработают только по HTTPS — шаг 6).
 
-## 6. Cloudflare Tunnel (HTTPS + доступ извне)
+## 6. HTTPS — Tailscale Funnel (рекомендуется, без домена)
+
+Самый простой способ дать приложению HTTPS (нужен, чтобы **service worker и офлайн PWA
+заработали** — по LAN-http SW не регистрируется) и доступ извне (из магазина и т.п.) без покупки
+домена. Даёт стабильный адрес вида `https://<имя-пая>.<твой-tailnet>.ts.net`.
+
+```bash
+# 1) Установить Tailscale на Пае
+curl -fsSL https://tailscale.com/install.sh | sh
+
+# 2) Залогиниться (откроет URL — подтвердить в браузере под своим аккаунтом Tailscale)
+sudo tailscale up
+
+# 3) В админке Tailscale (login.tailscale.com/admin):
+#    - DNS → включить MagicDNS и «HTTPS Certificates»;
+#    - Access controls / node → разрешить Funnel для этого узла (атрибут funnel).
+
+# 4) Опубликовать nginx Easy Week (:8080) наружу по HTTPS, персистентно:
+sudo tailscale funnel --bg 8080
+
+# 5) Посмотреть выданный адрес:
+tailscale funnel status      # покажет https://<pi>.<tailnet>.ts.net
+```
+
+Дальше **устанавливать PWA нужно именно с этого `https://…ts.net`** (SW и кэш привязаны к origin;
+установка со старого `http://192.168.1.230:8080` офлайн работать не будет). Манифест и nginx уже
+готовы: `manifest.webmanifest` использует относительные `scope`/`start_url`, а nginx слушает
+`server_name _` — принимает любой Host. Локальный `http://192.168.1.230:8080` остаётся для доступа
+в домашней сети без интернета.
+
+## 6-alt. Cloudflare Tunnel (если нужен свой домен)
 
 ```bash
 cloudflared tunnel login
