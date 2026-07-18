@@ -1,0 +1,90 @@
+:host {
+  display: contents;
+}
+
+.cmp-state {
+  min-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+/* Горизонтальный скролл обеих таблиц; колонки-модели одинаковой ширины → таблицы выровнены */
+.d__cmp-scroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain; /* у края не тянуть страницу */
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 24px;
+}
+.d__cmp {
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 13px;
+}
+.d__cmp th,
+.d__cmp td {
+  width: 225px; /* модельные колонки одинаковой ширины */
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
+}
+/* Первый столбец — единой ширины в обеих таблицах, залипает слева */
+.d__cmp .d__cmp-h0 {
+  width: 150px;
+}
+.d__cmp-h0 {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+  font-weight: 600;
+}
+.d__cmp thead th {
+  font-weight: 700;
+  font-size: 12.5px;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.d__cmp thead .d__cmp-h0 {
+  z-index: 2;
+  color: var(--ink-2);
+}
+/* Подзаголовок категории (растянут на все колонки) */
+.d__cmp-cat td {
+  padding: 12px 10px 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+  border-bottom: none;
+}
+/* Строка-отличие (ингредиент есть не у всех / количество расходится) */
+.d__cmp-diff td {
+  background: var(--accent-soft);
+}
+.d__cmp-diff .d__cmp-h0 {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.d__cmp-miss {
+  color: var(--ink-3);
+  text-align: center;
+}
+.d__cmp--steps {
+  margin-top: 22px;
+}
+.d__cmp-stepn {
+  color: var(--ink-3);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.d__cmp-step {
+  font-size: 12.5px;
+  line-height: 1.4;
+}

@@ -19,6 +19,10 @@ export const routes: Routes = [
     loadComponent: () => import('./features/dish/dish').then((m) => m.DishPage),
   },
   {
+    path: 'plan/:planId/dish/:dishId/compare',
+    loadComponent: () => import('./features/compare/compare').then((m) => m.ComparePage),
+  },
+  {
     path: 'print/:planId',
     loadComponent: () => import('./features/print/print').then((m) => m.PrintPage),
   },

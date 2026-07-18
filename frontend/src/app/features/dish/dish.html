@@ -49,9 +49,9 @@
           }
           @if (d.variantModels && d.variantModels.length >= 2) {
             <span class="d__sep">|</span>
-            <button type="button" class="d__compare-btn" [disabled]="comparing()" (click)="openCompare()">
+            <a class="d__compare-btn" [routerLink]="['/plan', planId(), 'dish', dishId(), 'compare']">
               ⇄ сравнить
-            </button>
+            </a>
           }
         </div>
 
@@ -70,67 +70,6 @@
             </div>
           </div>
         }
-      }
-
-      <!-- Сравнение вариантов рецепта по моделям -->
-      @if (compareVariants(); as vars) {
-        <div class="d__compare" (click)="closeCompare()">
-          <div class="d__compare-sheet" (click)="$event.stopPropagation()">
-            <div class="d__compare-head">
-              <span>Сравнение рецептов</span>
-              <button type="button" class="d__compare-x" (click)="closeCompare()" aria-label="Закрыть">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M7 7l10 10M17 7L7 17" stroke-linecap="round" />
-                </svg>
-              </button>
-            </div>
-            <div class="d__cmp-scroll">
-              <!-- Ингредиенты: строка = ингредиент, колонки = модели, ячейка = количество -->
-              <table class="d__cmp">
-                <thead>
-                  <tr>
-                    <th class="d__cmp-h0">Ингредиент</th>
-                    @for (v of vars; track v.model) {
-                      <th>🤖 {{ modelLabel(v.model) }}</th>
-                    }
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (row of compareRows(); track row.name) {
-                    <tr [class.d__cmp-diff]="row.diff">
-                      <td class="d__cmp-h0">{{ row.name }}</td>
-                      @for (c of row.cells; track $index) {
-                        <td [class.d__cmp-miss]="!c">{{ c || '—' }}</td>
-                      }
-                    </tr>
-                  }
-                </tbody>
-              </table>
-
-              <!-- Шаги: строка = «Шаг N» на одной линии у всех моделей -->
-              <table class="d__cmp d__cmp--steps">
-                <thead>
-                  <tr>
-                    <th class="d__cmp-h0">Приготовление</th>
-                    @for (v of vars; track v.model) {
-                      <th>🤖 {{ modelLabel(v.model) }}</th>
-                    }
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (sr of stepRows(); track sr.n) {
-                    <tr>
-                      <td class="d__cmp-h0 d__cmp-stepn">Шаг {{ sr.n }}</td>
-                      @for (c of sr.cells; track $index) {
-                        <td class="d__cmp-step" [class.d__cmp-miss]="!c">{{ c || '—' }}</td>
-                      }
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
       }
 
       <div class="d__meta">
