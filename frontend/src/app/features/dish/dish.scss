@@ -60,7 +60,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  margin-top: 10px;
+  margin: 0 0 12px;
   padding: 6px 12px;
   background: var(--surface);
   border-radius: var(--r-pill);
@@ -87,10 +87,6 @@
 .d__model--active {
   color: var(--accent);
 }
-.d__refresh-wrap {
-  position: relative;
-  display: inline-flex;
-}
 .d__refresh {
   display: grid;
   place-items: center;
@@ -113,35 +109,53 @@
   transform: rotate(-90deg);
 }
 
-/* Выпадашка выбора модели для перегенерации */
-.d__model-menu {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 30;
+/* Меню перегенерации — попап по центру с оверлеем (как модалка удаления в «Планах») */
+.d__modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
   display: flex;
-  flex-direction: column;
-  min-width: 190px;
-  padding: 8px;
-  background: var(--surface);
-  border-radius: var(--r-md);
-  box-shadow: var(--shadow-float);
-  animation: d-menu-in 0.14s ease;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  background: rgba(34, 29, 26, 0.42);
+  animation: d-modal-fade 0.15s ease;
 }
-@keyframes d-menu-in {
+@keyframes d-modal-fade {
   from {
     opacity: 0;
-    transform: translateY(-6px);
   }
 }
-.d__model-menu__title {
-  font-size: 12.5px;
-  color: var(--ink-2);
-  padding: 4px 10px 8px;
+.d__modal-card {
+  width: 100%;
+  max-width: 320px;
+  background: var(--surface);
+  border-radius: var(--r-card);
+  padding: 20px 18px;
+  box-shadow: var(--shadow-float);
+  animation: d-modal-pop 0.16s ease;
+}
+@keyframes d-modal-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
+.d__modal-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 18px;
+  margin: 0 0 12px;
+  padding: 0 2px;
+}
+.d__modal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 .d__model-opt {
-  padding: 10px 12px;
-  border-radius: 10px;
+  padding: 12px 12px;
+  border-radius: 12px;
   text-align: left;
   font-size: 15px;
   font-weight: 500;
