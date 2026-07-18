@@ -78,11 +78,6 @@ export class DishPage {
   readonly compareVariants = signal<DishVariant[] | null>(null);
   readonly comparing = signal(false);
 
-  // Ингредиенты варианта, отсортированные по имени (чтобы строки колонок совпадали).
-  sortedIngredients(v: DishVariant): DishVariant['ingredients'] {
-    return [...v.ingredients].sort((a, b) => a.name.localeCompare(b.name, 'ru'));
-  }
-
   // --- Похожесть ингредиентов: взвешенный многослойный скор, порог >50% ---
   // Стоп-слова (предлоги/союзы) не считаем значимыми токенами.
   private readonly ingStop = new Set(['и', 'из', 'с', 'со', 'в', 'во', 'на', 'для', 'до', 'по']);
@@ -135,17 +130,46 @@ export class DishPage {
 
   private readonly ING_SIM_THRESHOLD = 0.6; // > 50% с запасом, чтобы не склеивать «говяжий/свиной»
 
-  // Есть ли в варианте v похожий ингредиент на name.
-  private hasSimilar(v: DishVariant, name: string): boolean {
-    return v.ingredients.some((i) => this.ingSimilarity(i.name, name) >= this.ING_SIM_THRESHOLD);
-  }
-
-  // «Отличие» = хотя бы в одном варианте нет похожего ингредиента → подсвечиваем.
-  isUniqueIng(name: string): boolean {
+  // Выровненная таблица ингредиентов: строка = сматченный по вариантам ингредиент,
+  // ячейка = количество у модели (или null, если у неё его нет). diff — если ингредиент
+  // есть не у всех моделей ИЛИ количество расходится.
+  readonly compareRows = computed(() => {
     const vs = this.compareVariants();
-    if (!vs || vs.length < 2) return false;
-    return vs.some((v) => !this.hasSimilar(v, name));
-  }
+    if (!vs || !vs.length) return [];
+    const n = vs.length;
+    const groups: { rep: string; cells: (string | null)[] }[] = [];
+    vs.forEach((v, mi) => {
+      for (const ing of v.ingredients) {
+        let g = groups.find(
+          (gr) => this.ingSimilarity(gr.rep, ing.name) >= this.ING_SIM_THRESHOLD,
+        );
+        if (!g) {
+          g = { rep: ing.name, cells: Array(n).fill(null) };
+          groups.push(g);
+        }
+        g.cells[mi] = `${ing.qty} ${ing.unit}`;
+      }
+    });
+    return groups
+      .map((g) => {
+        const present = g.cells.filter((c): c is string => c !== null);
+        const diff = present.length < n || new Set(present).size > 1;
+        return { name: g.rep, cells: g.cells, diff };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+  });
+
+  // Шаги, выровненные по номеру: строка = «Шаг N», ячейка = текст шага у модели (или null).
+  readonly stepRows = computed(() => {
+    const vs = this.compareVariants();
+    if (!vs || !vs.length) return [];
+    const max = Math.max(...vs.map((v) => v.steps.length));
+    const rows: { n: number; cells: (string | null)[] }[] = [];
+    for (let i = 0; i < max; i++) {
+      rows.push({ n: i + 1, cells: vs.map((v) => v.steps[i] ?? null) });
+    }
+    return rows;
+  });
 
   openCompare(): void {
     if (this.comparing()) return;

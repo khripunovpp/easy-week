@@ -238,67 +238,72 @@
   width: 18px;
   height: 18px;
 }
-.d__compare-cols {
+/* Общий горизонтальный скролл для обеих таблиц (колонки-модели выровнены) */
+.d__cmp-scroll {
   flex: 1;
   min-height: 0; /* iOS: без этого flex-контейнер клипает overflow вместо скролла */
-  display: flex;
-  gap: 12px;
   overflow: auto;
-  padding: 14px 18px 24px;
   -webkit-overflow-scrolling: touch;
-  scroll-snap-type: x proximity;
+  padding: 0 0 24px;
 }
-.d__compare-col {
-  flex: 0 0 auto; /* фикс. ширина → колонки шире контейнера → горизонтальный скролл */
-  width: 80%;
-  max-width: 300px;
-  scroll-snap-align: start;
+.d__cmp {
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 13px;
 }
-.d__compare-model {
+.d__cmp th,
+.d__cmp td {
+  width: 150px; /* модельные колонки одинаковой ширины → таблицы выровнены между собой */
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
+}
+.d__cmp thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface);
   font-weight: 700;
-  font-size: 15px;
-  color: var(--accent);
-}
-.d__compare-sub {
   font-size: 12.5px;
-  margin: 2px 0 10px;
-}
-.d__compare-label {
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--ink-3);
-  margin: 12px 0 6px;
-}
-.d__compare-ing {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.d__compare-ing li {
-  font-size: 14px;
-  padding: 4px 8px;
-  border-radius: 8px;
-}
-/* Отличие: ингредиент есть не во всех вариантах — подсвечиваем */
-.d__compare-uniq {
-  background: var(--accent-soft);
   color: var(--accent);
+  white-space: nowrap;
+}
+/* Первый столбец (название/№ шага) — залипает слева */
+.d__cmp-h0 {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  width: 120px;
+  background: var(--surface);
   font-weight: 600;
 }
-.d__compare-steps {
-  margin: 0;
-  padding-left: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.d__cmp thead .d__cmp-h0 {
+  z-index: 3;
+  color: var(--ink-2);
 }
-.d__compare-steps li {
-  font-size: 13.5px;
+/* Строка-отличие (ингредиент есть не у всех / количество расходится) */
+.d__cmp-diff td {
+  background: var(--accent-soft);
+}
+.d__cmp-diff .d__cmp-h0 {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.d__cmp-miss {
+  color: var(--ink-3);
+  text-align: center;
+}
+.d__cmp--steps {
+  margin-top: 18px;
+}
+.d__cmp-stepn {
+  color: var(--ink-3);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.d__cmp-step {
+  font-size: 12.5px;
   line-height: 1.4;
 }
 
