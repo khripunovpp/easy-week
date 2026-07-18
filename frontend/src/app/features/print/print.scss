@@ -39,7 +39,7 @@
   border-color: var(--accent);
 }
 
-/* Две кнопки в футере — в ряд, одинаковой высоты */
+/* Одна кнопка экспорта в футере — на всю ширину */
 .print__actions {
   display: flex;
   gap: 10px;
@@ -50,6 +50,16 @@
   white-space: nowrap;
   padding-left: 12px;
   padding-right: 12px;
+}
+.print__export {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.print__export svg {
+  width: 20px;
+  height: 20px;
 }
 .print__actions button:disabled {
   opacity: 0.5;

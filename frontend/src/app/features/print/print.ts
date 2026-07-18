@@ -66,26 +66,35 @@ export class PrintPage {
     this.location.back();
   }
 
-  // «Сохранить PDF» — скачиваем файл, собранный на бэке.
-  async savePdf(): Promise<void> {
-    const blob = await this.fetchPdf();
-    if (blob) this.download(blob, this.filename());
+  // Экспорт PDF одной кнопкой. В защищённом контексте (HTTPS) — системный шэр самим
+  // ФАЙЛОМ (Telegram и т.п.). Иначе (LAN по HTTP — Web Share недоступен) открываем
+  // настоящий PDF-URL сервера: без blob:-ссылки, которую iOS шэрит вместо файла.
+  async exportPdf(): Promise<void> {
+    const plan = this.plan();
+    if (!plan) return;
+    if (typeof navigator.canShare === 'function') {
+      const blob = await this.fetchPdf();
+      if (blob) {
+        const file = new File([blob], this.filename(), { type: 'application/pdf' });
+        if (navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({ files: [file], title: this.shareTitle() });
+          } catch {
+            /* пользователь отменил шэр */
+          }
+          return;
+        }
+      }
+    }
+    window.open(this.pdfUrl(plan.id), '_blank');
   }
 
-  // «Поделиться» — отдаём именно PDF-файл в системный шэр (Телеграм и т.п.).
-  async share(): Promise<void> {
-    const blob = await this.fetchPdf();
-    if (!blob) return;
-    const file = new File([blob], this.filename(), { type: 'application/pdf' });
-    try {
-      if (navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: this.shareTitle(), text: this.shareTitle() });
-        return;
-      }
-    } catch {
-      return; // пользователь отменил шэр
-    }
-    this.download(blob, file.name); // нет file-share (десктоп) — просто скачиваем
+  private pdfUrl(planId: string): string {
+    const params = new URLSearchParams({
+      recipes: String(this.showRecipes()),
+      shopping: String(this.showShopping()),
+    });
+    return `/api/plans/${planId}/pdf?${params}`;
   }
 
   // PDF генерит бэкенд (fpdf2 + DejaVu): надёжная кириллица, лёгкий фронт.
@@ -94,11 +103,7 @@ export class PrintPage {
     if (!plan) return null;
     this.busy.set(true);
     try {
-      const params = new URLSearchParams({
-        recipes: String(this.showRecipes()),
-        shopping: String(this.showShopping()),
-      });
-      const resp = await fetch(`/api/plans/${plan.id}/pdf?${params}`);
+      const resp = await fetch(this.pdfUrl(plan.id));
       return resp.ok ? await resp.blob() : null;
     } catch {
       return null;
@@ -115,14 +120,5 @@ export class PrintPage {
   private shareTitle(): string {
     const p = this.plan();
     return p ? `Меню на ${p.weekLabel} — ${p.title}` : 'Меню на неделю';
-  }
-
-  private download(blob: Blob, filename: string): void {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 }
