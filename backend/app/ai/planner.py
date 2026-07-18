@@ -11,6 +11,7 @@ from .base import AIError
 from .gates import cloudflare, gate_for
 from .limits import enforce_daily
 from .prompt import (
+    COOKPLAN_SCHEMA,
     DISH_DETAIL_SCHEMA,
     DISH_SCHEMA,
     EDIT_ACTION_SCHEMA,
@@ -18,6 +19,7 @@ from .prompt import (
     PLAN_TOOLS,
     SHOP_SCHEMA,
     VALIDATE_SCHEMA,
+    build_cook_plan_messages,
     build_dish_detail_messages,
     build_dish_messages,
     build_ds_plan_messages,
@@ -318,6 +320,58 @@ def _clean_detail(parsed: dict, provider: str = "") -> dict:
         "tips": parsed.get("tips") or [],
         "note": (parsed.get("note") or "").strip(),
         "provider": provider,
+    }
+
+
+def _clean_cook_steps(steps: list) -> list[dict]:
+    """Нормализуем шаги плана готовки: приводим типы, order — с фолбэком на индекс."""
+    out: list[dict] = []
+    for i, s in enumerate(steps or []):
+        if not isinstance(s, dict):
+            continue
+        try:
+            order = int(s.get("order"))
+        except (TypeError, ValueError):
+            order = i + 1
+        try:
+            active = int(s.get("active_min", s.get("activeMin", 0)) or 0)
+        except (TypeError, ValueError):
+            active = 0
+        try:
+            passive = int(s.get("passive_min", s.get("passiveMin", 0)) or 0)
+        except (TypeError, ValueError):
+            passive = 0
+        dishes = s.get("dishes") or []
+        out.append({
+            "order": order,
+            "phase": str(s.get("phase", "") or ""),
+            "text": str(s.get("text", "") or ""),
+            "active_min": active,
+            "passive_min": passive,
+            "dishes": [str(x) for x in dishes if x],
+        })
+    return out
+
+
+async def generate_cooking_plan(dishes: list[dict], model: str = "") -> dict:
+    """Единый оптимизированный план готовки по ВСЕМ блюдам недели — лениво, кэш в плане.
+
+    Генерит выбранная модель (как рецепты). Без фолбэков — падение пробрасывается наверх."""
+    gate = gate_for(model)
+    enforce_daily(gate, "recipe")  # дневной лимит на Claude (no-op для остальных)
+    label = f"план готовки: {len(dishes)} блюд"
+    messages = build_cook_plan_messages(dishes)
+    if gate is cloudflare:
+        parsed, _ = await gate.complete_json(
+            messages, schema=COOKPLAN_SCHEMA, model=settings.cf_model_judge,
+            max_tokens=3000, label=label,
+        )
+    else:
+        parsed, _ = await gate.complete_json(messages, max_tokens=3000, label=label)
+    return {
+        "steps": _clean_cook_steps(parsed.get("steps") or []),
+        "note": (parsed.get("note") or "").strip(),
+        "provider": gate.provider,
     }
 
 

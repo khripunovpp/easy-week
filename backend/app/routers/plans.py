@@ -11,10 +11,12 @@ from ..ai.base import AIError
 from ..ai.gates import GATES, gate_for
 from ..ai.limits import LimitError
 from ..ai.observe import set_ai_context
-from ..ai.planner import generate_dish_detail, normalize_shopping
+from ..ai.planner import generate_cooking_plan, generate_dish_detail, normalize_shopping
 from ..db import get_session
 from ..models import PlanRow
 from ..schemas import (
+    CookingPlan,
+    CookingPlanVariant,
     DetailRequest,
     Dish,
     DishVariant,
@@ -24,7 +26,7 @@ from ..schemas import (
     WeekPlan,
 )
 from ..services.export_pdf import build_plan_pdf
-from ..services.mapping import to_dish, to_summary, to_week_plan
+from ..services.mapping import to_cook_plan, to_dish, to_summary, to_week_plan
 
 # Провайдер (человекочитаемый) → ключ модели — для миграции legacy-детали в вариант.
 _PROVIDER_KEY = {g.provider: g.key for g in GATES.values()}
@@ -311,6 +313,95 @@ async def _resolve_dish_detail(
     session.commit()
 
     return to_dish(dish)
+
+
+def _cook_sig(row: PlanRow) -> str:
+    """Стабильная подпись состава плана для кэша готовки: названия блюд + их шаги.
+    Меняется, если поменялись блюда или их рецепты — тогда план готовки протух."""
+    base = [
+        {"name": str(d.get("name", "")), "steps": list(d.get("steps") or [])}
+        for d in (row.dishes or [])
+    ]
+    return hashlib.md5(
+        json.dumps(base, sort_keys=True, ensure_ascii=False).encode()
+    ).hexdigest()
+
+
+def _cook_variants(row: PlanRow) -> dict:
+    """Варианты плана готовки по моделям (пусто, если ещё не генерили)."""
+    return dict((row.cooking_plan or {}).get("variants") or {})
+
+
+@router.post("/{plan_id}/cooking")
+async def cooking_plan(
+    plan_id: str, req: DetailRequest, session: SessionDep
+) -> CookingPlan:
+    """Единый оптимизированный план готовки по всем блюдам недели (лениво, кэш в плане).
+
+    action=open — вернуть активный вариант (сгенерить первый, если ещё нет);
+    action=select — сделать recipe_model активным (сгенерить его вариант, если ещё нет).
+    Кэш протухает, если поменялись блюда/рецепты (по _cook_sig). Одной моделью повторно
+    не генерим. Параллельные одинаковые запросы склеиваются (single-flight)."""
+    action = (req.action or "open").lower()
+    set_ai_context(plan_id=plan_id, endpoint="cooking", action=action)
+    target = gate_for(req.recipe_model).key
+    key = (plan_id, "cooking", action, target)
+    return await _single_flight(
+        key, lambda: _resolve_cooking_plan(plan_id, req, action, target, session)
+    )
+
+
+async def _resolve_cooking_plan(
+    plan_id: str, req: DetailRequest, action: str, target: str, session: SessionDep
+) -> CookingPlan:
+    row = _get_plan(session, plan_id)
+    # План готовки строится по РАЗВЁРНУТЫМ рецептам — догенерим шаги всем блюдам.
+    try:
+        await _backfill_all(session, row, need_steps=True, model=req.recipe_model)
+    except AIError as exc:
+        raise HTTPException(status_code=502, detail=f"Не удалось собрать рецепты: {exc}") from exc
+
+    sig = _cook_sig(row)
+    cp = dict(row.cooking_plan or {})
+    variants = dict(cp.get("variants") or {})
+    if cp.get("sig") != sig:  # состав/рецепты поменялись — старые варианты протухли
+        variants = {}
+
+    if action == "select":
+        active = target
+    else:  # open — держим активный, если он есть; иначе генерим target как первый
+        active = cp.get("active_model") or next(iter(variants), "")
+        active = active if active in variants else target
+
+    if active not in variants:  # этого варианта ещё нет — генерим (один раз на модель)
+        try:
+            detail = await generate_cooking_plan(list(row.dishes or []), active)
+        except LimitError as exc:
+            raise HTTPException(status_code=429, detail=str(exc)) from exc
+        except AIError as exc:
+            raise HTTPException(
+                status_code=502, detail=f"Не удалось собрать план готовки: {exc}"
+            ) from exc
+        variants[active] = {
+            "steps": detail.get("steps") or [],
+            "note": detail.get("note") or "",
+            "provider": detail.get("provider") or "",
+        }
+
+    row.cooking_plan = {"variants": variants, "active_model": active, "sig": sig}
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+
+    return to_cook_plan(row)
+
+
+@router.get("/{plan_id}/cooking/variants")
+async def cooking_variants(plan_id: str, session: SessionDep) -> list[CookingPlanVariant]:
+    """Все сгенерированные варианты плана готовки (по моделям) — для сравнения."""
+    row = _get_plan(session, plan_id)
+    variants = _cook_variants(row)
+    return [CookingPlanVariant.model_validate({"model": m, **v}) for m, v in variants.items()]
 
 
 @router.get("/{plan_id}/dishes/{dish_id}/variants")

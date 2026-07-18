@@ -51,6 +51,34 @@ class DishVariant(CamelModel):
     note: str = ""
 
 
+class CookingStep(CamelModel):
+    # Один шаг единого плана готовки (по всем блюдам недели).
+    order: int
+    phase: str = ""
+    text: str
+    active_min: int = 0
+    passive_min: int = 0
+    # Каких блюд касается шаг (названия) — пусто, если шаг общий (напр. «помыть овощи»).
+    dishes: list[str] = []
+
+
+class CookingPlanVariant(CamelModel):
+    # Один вариант плана готовки, сгенерированный конкретной моделью (для сравнения).
+    model: str
+    provider: str = ""
+    steps: list[CookingStep] = []
+    note: str = ""
+
+
+class CookingPlan(CamelModel):
+    # Единый оптимизированный план готовки на всю неделю (активный вариант).
+    active_model: str = ""
+    variant_models: list[str] = []
+    provider: str = ""
+    steps: list[CookingStep] = []
+    note: str = ""
+
+
 class WeekPlan(CamelModel):
     id: str
     conversation_id: str = ""

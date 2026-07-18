@@ -1,5 +1,5 @@
 from ..models import PlanRow
-from ..schemas import Dish, PlanSummary, WeekPlan
+from ..schemas import CookingPlan, Dish, PlanSummary, WeekPlan
 
 
 def to_dish(d: dict) -> Dish:
@@ -21,6 +21,25 @@ def to_week_plan(row: PlanRow) -> WeekPlan:
         provider=row.provider,
         dishes=dishes,
     )
+
+
+def to_cook_plan(row: PlanRow) -> CookingPlan:
+    """Кэш плана готовки → схема CookingPlan (активный вариант). Пусто → пустой план."""
+    cp = row.cooking_plan or {}
+    variants = cp.get("variants") or {}
+    if not variants:
+        return CookingPlan()
+    active = cp.get("active_model") or next(iter(variants), "")
+    if active not in variants:
+        active = next(iter(variants), "")
+    v = variants.get(active) or {}
+    return CookingPlan.model_validate({
+        "active_model": active,
+        "variant_models": list(variants.keys()),
+        "provider": v.get("provider", ""),
+        "steps": v.get("steps") or [],
+        "note": v.get("note", ""),
+    })
 
 
 def to_summary(row: PlanRow) -> PlanSummary:
