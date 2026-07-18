@@ -7,7 +7,9 @@
       }
     </div>
     @if (plans().length) {
-      <ew-plan-picker [plans]="plans()" [selectedId]="selectedId()" (pick)="onPickPlan($event)" />
+      <div class="page__actions">
+        <ew-plan-picker [plans]="plans()" [selectedId]="selectedId()" (pick)="onPickPlan($event)" />
+      </div>
     }
   </header>
 
