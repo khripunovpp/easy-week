@@ -4,6 +4,7 @@ import { Router, RouterLink } from '@angular/router';
 import { ChatStore } from '../../services/chat-store';
 import { RecipeModel } from '../../services/preferences';
 import { CookingLoader } from '../../shared/cooking-loader';
+import { renderMarkdown } from '../../shared/markdown';
 
 @Component({
   selector: 'ew-chat',
@@ -39,6 +40,11 @@ export class Chat {
       if (!this.store.loading()) return;
       this.scrollToBottom();
     });
+  }
+
+  // Реплики бота приходят в markdown — рендерим в безопасный HTML.
+  renderMarkdown(md: string): string {
+    return renderMarkdown(md);
   }
 
   private scrollToBottom(): void {

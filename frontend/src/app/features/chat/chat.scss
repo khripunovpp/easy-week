@@ -116,6 +116,39 @@
   border-bottom-right-radius: 7px;
 }
 
+/* Markdown внутри реплики бота — сбрасываем внешние отступы, аккуратные списки/код */
+.markdown > :first-child {
+  margin-top: 0;
+}
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+.markdown p {
+  margin: 0 0 8px;
+}
+.markdown ul,
+.markdown ol {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+.markdown li {
+  margin: 2px 0;
+}
+.markdown strong {
+  font-weight: 700;
+}
+.markdown code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.88em;
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: var(--surface-sunk);
+}
+.markdown a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
 /* Индикатор набора */
 .typing {
   display: inline-flex;
