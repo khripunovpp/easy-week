@@ -10,13 +10,17 @@ from fastapi.sse import EventSourceResponse, ServerSentEvent
 from sqlmodel import Session, select
 
 from ..ai.base import AIError
+from ..ai.gates import GATES, gate_for
 from ..ai.limits import LimitError
 from ..ai.planner import generate_dish_detail, normalize_shopping
 from ..db import get_session
 from ..models import PlanRow
 from ..schemas import DetailRequest, Dish, PlanSummary, ShoppingGroup, StatusRequest, WeekPlan
 from ..services.export_pdf import build_plan_pdf
-from ..services.mapping import to_summary, to_week_plan
+from ..services.mapping import to_dish, to_summary, to_week_plan
+
+# Провайдер (человекочитаемый) → ключ модели — для миграции legacy-детали в вариант.
+_PROVIDER_KEY = {g.provider: g.key for g in GATES.values()}
 from ..services.shopping import aggregate_ingredients, group_items
 
 import logging
@@ -213,11 +217,57 @@ async def full_plan(plan_id: str, req: DetailRequest, session: SessionDep) -> We
     return to_week_plan(row)
 
 
+def _variant_from_detail(detail: dict) -> dict:
+    """Деталь модели → вариант рецепта (ингредиенты/шаги/советы/note/провайдер)."""
+    return {
+        "ingredients": detail.get("ingredients") or [],
+        "steps": detail.get("steps") or [],
+        "tips": detail.get("tips") or [],
+        "note": detail.get("note") or "",
+        "provider": detail.get("provider") or "",
+    }
+
+
+def _dish_variants(dish: dict) -> dict:
+    """Варианты рецепта по моделям; при отсутствии — мигрируем плоскую деталь (legacy)."""
+    variants = dict(dish.get("variants") or {})
+    if not variants and (dish.get("ingredients") or dish.get("steps")):
+        key = _PROVIDER_KEY.get(dish.get("detail_provider", ""))
+        if key:
+            variants[key] = {
+                "ingredients": dish.get("ingredients") or [],
+                "steps": dish.get("steps") or [],
+                "tips": dish.get("tips") or [],
+                "note": (dish.get("storage") or {}).get("note") or "",
+                "provider": dish.get("detail_provider") or "",
+            }
+    return variants
+
+
+def _apply_variant(dish: dict, model: str, variants: dict) -> dict:
+    """Делает вариант model активным: зеркалим его в плоские поля (для покупок/PDF)."""
+    v = variants.get(model) or {}
+    return {
+        **dish,
+        "variants": variants,
+        "active_model": model,
+        "ingredients": v.get("ingredients") or [],
+        "steps": v.get("steps") or [],
+        "tips": v.get("tips") or [],
+        "detail_provider": v.get("provider") or "",
+        "storage": {**(dish.get("storage") or {}), "note": v.get("note") or ""},
+    }
+
+
 @router.post("/{plan_id}/dishes/{dish_id}/details")
 async def dish_details(
     plan_id: str, dish_id: str, req: DetailRequest, session: SessionDep
 ) -> Dish:
-    """Ленивая догенерация ПОЛНОЙ детали блюда (ингредиенты+шаги+советы). Кэшируется в плане."""
+    """Рецепт блюда с вариантами по моделям (лениво, кэш в плане).
+
+    action=open — вернуть активный вариант (сгенерить первый, если деталей ещё нет);
+    action=select — сделать recipe_model активным (сгенерить его вариант, если ещё нет).
+    Одной моделью повторно не генерим — если вариант уже есть, просто переключаемся."""
     row = _get_plan(session, plan_id)
     dishes = list(row.dishes or [])
     idx = next((i for i, d in enumerate(dishes) if d.get("id") == dish_id), None)
@@ -225,19 +275,30 @@ async def dish_details(
         raise HTTPException(status_code=404, detail="Блюдо не найдено")
 
     dish = dishes[idx]
-    if not dish.get("ingredients") or not dish.get("steps"):  # генерим деталь, если её ещё нет
+    variants = _dish_variants(dish)
+    resolved = gate_for(req.recipe_model).key  # реальный ключ модели (учёт дефолта)
+
+    if (req.action or "open").lower() == "select":
+        target = resolved
+    else:  # open — держим активный, если он есть; иначе генерим resolved как первый
+        active = dish.get("active_model") or next(iter(variants), "")
+        target = active if active in variants else resolved
+
+    if target not in variants:  # этого варианта ещё нет — генерим (один раз на модель)
         try:
             detail = await generate_dish_detail(
-                dish.get("name", ""), dish.get("servings", 4), model=req.recipe_model
+                dish.get("name", ""), dish.get("servings", 4), model=target
             )
         except LimitError as exc:
             raise HTTPException(status_code=429, detail=str(exc)) from exc
         except AIError as exc:
             raise HTTPException(status_code=502, detail=f"Не удалось получить рецепт: {exc}") from exc
-        dish = _merge_detail(dish, detail)
-        dishes[idx] = dish
-        row.dishes = dishes
-        session.add(row)
-        session.commit()
+        variants[target] = _variant_from_detail(detail)
 
-    return Dish.model_validate(dish)
+    dish = _apply_variant(dish, target, variants)
+    dishes[idx] = dish
+    row.dishes = dishes
+    session.add(row)
+    session.commit()
+
+    return to_dish(dish)

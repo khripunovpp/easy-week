@@ -2,8 +2,16 @@ from ..models import PlanRow
 from ..schemas import Dish, PlanSummary, WeekPlan
 
 
+def to_dish(d: dict) -> Dish:
+    """Блюдо → схема Dish; список ключей вариантов выводим из dict variants."""
+    variants = d.get("variants") or {}
+    return Dish.model_validate(
+        {**d, "active_model": d.get("active_model", ""), "variant_models": list(variants.keys())}
+    )
+
+
 def to_week_plan(row: PlanRow) -> WeekPlan:
-    dishes = [Dish.model_validate(d) for d in (row.dishes or [])]
+    dishes = [to_dish(d) for d in (row.dishes or [])]
     return WeekPlan(
         id=row.id,
         conversation_id=row.conversation_id,

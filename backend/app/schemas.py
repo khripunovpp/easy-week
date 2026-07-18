@@ -35,6 +35,10 @@ class Dish(CamelModel):
     ingredients: list[Ingredient] = []
     # Какой моделью сгенерирован развёрнутый рецепт (пусто, пока деталь не грузили).
     detail_provider: str = ""
+    # Варианты рецепта по моделям: активный ключ + список ключей с готовыми вариантами
+    # (deepseek/gemini/anthropic/cloudflare). Плоские поля выше = активный вариант.
+    active_model: str = ""
+    variant_models: list[str] = []
 
 
 class WeekPlan(CamelModel):
@@ -111,6 +115,9 @@ class StatusRequest(CamelModel):
 class DetailRequest(CamelModel):
     # Модель для ленивой догенерации рецепта (та же, что выбрана в чате).
     recipe_model: str = ""
+    # open — вернуть активный вариант (сгенерить первый, если деталей ещё нет);
+    # select — сделать recipe_model активным (сгенерить его вариант, если ещё нет).
+    action: str = "open"
 
 
 class PreferencesBody(CamelModel):
