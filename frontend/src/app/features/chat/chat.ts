@@ -46,9 +46,24 @@ export class Chat {
     });
   }
 
+  // Показывать кнопку «вниз», когда лента прокручена не до конца.
+  readonly showScrollDown = signal(false);
+
   // Реплики бота приходят в markdown — рендерим в безопасный HTML.
   renderMarkdown(md: string): string {
     return renderMarkdown(md);
+  }
+
+  onStreamScroll(): void {
+    const el = this.streamEl()?.nativeElement;
+    if (!el) return;
+    const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+    this.showScrollDown.set(dist > 120);
+  }
+
+  scrollDown(): void {
+    const el = this.streamEl()?.nativeElement;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }
 
   private scrollToBottom(): void {

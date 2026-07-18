@@ -60,7 +60,7 @@
     </div>
   </header>
 
-  <div class="page__inner chat__stream" #stream>
+  <div class="page__inner chat__stream" #stream (scroll)="onStreamScroll()">
   @for (m of store.messages(); track m.id) {
     @if (m.role === 'user') {
       <div class="msg msg--user">{{ m.text }}</div>
@@ -198,6 +198,13 @@
 </div>
 
   <div class="composer page__footer--fixed fade-bottom">
+    @if (showScrollDown()) {
+      <button class="scroll-down" type="button" (click)="scrollDown()" aria-label="Прокрутить вниз">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
+    }
     @if (store.pending()) {
       <div class="composer__badge">
         <span class="composer__badge-text">{{ pendingLabel() }}</span>

@@ -427,6 +427,37 @@
   padding: 24px var(--page-pad-x) 12px;
 }
 
+/* Кнопка «вниз» — плавает над композером, когда лента прокручена не до конца */
+.scroll-down {
+  position: absolute;
+  bottom: calc(100% - 4px);
+  right: var(--page-pad-x);
+  z-index: 12;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--ink-2);
+  box-shadow: var(--shadow-float);
+  animation: scroll-down-in 0.16s ease;
+  transition: transform 0.12s ease;
+}
+.scroll-down svg {
+  width: 20px;
+  height: 20px;
+}
+.scroll-down:active {
+  transform: scale(0.92);
+}
+@keyframes scroll-down-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
 /* Бейдж действия в композере (замена/добавление блюда) — вместо чипсов-подсказок */
 .composer__badge {
   display: inline-flex;
