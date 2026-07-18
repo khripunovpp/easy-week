@@ -4,6 +4,7 @@
 `<data>/ai-logs/ai-YYYY-MM-DD.jsonl` — одна строка = один вызов модели.
 """
 
+import contextvars
 import json
 import logging
 from datetime import date, datetime, timezone
@@ -15,10 +16,30 @@ from ..config import settings
 
 logger = logging.getLogger("easy_week.ai")
 
+# Контекст запроса для корреляции AI-логов (conversation_id/plan_id/dish_id/endpoint/action).
+# Роутер выставляет его раз на запрос — подмешивается в каждую AI-запись без протаскивания
+# через сигнатуры гейтов. contextvars изолирован по задаче-запросу, между запросами не течёт.
+_CTX_KEYS = ("conversation_id", "plan_id", "dish_id", "endpoint", "action")
+_ctx: contextvars.ContextVar[dict] = contextvars.ContextVar("ai_ctx", default={})
+
+
+def set_ai_context(**fields) -> None:
+    """Дополнить контекст текущего запроса (None-поля игнорируются)."""
+    cur = dict(_ctx.get())
+    for k, v in fields.items():
+        if v is not None:
+            cur[k] = v
+    _ctx.set(cur)
+
+
+def clear_ai_context() -> None:
+    _ctx.set({})
+
 # Метрики для Prometheus. category — огрублённый label (текст до ":"), чтобы не плодить
 # высокую кардинальность (в label иначе попадают названия блюд).
 _calls = Counter("easyweek_ai_calls_total", "AI-вызовы", ["provider", "model", "category"])
 _tokens = Counter("easyweek_ai_tokens_total", "AI-токены", ["provider", "model", "kind"])
+_errors = Counter("easyweek_ai_errors_total", "Ошибки AI-вызовов", ["provider", "model", "category"])
 
 # Бизнес-счётчики: из них в Grafana считаем токены/чат, токены/план, планы/чат.
 _plans = Counter("easyweek_plans_total", "Созданные планы", ["source"])  # create | edit
@@ -76,6 +97,16 @@ def _usage_summary(usage: dict) -> str:
     return " ".join(f"{name}={val}" for name, val in fields if val is not None) or "—"
 
 
+def _base_record() -> dict:
+    """Каркас записи AI-лога: ts + корреляционный контекст запроса."""
+    rec = {"ts": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+    ctx = _ctx.get()
+    for k in _CTX_KEYS:
+        if ctx.get(k) is not None:
+            rec[k] = ctx[k]
+    return rec
+
+
 def log_ai_call(
     provider: str,
     model: str,
@@ -83,8 +114,9 @@ def log_ai_call(
     messages: list[dict],
     response: object,
     usage: dict | None = None,
+    duration_ms: int | None = None,
 ) -> None:
-    """Полный лог одного вызова модели: промпт (все сообщения), ответ, usage."""
+    """Полный лог одного успешного вызова модели: промпт, ответ, usage, длительность."""
     resp = response if isinstance(response, str) else json.dumps(response, ensure_ascii=False)
     logger.info("AI ← %s · %s · %s", provider, model, label or "?")
     logger.info("  usage: %s", _usage_summary(usage or {}))
@@ -93,14 +125,46 @@ def log_ai_call(
 
     _record_metrics(provider, model, label, usage or {})
 
-    _write_file_record(
+    rec = _base_record()
+    rec.update(
         {
-            "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "provider": provider,
             "model": model,
             "label": label,
+            "ok": True,
+            "duration_ms": duration_ms,
             "usage": usage or {},
             "messages": messages,
             "response": response,
         }
     )
+    _write_file_record(rec)
+
+
+def log_ai_error(
+    provider: str,
+    model: str,
+    label: str,
+    messages: list[dict],
+    error: str,
+    attempt: int,
+    duration_ms: int | None = None,
+) -> None:
+    """Лог неудачной попытки вызова (в JSONL, для анализа флаки-паттернов).
+
+    Консольный WARNING пишет вызывающий (base.complete_json) — тут только файл + метрика."""
+    _errors.labels(provider, model, _category(label)).inc()
+    rec = _base_record()
+    rec.update(
+        {
+            "provider": provider,
+            "model": model,
+            "label": label,
+            "ok": False,
+            "attempt": attempt,
+            "error": (error or "")[:500],
+            "duration_ms": duration_ms,
+            "messages": messages,
+        }
+    )
+    _write_file_record(rec)

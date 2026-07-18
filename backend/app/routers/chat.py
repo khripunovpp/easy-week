@@ -10,7 +10,7 @@ from sqlmodel import Session, select
 from ..ai import prefs
 from ..ai.base import AIError
 from ..ai.limits import LimitError, status as limits_status
-from ..ai.observe import record_conversation, record_plan
+from ..ai.observe import record_conversation, record_plan, set_ai_context
 from ..ai.planner import (
     _week_label,
     add_dish_direct,
@@ -104,6 +104,7 @@ async def chat_stream(
     prefs.learn_async(req.message)  # фоново запоминаем предпочтения из сообщения (CF, бесплатно)
     avoid = _accepted_dish_names(session)
     plan_id = uuid4().hex
+    set_ai_context(conversation_id=conv.id, plan_id=plan_id, endpoint="chat_stream")
 
     dishes: list[dict] = []
     title = "План на неделю"
@@ -187,6 +188,7 @@ async def chat(req: ChatRequest, session: SessionDep) -> ChatResponse:
 
     prefs.learn_async(req.message)  # фоново запоминаем предпочтения из сообщения (CF, бесплатно)
     avoid = _accepted_dish_names(session)
+    set_ai_context(conversation_id=conv.id, endpoint="chat")
 
     try:
         data = await generate_plan(
@@ -275,6 +277,7 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
     if row is None:
         # Плана ещё нет — вести себя как обычное создание.
         return await chat(req, session)
+    set_ai_context(conversation_id=conv.id, plan_id=row.id, endpoint="chat_edit")
 
     # Текст пользователя в ленте: для кнопок — понятный лейбл действия.
     user_text = req.message

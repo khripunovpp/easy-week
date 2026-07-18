@@ -12,6 +12,7 @@ from sqlmodel import Session, select
 from ..ai.base import AIError
 from ..ai.gates import GATES, gate_for
 from ..ai.limits import LimitError
+from ..ai.observe import set_ai_context
 from ..ai.planner import generate_dish_detail, normalize_shopping
 from ..db import get_session
 from ..models import PlanRow
@@ -127,6 +128,7 @@ async def set_status(plan_id: str, req: StatusRequest, session: SessionDep) -> W
 
 @router.get("/{plan_id}/shopping-list")
 async def shopping_list(plan_id: str, session: SessionDep) -> list[ShoppingGroup]:
+    set_ai_context(plan_id=plan_id, endpoint="shopping_list")
     row = _get_plan(session, plan_id)
     await _backfill_all(session, row)  # ингредиенты лениво — догрузить перед агрегацией
     plan = to_week_plan(row)
@@ -174,6 +176,7 @@ async def shopping_list_stream(
 
     Ингредиенты генерятся лениво — при первом открытии покупок догружаем их для всех блюд,
     затем детерминированно агрегируем (граммы у источника, каноничное объединение)."""
+    set_ai_context(plan_id=plan_id, endpoint="shopping_stream")
     row = _get_plan(session, plan_id)
     await _backfill_all(session, row)
     plan = to_week_plan(row)
@@ -194,6 +197,7 @@ async def plan_pdf(
     shopping: bool = True,
 ) -> Response:
     """PDF плана (рецепты и/или список покупок). Детали генерятся лениво — догрузим при экспорте."""
+    set_ai_context(plan_id=plan_id, endpoint="plan_pdf")
     row = _get_plan(session, plan_id)
     await _backfill_all(session, row, need_steps=recipes)
     plan = to_week_plan(row)
@@ -209,6 +213,7 @@ async def plan_pdf(
 @router.post("/{plan_id}/full")
 async def full_plan(plan_id: str, req: DetailRequest, session: SessionDep) -> WeekPlan:
     """Полный план со всеми деталями (догенерирует недостающие) — для экспорта в PDF."""
+    set_ai_context(plan_id=plan_id, endpoint="full_plan")
     row = _get_plan(session, plan_id)
     try:
         await _backfill_all(session, row, need_steps=True, model=req.recipe_model)
@@ -289,6 +294,7 @@ async def dish_details(
     Одной моделью повторно не генерим — если вариант уже есть, просто переключаемся.
     Параллельные одинаковые запросы склеиваются (single-flight)."""
     action = (req.action or "open").lower()
+    set_ai_context(plan_id=plan_id, dish_id=dish_id, endpoint="dish_details", action=action)
     key = (plan_id, dish_id, action, gate_for(req.recipe_model).key)
     return await _single_flight(
         key, lambda: _resolve_dish_detail(plan_id, dish_id, req, action, session)

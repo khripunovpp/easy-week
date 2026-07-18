@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -67,6 +68,7 @@ class DeepSeekGate(ModelGate):
 
         model = model or self.default_model
         logger.info("AI → DeepSeek · %s · %s (stream)", model, label or "?")
+        t0 = time.monotonic()
         url = f"{settings.deepseek_base_url}/chat/completions"
         payload = {
             "model": model,
@@ -104,7 +106,10 @@ class DeepSeekGate(ModelGate):
                         full.append(delta)
                         yield delta
 
-        log_ai_call("DeepSeek", model, label, messages, "".join(full), usage)
+        log_ai_call(
+            "DeepSeek", model, label, messages, "".join(full), usage,
+            int((time.monotonic() - t0) * 1000),
+        )
 
     async def call_tools(
         self,
@@ -124,6 +129,7 @@ class DeepSeekGate(ModelGate):
 
         model = model or self.default_model
         logger.info("AI → DeepSeek · %s · %s (tools)", model, label or "?")
+        t0 = time.monotonic()
         url = f"{settings.deepseek_base_url}/chat/completions"
         payload = {
             "model": model,
@@ -158,5 +164,6 @@ class DeepSeekGate(ModelGate):
         log_ai_call(
             "DeepSeek", model, label, messages,
             content or json.dumps(calls, ensure_ascii=False), body.get("usage", {}),
+            int((time.monotonic() - t0) * 1000),
         )
         return calls, content

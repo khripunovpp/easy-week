@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -130,6 +131,7 @@ class AnthropicGate(ModelGate):
 
         model = model or self.default_model
         logger.info("AI → Claude · %s · %s (stream)", model, label or "?")
+        t0 = time.monotonic()
         system, conv = _to_system_and_messages(messages)
         payload: dict[str, Any] = {
             "model": model,
@@ -170,4 +172,7 @@ class AnthropicGate(ModelGate):
                         if out is not None:
                             usage["completion_tokens"] = out
 
-        log_ai_call("Claude", model, label, messages, "".join(full), usage)
+        log_ai_call(
+            "Claude", model, label, messages, "".join(full), usage,
+            int((time.monotonic() - t0) * 1000),
+        )

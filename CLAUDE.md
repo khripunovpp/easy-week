@@ -44,9 +44,13 @@
 - **AI-вызовы (любой провайдер)** идут через `ai/observe.log_ai_call(...)` (вызывается внутри
   `ai/deepseek.py` и `ai/cloudflare.py`). Он делает сразу три вещи:
   1) консольный лог (логгер `easy_week.ai`) → journald;
-  2) строку JSONL в файл-за-день `backend/data/ai-logs/ai-YYYY-MM-DD.jsonl`
-     (ts, provider, model, label, полный usage/кэш, messages, response) — для анализа;
-  3) Prometheus-счётчики `easyweek_ai_calls_total` / `easyweek_ai_tokens_total{kind=…}`.
+  2) строку JSONL в файл-за-день `backend/data/ai-logs/ai-YYYY-MM-DD.jsonl` — для анализа.
+     Поля: ts, provider, model, label, `ok` (true/false), `duration_ms`, usage/кэш, messages,
+     response (на успехе) либо `error`+`attempt` (на неудачной попытке), плюс корреляция запроса —
+     `conversation_id`/`plan_id`/`dish_id`/`endpoint`/`action`. Контекст корреляции выставляет
+     роутер через `observe.set_ai_context(...)` (contextvars, без протаскивания через гейты);
+  3) Prometheus-счётчики `easyweek_ai_calls_total` / `easyweek_ai_tokens_total{kind=…}` /
+     `easyweek_ai_errors_total`.
   **Новый AI-вызов логируется сам, если идёт через хелперы deepseek/cloudflare.** Не дублировать.
 - **Обычные логи приложения:** `logging.getLogger("easy_week.<модуль>")` (INFO) → stdout → journald
   (`journalctl -u easy-week-backend`). Свой логгер не изобретать.

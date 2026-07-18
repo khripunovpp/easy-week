@@ -11,13 +11,14 @@
 
 import asyncio
 import logging
+import time
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx
 
-from .observe import log_ai_call
+from .observe import log_ai_call, log_ai_error
 
 logger = logging.getLogger("easy_week.ai.gate")
 
@@ -69,16 +70,22 @@ class ModelGate(ABC):
 
         last: Exception | None = None
         for attempt in range(retries + 1):
+            t0 = time.monotonic()
             try:
                 parsed, usage = await self._request_json(
                     messages, schema, model, max_tokens, temperature
                 )
-                log_ai_call(self.provider, log_model, label, messages, parsed, usage)
+                dur = int((time.monotonic() - t0) * 1000)
+                log_ai_call(self.provider, log_model, label, messages, parsed, usage, dur)
                 return parsed, usage
             except (AIError, httpx.HTTPError, ValueError, KeyError) as exc:
+                dur = int((time.monotonic() - t0) * 1000)
                 last = exc
                 logger.warning(
                     "%s attempt %d failed: %s", self.provider, attempt + 1, str(exc)[:150]
+                )
+                log_ai_error(
+                    self.provider, log_model, label, messages, str(exc), attempt + 1, dur
                 )
                 if attempt < retries:
                     await asyncio.sleep(0.4 * (attempt + 1))

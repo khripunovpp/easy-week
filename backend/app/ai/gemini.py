@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -125,6 +126,7 @@ class GeminiGate(ModelGate):
 
         model = model or self.default_model
         logger.info("AI → Gemini · %s · %s (stream)", model, label or "?")
+        t0 = time.monotonic()
         contents, system = _to_contents(messages)
         url = f"{settings.gemini_base_url}/models/{model}:streamGenerateContent?alt=sse"
         payload: dict[str, Any] = {
@@ -158,4 +160,7 @@ class GeminiGate(ModelGate):
                             full.append(delta)
                             yield delta
 
-        log_ai_call("Gemini", model, label, messages, "".join(full), usage)
+        log_ai_call(
+            "Gemini", model, label, messages, "".join(full), usage,
+            int((time.monotonic() - t0) * 1000),
+        )
