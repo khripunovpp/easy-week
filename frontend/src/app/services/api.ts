@@ -37,12 +37,6 @@ export interface ShoppingListItem {
   category: string;
 }
 
-export interface ShoppingStreamHandlers {
-  onItem: (item: ShoppingListItem) => void;
-  onDone: () => void;
-  onError: (message: string) => void;
-}
-
 export interface FoodPrefs {
   dislikes: string[];
   likes: string[];
@@ -138,21 +132,6 @@ export class EasyWeekApi {
           handlers.onDone(payload as { planId: string; dishesCount: number });
         else if (event === 'error')
           handlers.onError((payload as { message?: string }).message ?? 'Ошибка генерации');
-      },
-    );
-  }
-
-  // Потоковый список покупок (SSE): item (по одному) → done.
-  async shoppingStream(planId: string, handlers: ShoppingStreamHandlers): Promise<void> {
-    await this.openSse(
-      `${API_BASE}/plans/${planId}/shopping-list/stream`,
-      { method: 'GET' },
-      handlers.onError,
-      (event, payload) => {
-        if (event === 'item') handlers.onItem(payload as ShoppingListItem);
-        else if (event === 'done') handlers.onDone();
-        else if (event === 'error')
-          handlers.onError((payload as { message?: string }).message ?? 'Ошибка');
       },
     );
   }

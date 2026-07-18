@@ -101,15 +101,22 @@ export class Shopping {
     this.activePlanId = planId;
     this.currentPlanId.set(planId);
     this.checked.set(this.loadChecked(planId));
-    this.items.set([]);
 
-    void this.api.shoppingStream(planId, {
-      onItem: (item) => this.items.update((list) => [...list, item]),
-      onDone: () => {
+    // Мгновенно показываем закэшированный список (в т.ч. офлайн), затем обновляем с сервера.
+    const cached = this.loadItems(planId);
+    this.items.set(cached);
+    if (cached.length) this.loading.set(false);
+
+    this.api.shoppingList(planId).subscribe({
+      next: (groups) => {
+        const items = groups.flatMap((g) => g.items);
+        this.items.set(items);
+        this.saveItems(planId, items);
         this.loading.set(false);
-        this.empty.set(this.items().length === 0);
+        this.empty.set(items.length === 0);
       },
-      onError: () => {
+      error: () => {
+        // Офлайн/ошибка — остаёмся на кэше, если он есть.
         this.loading.set(false);
         this.empty.set(this.items().length === 0);
       },
@@ -140,6 +147,26 @@ export class Shopping {
 
   private storageKey(planId: string): string {
     return `ew-shopping-${planId}`;
+  }
+
+  // Кэш самих позиций списка (для мгновенного показа и офлайна).
+  private itemsKey(planId: string): string {
+    return `ew-shopping-items-${planId}`;
+  }
+  private loadItems(planId: string): ShoppingListItem[] {
+    try {
+      const raw = localStorage.getItem(this.itemsKey(planId));
+      return raw ? (JSON.parse(raw) as ShoppingListItem[]) : [];
+    } catch {
+      return [];
+    }
+  }
+  private saveItems(planId: string, items: ShoppingListItem[]): void {
+    try {
+      localStorage.setItem(this.itemsKey(planId), JSON.stringify(items));
+    } catch {
+      /* localStorage может быть недоступен — не критично */
+    }
   }
 
   private loadChecked(planId: string): Set<string> {

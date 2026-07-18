@@ -1,12 +1,10 @@
 import asyncio
 import hashlib
 import json
-from collections.abc import AsyncIterable
 from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response
-from fastapi.sse import EventSourceResponse, ServerSentEvent
 from sqlmodel import Session, select
 
 from ..ai.base import AIError
@@ -154,39 +152,6 @@ async def shopping_list(plan_id: str, session: SessionDep) -> list[ShoppingGroup
     return group_items(items)
 
 
-def _clean_shop_item(it: dict) -> dict | None:
-    """Приводит пункт к {name, qty, unit, category}; None — если мусор."""
-    name = str(it.get("name", "")).strip()
-    if not name:
-        return None
-    try:
-        qty = float(it.get("qty", 0) or 0)
-    except (TypeError, ValueError):
-        qty = 0.0
-    qty = round(qty, 2) if qty % 1 else int(qty)
-    cat = str(it.get("category") or "Прочее").strip()
-    return {"name": name, "qty": qty, "unit": str(it.get("unit", "")).strip(), "category": cat}
-
-
-@router.get("/{plan_id}/shopping-list/stream", response_class=EventSourceResponse)
-async def shopping_list_stream(
-    plan_id: str, session: SessionDep
-) -> AsyncIterable[ServerSentEvent]:
-    """Потоковый список покупок: пункты прилетают по одному (SSE).
-
-    Ингредиенты генерятся лениво — при первом открытии покупок догружаем их для всех блюд,
-    затем детерминированно агрегируем (граммы у источника, каноничное объединение)."""
-    set_ai_context(plan_id=plan_id, endpoint="shopping_stream")
-    row = _get_plan(session, plan_id)
-    await _backfill_all(session, row)
-    plan = to_week_plan(row)
-    count = 0
-    for it in aggregate_ingredients(plan.dishes):
-        clean = _clean_shop_item(it)
-        if clean:
-            count += 1
-            yield ServerSentEvent(event="item", data=clean)
-    yield ServerSentEvent(event="done", data={"count": count})
 
 
 @router.get("/{plan_id}/pdf")
