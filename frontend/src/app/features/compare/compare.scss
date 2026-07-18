@@ -13,12 +13,25 @@
   text-align: center;
 }
 
-/* Горизонтальный скролл обеих таблиц; колонки-модели одинаковой ширины → таблицы выровнены */
+/* .page__inner сам не скроллит — скроллит .d__cmp-scroll (чтобы липла шапка таблицы) */
+.cmp-page {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-left: 0;
+  padding-right: 0;
+  padding-bottom: 0;
+}
+
+/* Единый скролл-контейнер обеих таблиц (обе оси). Колонки-модели одинаковой ширины → выровнены.
+   Он же — вертикальный скроллер, поэтому thead (top) и первый столбец (left) залипают. */
 .d__cmp-scroll {
-  overflow-x: auto;
-  overscroll-behavior-x: contain; /* у края не тянуть страницу */
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain; /* у края не тянуть страницу */
   -webkit-overflow-scrolling: touch;
-  padding-bottom: 24px;
+  padding: 0 var(--page-pad-x) 24px;
 }
 .d__cmp {
   border-collapse: collapse;
@@ -45,13 +58,18 @@
   font-weight: 600;
 }
 .d__cmp thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface);
   font-weight: 700;
   font-size: 12.5px;
   color: var(--accent);
   white-space: nowrap;
+  box-shadow: inset 0 -1px 0 var(--line);
 }
 .d__cmp thead .d__cmp-h0 {
-  z-index: 2;
+  z-index: 3; /* угол: липнет и сверху, и слева */
   color: var(--ink-2);
 }
 /* Подзаголовок категории (растянут на все колонки) */
