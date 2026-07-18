@@ -70,6 +70,22 @@ Dockerfile'ы вынесены в `docker/*.Dockerfile`. Конфиги сами
 (`*.docker.yml`, дашборды) остаются в `monitoring/` рядом с нативным Пай-деплоем и монтируются
 из compose. На Пае — по-прежнему native (systemd), не через этот compose (см. `deploy/README.md`).
 
+## Деплой на Raspberry Pi (после каждого коммита)
+
+Каждый коммит **сразу катим на Пай**. Деплой — через git + SSH:
+
+```bash
+git push                                   # запушить коммит(ы)
+ssh pi5 'cd ~/easy-week && bash deploy/update.sh'
+```
+
+- SSH-хост — алиас **`pi5`** (пользователь `pashtitto`, каталог `~/easy-week`), ключ настроен —
+  пароль не нужен. Прямой `pashtitto@192.168.1.230` без ключа не пускает — используем `pi5`.
+- `deploy/update.sh` делает всё: `git pull --ff-only` → пересборка бэка (venv+pip) и фронта
+  (`npm ci && npm run build`) → `systemctl restart easy-week-backend` + `nginx reload`.
+- Локально в сети: `http://192.168.1.230:8080`. Логи: `ssh pi5 'journalctl -u easy-week-backend -f'`.
+- Полное описание (первичная настройка, Cloudflare Tunnel) — `deploy/README.md`.
+
 ## Прочее
 - Бэклог и хотелки — в `ROADMAP.md`. Мониторинг — в `monitoring/README.md`. Docker — в `docker/README.md`.
 - Единицы ингредиентов задаём у источника: только `г` / `мл`, `шт` — редко (штучное).
