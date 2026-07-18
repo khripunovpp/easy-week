@@ -2,7 +2,7 @@ import { Location } from '@angular/common';
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { Dish } from '../../models/plan.model';
-import { EasyWeekApi } from '../../services/api';
+import { DishVariant, EasyWeekApi } from '../../services/api';
 import { ChatStore } from '../../services/chat-store';
 import { ALL_MODELS, MODEL_LABELS, RecipeModel } from '../../services/preferences';
 import { CookingLoader } from '../../shared/cooking-loader';
@@ -72,6 +72,44 @@ export class DishPage {
 
   modelLabel(key: string): string {
     return MODEL_LABELS[key as RecipeModel] ?? key;
+  }
+
+  // --- Сравнение вариантов рецепта по моделям ---
+  readonly compareVariants = signal<DishVariant[] | null>(null);
+  readonly comparing = signal(false);
+
+  // Имена ингредиентов, встречающиеся во ВСЕХ вариантах (остальные — «отличия», подсвечиваем).
+  readonly commonIngredients = computed<Set<string>>(() => {
+    const vs = this.compareVariants();
+    if (!vs || vs.length < 2) return new Set<string>();
+    const sets = vs.map(
+      (v) => new Set(v.ingredients.map((i) => i.name.trim().toLowerCase())),
+    );
+    let common = sets[0];
+    for (let k = 1; k < sets.length; k++) {
+      common = new Set(Array.from(common).filter((n) => sets[k].has(n)));
+    }
+    return common;
+  });
+
+  isUniqueIng(name: string): boolean {
+    return this.compareVariants()!.length >= 2 && !this.commonIngredients().has(name.trim().toLowerCase());
+  }
+
+  openCompare(): void {
+    if (this.comparing()) return;
+    this.comparing.set(true);
+    this.api.dishVariants(this.planId(), this.dishId()).subscribe({
+      next: (vs) => {
+        this.compareVariants.set(vs);
+        this.comparing.set(false);
+      },
+      error: () => this.comparing.set(false),
+    });
+  }
+
+  closeCompare(): void {
+    this.compareVariants.set(null);
   }
 
   toggleModelMenu(): void {

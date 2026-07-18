@@ -47,6 +47,12 @@
               </svg>
             </button>
           }
+          @if (d.variantModels && d.variantModels.length >= 2) {
+            <span class="d__sep">|</span>
+            <button type="button" class="d__compare-btn" [disabled]="comparing()" (click)="openCompare()">
+              ⇄ сравнить
+            </button>
+          }
         </div>
 
         <!-- Меню перегенерации — попап по центру с оверлеем -->
@@ -64,6 +70,44 @@
             </div>
           </div>
         }
+      }
+
+      <!-- Сравнение вариантов рецепта по моделям -->
+      @if (compareVariants(); as vars) {
+        <div class="d__compare" (click)="closeCompare()">
+          <div class="d__compare-sheet" (click)="$event.stopPropagation()">
+            <div class="d__compare-head">
+              <span>Сравнение рецептов</span>
+              <button type="button" class="d__compare-x" (click)="closeCompare()" aria-label="Закрыть">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M7 7l10 10M17 7L7 17" stroke-linecap="round" />
+                </svg>
+              </button>
+            </div>
+            <div class="d__compare-cols">
+              @for (v of vars; track v.model) {
+                <div class="d__compare-col">
+                  <p class="d__compare-model">🤖 {{ modelLabel(v.model) }}</p>
+                  <p class="d__compare-sub muted">{{ v.ingredients.length }} ингр. · {{ v.steps.length }} шагов</p>
+                  <p class="d__compare-label">Ингредиенты</p>
+                  <ul class="d__compare-ing">
+                    @for (ing of v.ingredients; track ing.name) {
+                      <li [class.d__compare-uniq]="isUniqueIng(ing.name)">
+                        {{ ing.name }} <span class="muted">{{ ing.qty }} {{ ing.unit }}</span>
+                      </li>
+                    }
+                  </ul>
+                  <p class="d__compare-label">Приготовление</p>
+                  <ol class="d__compare-steps">
+                    @for (s of v.steps; track s) {
+                      <li>{{ s }}</li>
+                    }
+                  </ol>
+                </div>
+              }
+            </div>
+          </div>
+        </div>
       }
 
       <div class="d__meta">

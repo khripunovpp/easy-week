@@ -41,6 +41,16 @@ class Dish(CamelModel):
     variant_models: list[str] = []
 
 
+class DishVariant(CamelModel):
+    # Один вариант рецепта блюда, сгенерированный конкретной моделью (для сравнения).
+    model: str
+    provider: str = ""
+    ingredients: list[Ingredient] = []
+    steps: list[str] = []
+    tips: list[str] = []
+    note: str = ""
+
+
 class WeekPlan(CamelModel):
     id: str
     conversation_id: str = ""

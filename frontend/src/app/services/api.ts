@@ -1,7 +1,16 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
-import { ChatMessage, Dish, PlanStatus, WeekPlan } from '../models/plan.model';
+import { ChatMessage, Dish, Ingredient, PlanStatus, WeekPlan } from '../models/plan.model';
+
+export interface DishVariant {
+  model: string;
+  provider: string;
+  ingredients: Ingredient[];
+  steps: string[];
+  tips: string[];
+  note: string;
+}
 import { Preferences, RecipeModel } from './preferences';
 
 // Относительный путь: в проде nginx проксирует /api → бэкенд;
@@ -224,6 +233,13 @@ export class EasyWeekApi {
 
   shoppingList(planId: string): Observable<ShoppingGroup[]> {
     return this.http.get<ShoppingGroup[]>(`${API_BASE}/plans/${planId}/shopping-list`);
+  }
+
+  // Все сгенерированные варианты рецепта блюда (по моделям) — для сравнения.
+  dishVariants(planId: string, dishId: string): Observable<DishVariant[]> {
+    return this.http.get<DishVariant[]>(
+      `${API_BASE}/plans/${planId}/dishes/${dishId}/variants`,
+    );
   }
 
   // action: open — активный вариант (сгенерит первый, если детали нет);

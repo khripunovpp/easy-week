@@ -14,7 +14,15 @@ from ..ai.observe import set_ai_context
 from ..ai.planner import generate_dish_detail, normalize_shopping
 from ..db import get_session
 from ..models import PlanRow
-from ..schemas import DetailRequest, Dish, PlanSummary, ShoppingGroup, StatusRequest, WeekPlan
+from ..schemas import (
+    DetailRequest,
+    Dish,
+    DishVariant,
+    PlanSummary,
+    ShoppingGroup,
+    StatusRequest,
+    WeekPlan,
+)
 from ..services.export_pdf import build_plan_pdf
 from ..services.mapping import to_dish, to_summary, to_week_plan
 
@@ -303,3 +311,14 @@ async def _resolve_dish_detail(
     session.commit()
 
     return to_dish(dish)
+
+
+@router.get("/{plan_id}/dishes/{dish_id}/variants")
+async def dish_variants(plan_id: str, dish_id: str, session: SessionDep) -> list[DishVariant]:
+    """Все сгенерированные варианты рецепта блюда (по моделям) — для сравнения бок о бок."""
+    row = _get_plan(session, plan_id)
+    dish = next((d for d in (row.dishes or []) if d.get("id") == dish_id), None)
+    if dish is None:
+        raise HTTPException(status_code=404, detail="Блюдо не найдено")
+    variants = _dish_variants(dish)
+    return [DishVariant.model_validate({"model": m, **v}) for m, v in variants.items()]
