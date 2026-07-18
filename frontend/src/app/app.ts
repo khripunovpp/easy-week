@@ -1,6 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { Preferences } from './services/preferences';
+import { PwaUpdate } from './services/pwa-update';
 
 @Component({
   selector: 'app-root',
@@ -11,4 +12,6 @@ import { Preferences } from './services/preferences';
 export class App {
   // Инициализируем настройки на старте — тема применяется сразу (data-theme + theme-color).
   private readonly prefs = inject(Preferences);
+  // Авто-обновление PWA: подхватывает новую версию без ручного сброса кэша.
+  private readonly pwa = inject(PwaUpdate);
 }
