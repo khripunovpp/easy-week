@@ -302,9 +302,12 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
         session.commit()
 
     context = _edit_context(session, conv.id, req.message)
-    # Правки — операции над планом, а не декларации вкусов: экстрактору даём структурный хинт +
-    # контекст, чтобы «замени на не-суп»/«где суп» не улетали в предпочтения (см. prefs._EXTRACT_SYSTEM).
-    prefs.learn_async(req.message, "Это правка уже составленного плана.\n" + context)
+    # Вкусы извлекаем ТОЛЬКО из свободного текста пользователя. Правки по кнопкам без текста
+    # (replace/remove/add с пустым сообщением) вкусов не несут — CF не дёргаем. Текстовые правки
+    # («без свинины») разбираем: экстрактору даём структурный хинт + контекст, чтобы «замени на
+    # не-суп»/«где суп» не улетали в предпочтения (см. prefs._EXTRACT_SYSTEM).
+    if req.message.strip():
+        prefs.learn_async(req.message, "Это правка уже составленного плана.\n" + context)
     try:
         if req.remove_dish_id:
             # Крестик — детерминированное удаление, вообще без модели.
