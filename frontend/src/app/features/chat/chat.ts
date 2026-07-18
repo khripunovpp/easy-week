@@ -28,6 +28,7 @@ export class Chat {
   readonly suggestions = ['Без свинины', 'На 2 порции', 'Побыстрее', 'Вегетарианские'];
 
   private readonly streamEl = viewChild<ElementRef<HTMLElement>>('stream');
+  private lastBump = 0;
 
   constructor() {
     // При входе в чат — прижимаем ленту к низу, чтобы сразу видеть последние сообщения.
@@ -37,7 +38,10 @@ export class Chat {
     effect(() => {
       this.store.messages();
       this.store.streamingMsgId();
-      if (!this.store.loading()) return;
+      const bump = this.store.scrollBump();
+      // Пока идёт генерация — держим низ; плюс явный «тик» после правки (новая карточка внизу).
+      if (!this.store.loading() && bump === this.lastBump) return;
+      this.lastBump = bump;
       this.scrollToBottom();
     });
   }

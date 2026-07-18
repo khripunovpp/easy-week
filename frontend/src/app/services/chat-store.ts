@@ -26,6 +26,8 @@ export class ChatStore {
   readonly loading = signal(false);
   // id сообщения-плана, который сейчас стримится (лоадер живёт внутри его карточки)
   readonly streamingMsgId = signal<string | null>(null);
+  // Тик для прокрутки ленты вниз (к новой карточке плана после правки).
+  readonly scrollBump = signal(0);
   readonly dishCount = signal(5);
   // Модель рецептов этого чата (override). Инициализируется дефолтом из профиля,
   // но переключение здесь НЕ меняет глобальный выбор в профиле.
@@ -188,12 +190,29 @@ export class ChatStore {
     }
     this.api.editPlan(convId, text, this.recipeModel(), opts).subscribe({
       next: (res) => {
-        if (res.plan) this.replaceCurrentPlan(res.plan);
-        this.messages.update((list) => [
-          ...list,
-          { id: `a-${this.seq++}`, role: 'assistant', text: res.reply },
-        ]);
+        const msgId = `a-${this.seq++}`;
+        this.messages.update((list) => {
+          // Прошлую (развёрнутую) карточку сворачиваем как отклонённую — она остаётся
+          // в истории выше; новую версию плана вешаем на реплику «Готово…» внизу ленты.
+          let next = list;
+          if (res.plan) {
+            let liveIdx = -1;
+            list.forEach((m, i) => {
+              if (m.plan && m.plan.status !== 'rejected') liveIdx = i;
+            });
+            if (liveIdx >= 0) {
+              next = list.map((m, i) =>
+                i === liveIdx ? { ...m, plan: { ...m.plan!, status: 'rejected' as const } } : m,
+              );
+            }
+          }
+          return [
+            ...next,
+            { id: msgId, role: 'assistant', text: res.reply, plan: res.plan ?? undefined },
+          ];
+        });
         this.loading.set(false);
+        this.scrollBump.update((n) => n + 1);
       },
       error: (err) => {
         // 429 (дневной лимит Claude) и пр. — показываем текст с бэка, если есть
