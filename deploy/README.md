@@ -75,29 +75,38 @@ sudo nginx -t && sudo systemctl reload nginx
 заработали** — по LAN-http SW не регистрируется) и доступ извне (из магазина и т.п.) без покупки
 домена. Даёт стабильный адрес вида `https://<имя-пая>.<твой-tailnet>.ts.net`.
 
+Реальная настройка (Пай `pashtitto`, адрес получился `https://pashtitto.tail36c191.ts.net`):
+
 ```bash
 # 1) Установить Tailscale на Пае
-curl -fsSL https://tailscale.com/install.sh | sh
+curl -fsSL https://tailscale.com/install.sh | sudo sh
 
-# 2) Залогиниться (откроет URL — подтвердить в браузере под своим аккаунтом Tailscale)
+# 2) Залогиниться (печатает URL — подтвердить в браузере под своим аккаунтом Tailscale)
 sudo tailscale up
 
-# 3) В админке Tailscale (login.tailscale.com/admin):
-#    - DNS → включить MagicDNS и «HTTPS Certificates»;
-#    - Access controls / node → разрешить Funnel для этого узла (атрибут funnel).
+# 3) ⚠️ DNS-ЛОВУШКА. Роутер этого Пая отдаёт DNS-серверы в диапазоне 100.64.0.0/10
+#    (100.90.1.1 и т.п.) — ровно его Tailscale забирает под свой оверлей, и при поднятом
+#    Tailscale интернет на Пае отваливается (curl/git/модели виснут). Поэтому даём Паю
+#    ПУБЛИЧНЫЙ DNS (вне этого диапазона) и просим Tailscale НЕ трогать DNS:
+sudo nmcli con mod "DIGIFIBRA-PLUS-E51A" ipv4.dns "1.1.1.1 8.8.8.8" ipv4.ignore-auto-dns yes
+sudo nmcli con up  "DIGIFIBRA-PLUS-E51A"        # переактивация Wi-Fi (тот же IP)
+sudo tailscale set --accept-dns=false
+#    Проверка: getent hosts github.com  — должно резолвить при поднятом Tailscale.
 
-# 4) Опубликовать nginx Easy Week (:8080) наружу по HTTPS, персистентно:
-sudo tailscale funnel --bg 8080
+# 4) В админке Tailscale (login.tailscale.com/admin): DNS → «HTTPS Certificates» = Enabled.
+#    Funnel включается один раз по ссылке, которую печатает шаг 5 (login.tailscale.com/f/funnel?...).
 
-# 5) Посмотреть выданный адрес:
-tailscale funnel status      # покажет https://<pi>.<tailnet>.ts.net
+# 5) Опубликовать nginx Easy Week (:8080) наружу по HTTPS, персистентно:
+sudo tailscale funnel --bg 8080     # выпустит cert, покажет https://<pi>.<tailnet>.ts.net
+sudo tailscale funnel status        # проверить
 ```
 
-Дальше **устанавливать PWA нужно именно с этого `https://…ts.net`** (SW и кэш привязаны к origin;
+Дальше **устанавливать PWA нужно именно с `https://…ts.net`** (SW и кэш привязаны к origin;
 установка со старого `http://192.168.1.230:8080` офлайн работать не будет). Манифест и nginx уже
 готовы: `manifest.webmanifest` использует относительные `scope`/`start_url`, а nginx слушает
 `server_name _` — принимает любой Host. Локальный `http://192.168.1.230:8080` остаётся для доступа
-в домашней сети без интернета.
+в домашней сети без интернета. Всё персистентно: `tailscaled` — systemd-сервис (автозапуск),
+funnel-конфиг и DNS-правка сохраняются между ребутами.
 
 ## 6-alt. Cloudflare Tunnel (если нужен свой домен)
 
