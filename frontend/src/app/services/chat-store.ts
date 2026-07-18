@@ -14,6 +14,14 @@ const INTRO: ChatMessage = {
   text: 'Привет! Составлю меню на неделю под заморозку. Сколько ужинов и есть ли ограничения?',
 };
 
+// Провайдер плана (человекочитаемый, из бэка) → ключ модели чата.
+const PROVIDER_TO_MODEL: Record<string, RecipeModel> = {
+  DeepSeek: 'deepseek',
+  Gemini: 'gemini',
+  Claude: 'anthropic',
+  Cloudflare: 'cloudflare',
+};
+
 // Общий стор чата: состояние переживает переходы (план → рецепт → назад),
 // поэтому на вкладке «Чат» всегда открыт последний активный чат.
 @Injectable({ providedIn: 'root' })
@@ -66,6 +74,9 @@ export class ChatStore {
     this.api.conversationMessages(conversationId).subscribe({
       next: (msgs) => {
         this.messages.set(msgs.length ? msgs : [INTRO]);
+        // Модель чата — по последнему плану диалога: правки/рецепты идут той же моделью,
+        // что собрала план, а не глобальным дефолтом профиля (выставленным выше как фолбэк).
+        this.syncModelToLastPlan(msgs);
         this.loading.set(false);
       },
       error: () => {
@@ -73,6 +84,14 @@ export class ChatStore {
         this.loading.set(false);
       },
     });
+  }
+
+  // Подстроить модель чата под провайдера последнего плана диалога (если распознан).
+  private syncModelToLastPlan(msgs: ChatMessage[]): void {
+    let provider = '';
+    for (const m of msgs) if (m.plan?.provider) provider = m.plan.provider;
+    const model = PROVIDER_TO_MODEL[provider];
+    if (model) this.recipeModel.set(model);
   }
 
   // Кнопки карточки: пометить блюдо к замене / добавить блюдо / снять пометку (бейдж в композере).
