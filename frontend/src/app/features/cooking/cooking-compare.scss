@@ -1,0 +1,101 @@
+:host {
+  display: contents;
+}
+
+.cmp-state {
+  min-height: 55vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+/* .page__inner сам не скроллит — скроллит .d__cmp-scroll (чтобы липла шапка таблицы) */
+.cmp-page {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-left: 0;
+  padding-right: 0;
+  padding-bottom: 0;
+}
+.d__cmp-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 var(--page-pad-x) 24px;
+}
+.d__cmp {
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 13px;
+}
+.d__cmp th,
+.d__cmp td {
+  width: 240px;
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
+}
+.d__cmp .d__cmp-h0 {
+  width: 90px;
+}
+.d__cmp-h0 {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+  font-weight: 600;
+}
+.d__cmp thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface);
+  font-weight: 700;
+  font-size: 12.5px;
+  color: var(--accent);
+  white-space: nowrap;
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+.d__cmp thead .d__cmp-h0 {
+  z-index: 3;
+  color: var(--ink-2);
+}
+.d__cmp-miss {
+  color: var(--ink-3);
+  text-align: center;
+}
+.d__cmp-stepn {
+  color: var(--ink-3);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.d__cmp-step {
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.d__cmp-phase {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--accent);
+  margin-bottom: 3px;
+}
+.d__cmp-txt {
+  display: block;
+}
+.d__cmp-time {
+  display: block;
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}

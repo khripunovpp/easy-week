@@ -1,0 +1,99 @@
+<div class="page page--header-fixed cook">
+  <header class="page__header page__header--fixed fade-top">
+    <div class="page__heading">
+      <h1 class="page__title">Готовка</h1>
+      <p class="page__subtitle">{{ title() || 'План заготовки' }}</p>
+    </div>
+  </header>
+
+  <div class="page__inner">
+    @if (loading()) {
+      <div class="ck-state"><ew-cooking /></div>
+    } @else if (empty()) {
+      <div class="ck-state">
+        <span class="ck-emoji">🍳</span>
+        <p class="muted">Планов пока нет — соберите меню в чате.</p>
+      </div>
+    } @else if (failed()) {
+      <div class="ck-state">
+        <p class="muted">{{ errorMsg() || 'Не удалось собрать план готовки. Попробуйте другую модель.' }}</p>
+      </div>
+    } @else if (plan(); as cp) {
+      <!-- Вкладки моделей: активная подсвечена, ⟳ добавить, ⇄ сравнить -->
+      @if (cp.variantModels?.length) {
+        <div class="ck-models">
+          <span class="ck-models-ic">🤖</span>
+          @for (m of cp.variantModels; track m; let first = $first) {
+            @if (!first) { <span class="ck-sep">|</span> }
+            <button
+              type="button"
+              class="ck-model"
+              [class.ck-model--active]="m === cp.activeModel"
+              [disabled]="loading()"
+              (click)="chooseModel(m)">
+              {{ modelLabel(m) }}
+            </button>
+          }
+          @if (remainingModels().length) {
+            <span class="ck-sep">|</span>
+            <button
+              type="button"
+              class="ck-refresh"
+              [class.ck-refresh--open]="modelMenuOpen()"
+              [disabled]="loading()"
+              (click)="toggleModelMenu()"
+              aria-label="Собрать другой моделью">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 11a8 8 0 1 0-.9 4.5" stroke-linecap="round" />
+                <path d="M20 4v5h-5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+          }
+          @if (cp.variantModels && cp.variantModels.length >= 2) {
+            <span class="ck-sep">|</span>
+            <a class="ck-compare" [routerLink]="['/cooking', currentPlanId(), 'compare']">⇄ сравнить</a>
+          }
+        </div>
+
+        @if (modelMenuOpen()) {
+          <div class="ck-modal" (click)="modelMenuOpen.set(false)">
+            <div class="ck-modal-card" (click)="$event.stopPropagation()">
+              <p class="ck-modal-title">Собрать другой моделью?</p>
+              <div class="ck-modal-list">
+                @for (m of remainingModels(); track m) {
+                  <button type="button" class="ck-model-opt" [disabled]="loading()" (click)="chooseModel(m)">
+                    🤖 {{ modelLabel(m) }}
+                  </button>
+                }
+              </div>
+            </div>
+          </div>
+        }
+      }
+
+      <!-- Фазы и шаги -->
+      @for (ph of phases(); track $index) {
+        <section class="ck-phase">
+          <h2 class="ck-phase__title">{{ ph.phase }}</h2>
+          @for (s of ph.steps; track s.order) {
+            <div class="ck-step">
+              <span class="ck-step__no">{{ s.order }}</span>
+              <div class="ck-step__body">
+                <p class="ck-step__text">{{ s.text }}</p>
+                <div class="ck-step__meta">
+                  @if (s.activeMin) { <span class="ck-chip ck-chip--active">🔥 {{ s.activeMin }} мин</span> }
+                  @if (s.passiveMin) { <span class="ck-chip ck-chip--passive">⏳ {{ s.passiveMin }} мин</span> }
+                  @for (d of s.dishes; track d) { <span class="ck-dish">{{ d }}</span> }
+                </div>
+              </div>
+            </div>
+          }
+        </section>
+      }
+
+      @if (cp.note) {
+        <p class="ck-note muted">{{ cp.note }}</p>
+      }
+    }
+  </div>
+</div>

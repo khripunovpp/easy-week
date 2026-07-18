@@ -31,6 +31,19 @@ export const routes: Routes = [
     loadComponent: () => import('./features/plans/plans').then((m) => m.Plans),
   },
   {
+    path: 'cooking',
+    loadComponent: () => import('./features/cooking/cooking').then((m) => m.CookingPlanPage),
+  },
+  {
+    path: 'cooking/:planId',
+    loadComponent: () => import('./features/cooking/cooking').then((m) => m.CookingPlanPage),
+  },
+  {
+    path: 'cooking/:planId/compare',
+    loadComponent: () =>
+      import('./features/cooking/cooking-compare').then((m) => m.CookingComparePage),
+  },
+  {
     path: 'shopping',
     loadComponent: () => import('./features/shopping/shopping').then((m) => m.Shopping),
   },

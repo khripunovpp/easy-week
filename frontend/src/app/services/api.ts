@@ -11,6 +11,29 @@ export interface DishVariant {
   tips: string[];
   note: string;
 }
+
+// Единый план готовки на весь недельный план (по всем блюдам).
+export interface CookingStep {
+  order: number;
+  phase: string;
+  text: string;
+  activeMin: number;
+  passiveMin: number;
+  dishes: string[];
+}
+export interface CookingPlan {
+  activeModel: string;
+  variantModels: string[];
+  provider: string;
+  steps: CookingStep[];
+  note: string;
+}
+export interface CookingPlanVariant {
+  model: string;
+  provider: string;
+  steps: CookingStep[];
+  note: string;
+}
 import { Preferences, RecipeModel } from './preferences';
 
 // Относительный путь: в проде nginx проксирует /api → бэкенд;
@@ -240,6 +263,23 @@ export class EasyWeekApi {
     return this.http.get<DishVariant[]>(
       `${API_BASE}/plans/${planId}/dishes/${dishId}/variants`,
     );
+  }
+
+  // Единый план готовки на весь план (ленивая генерация, кэш). action: open | select.
+  cookingPlan(
+    planId: string,
+    recipeModel: RecipeModel | string,
+    action: 'open' | 'select' = 'open',
+  ): Observable<CookingPlan> {
+    return this.http.post<CookingPlan>(`${API_BASE}/plans/${planId}/cooking`, {
+      recipeModel,
+      action,
+    });
+  }
+
+  // Варианты плана готовки по моделям — для сравнения.
+  cookingVariants(planId: string): Observable<CookingPlanVariant[]> {
+    return this.http.get<CookingPlanVariant[]>(`${API_BASE}/plans/${planId}/cooking/variants`);
   }
 
   // action: open — активный вариант (сгенерит первый, если детали нет);

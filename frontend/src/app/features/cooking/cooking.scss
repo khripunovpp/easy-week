@@ -1,0 +1,206 @@
+:host {
+  display: contents;
+}
+
+.ck-state {
+  min-height: 55vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 40px 20px;
+  text-align: center;
+}
+.ck-emoji {
+  font-size: 40px;
+}
+
+/* Вкладки моделей (как у рецепта) */
+.ck-models {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+  padding: 6px 12px;
+  background: var(--surface);
+  border-radius: var(--r-pill);
+  box-shadow: var(--shadow-soft);
+  width: fit-content;
+  max-width: 100%;
+}
+.ck-models-ic {
+  font-size: 13px;
+}
+.ck-sep {
+  color: var(--ink-3);
+  opacity: 0.5;
+}
+.ck-model {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-3);
+  padding: 3px 4px;
+  border-radius: 8px;
+}
+.ck-model--active {
+  color: var(--accent);
+}
+.ck-model:disabled,
+.ck-refresh:disabled,
+.ck-model-opt:disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+.ck-refresh {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  color: var(--ink-2);
+  transition: transform 0.2s ease, color 0.15s ease;
+}
+.ck-refresh svg {
+  width: 16px;
+  height: 16px;
+}
+.ck-refresh--open {
+  color: var(--accent);
+  transform: rotate(-90deg);
+}
+.ck-compare {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+/* Попап выбора модели */
+.ck-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  background: rgba(34, 29, 26, 0.42);
+  animation: ck-fade 0.15s ease;
+}
+@keyframes ck-fade {
+  from {
+    opacity: 0;
+  }
+}
+.ck-modal-card {
+  width: 100%;
+  max-width: 320px;
+  padding: 20px 18px;
+  background: var(--surface);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-float);
+}
+.ck-modal-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 18px;
+  margin: 0 0 12px;
+}
+.ck-modal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ck-model-opt {
+  padding: 12px;
+  border-radius: 12px;
+  text-align: left;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.ck-model-opt:active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* Фазы и шаги */
+.ck-phase {
+  margin-bottom: 18px;
+}
+.ck-phase__title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  margin: 0 0 8px;
+  padding: 0 2px;
+}
+.ck-step {
+  display: flex;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.ck-step:first-of-type {
+  border-top: none;
+}
+.ck-step__no {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+}
+.ck-step__body {
+  flex: 1;
+  min-width: 0;
+}
+.ck-step__text {
+  font-size: 15px;
+  line-height: 1.45;
+  margin: 2px 0 0;
+}
+.ck-step__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 7px;
+}
+.ck-chip {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: var(--r-pill);
+  background: var(--surface-sunk);
+  color: var(--ink-2);
+}
+.ck-chip--active {
+  background: var(--no-soft);
+  color: var(--no);
+}
+.ck-chip--passive {
+  background: var(--frost-soft);
+  color: var(--frost);
+}
+.ck-dish {
+  font-size: 12px;
+  padding: 3px 9px;
+  border-radius: var(--r-pill);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.ck-note {
+  font-size: 13.5px;
+  line-height: 1.5;
+  margin-top: 8px;
+  padding: 0 2px;
+}

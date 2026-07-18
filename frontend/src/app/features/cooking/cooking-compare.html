@@ -1,0 +1,57 @@
+<div class="page page--header-fixed">
+  <header class="page__header page__header--fixed fade-top">
+    <button class="icon-btn page__back" type="button" (click)="back()" aria-label="Назад">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M15 6l-6 6 6 6" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </button>
+    <div class="page__heading">
+      <h1 class="page__title">Сравнение готовки</h1>
+    </div>
+  </header>
+
+  <div class="page__inner cmp-page">
+    @if (loading()) {
+      <div class="cmp-state"><ew-cooking /></div>
+    } @else if (failed()) {
+      <div class="cmp-state"><p class="muted">Не удалось загрузить сравнение.</p></div>
+    } @else if (variants(); as vars) {
+      @if (vars.length < 2) {
+        <div class="cmp-state"><p class="muted">Нужно хотя бы 2 плана готовки разных моделей.</p></div>
+      } @else {
+        <div class="d__cmp-scroll">
+          <table class="d__cmp">
+            <thead>
+              <tr>
+                <th class="d__cmp-h0">Шаг</th>
+                @for (v of vars; track v.model) {
+                  <th>🤖 {{ modelLabel(v.model) }}</th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of stepRows(); track row.order) {
+                <tr>
+                  <td class="d__cmp-h0 d__cmp-stepn">Шаг {{ row.order }}</td>
+                  @for (c of row.cells; track $index) {
+                    <td class="d__cmp-step" [class.d__cmp-miss]="!c">
+                      @if (c) {
+                        @if (c.phase) { <span class="d__cmp-phase">{{ c.phase }}</span> }
+                        <span class="d__cmp-txt">{{ c.text }}</span>
+                        @if (c.activeMin || c.passiveMin) {
+                          <span class="d__cmp-time">🔥 {{ c.activeMin }} · ⏳ {{ c.passiveMin }} мин</span>
+                        }
+                      } @else {
+                        —
+                      }
+                    </td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    }
+  </div>
+</div>
