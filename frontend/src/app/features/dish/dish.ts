@@ -92,6 +92,11 @@ export class DishPage {
     return common;
   });
 
+  // Ингредиенты варианта, отсортированные по имени (чтобы строки колонок совпадали).
+  sortedIngredients(v: DishVariant): DishVariant['ingredients'] {
+    return [...v.ingredients].sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+  }
+
   isUniqueIng(name: string): boolean {
     return this.compareVariants()!.length >= 2 && !this.commonIngredients().has(name.trim().toLowerCase());
   }

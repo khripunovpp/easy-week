@@ -91,7 +91,7 @@
                   <p class="d__compare-sub muted">{{ v.ingredients.length }} ингр. · {{ v.steps.length }} шагов</p>
                   <p class="d__compare-label">Ингредиенты</p>
                   <ul class="d__compare-ing">
-                    @for (ing of v.ingredients; track ing.name) {
+                    @for (ing of sortedIngredients(v); track ing.name) {
                       <li [class.d__compare-uniq]="isUniqueIng(ing.name)">
                         {{ ing.name }} <span class="muted">{{ ing.qty }} {{ ing.unit }}</span>
                       </li>
