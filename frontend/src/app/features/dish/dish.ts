@@ -78,27 +78,73 @@ export class DishPage {
   readonly compareVariants = signal<DishVariant[] | null>(null);
   readonly comparing = signal(false);
 
-  // Имена ингредиентов, встречающиеся во ВСЕХ вариантах (остальные — «отличия», подсвечиваем).
-  readonly commonIngredients = computed<Set<string>>(() => {
-    const vs = this.compareVariants();
-    if (!vs || vs.length < 2) return new Set<string>();
-    const sets = vs.map(
-      (v) => new Set(v.ingredients.map((i) => i.name.trim().toLowerCase())),
-    );
-    let common = sets[0];
-    for (let k = 1; k < sets.length; k++) {
-      common = new Set(Array.from(common).filter((n) => sets[k].has(n)));
-    }
-    return common;
-  });
-
   // Ингредиенты варианта, отсортированные по имени (чтобы строки колонок совпадали).
   sortedIngredients(v: DishVariant): DishVariant['ingredients'] {
     return [...v.ingredients].sort((a, b) => a.name.localeCompare(b.name, 'ru'));
   }
 
+  // --- Похожесть ингредиентов: взвешенный многослойный скор, порог >50% ---
+  // Стоп-слова (предлоги/союзы) не считаем значимыми токенами.
+  private readonly ingStop = new Set(['и', 'из', 'с', 'со', 'в', 'во', 'на', 'для', 'до', 'по']);
+
+  // Значимые токены имени: нижний регистр, без скобок-уточнений «(среднего размера)»,
+  // без пунктуации, без коротких слов и стоп-слов.
+  private ingTokens(name: string): string[] {
+    return (name || '')
+      .toLowerCase()
+      .replace(/\([^)]*\)/g, ' ')
+      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .split(' ')
+      .filter((t) => t.length > 1 && !this.ingStop.has(t));
+  }
+
+  // Символьная близость строк (Левенштейн → доля совпадения 0..1) — ловит опечатки/окончания.
+  private levRatio(a: string, b: string): number {
+    const m = a.length;
+    const n = b.length;
+    if (!m || !n) return m === n ? 1 : 0;
+    const d = Array.from({ length: n + 1 }, (_, i) => i);
+    for (let i = 1; i <= m; i++) {
+      let prev = d[0];
+      d[0] = i;
+      for (let j = 1; j <= n; j++) {
+        const tmp = d[j];
+        d[j] = Math.min(d[j] + 1, d[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+        prev = tmp;
+      }
+    }
+    return 1 - d[n] / Math.max(m, n);
+  }
+
+  // Взвешенный скор похожести двух названий: совпадение токенов (Dice) + символьная близость.
+  private ingSimilarity(a: string, b: string): number {
+    const ta = this.ingTokens(a);
+    const tb = this.ingTokens(b);
+    if (ta.length && ta.slice().sort().join(' ') === tb.slice().sort().join(' ')) return 1;
+    const sa = [...new Set(ta)];
+    const sb = [...new Set(tb)];
+    // Токены матчатся фаззи (Левенштейн ≥0.8) — чтобы «помидоры»≈«помидор», но не «говяжий»/«свиной».
+    let inter = 0;
+    for (const t of sa) if (sb.some((u) => u === t || this.levRatio(t, u) >= 0.8)) inter++;
+    const dice = sa.length + sb.length ? (2 * inter) / (sa.length + sb.length) : 0;
+    const lev = this.levRatio(ta.join(' '), tb.join(' '));
+    return 0.7 * dice + 0.3 * lev; // токены важнее посимвольной близости
+  }
+
+  private readonly ING_SIM_THRESHOLD = 0.6; // > 50% с запасом, чтобы не склеивать «говяжий/свиной»
+
+  // Есть ли в варианте v похожий ингредиент на name.
+  private hasSimilar(v: DishVariant, name: string): boolean {
+    return v.ingredients.some((i) => this.ingSimilarity(i.name, name) >= this.ING_SIM_THRESHOLD);
+  }
+
+  // «Отличие» = хотя бы в одном варианте нет похожего ингредиента → подсвечиваем.
   isUniqueIng(name: string): boolean {
-    return this.compareVariants()!.length >= 2 && !this.commonIngredients().has(name.trim().toLowerCase());
+    const vs = this.compareVariants();
+    if (!vs || vs.length < 2) return false;
+    return vs.some((v) => !this.hasSimilar(v, name));
   }
 
   openCompare(): void {
