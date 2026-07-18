@@ -38,7 +38,9 @@ export interface Dish {
   tips: string[];
   steps: string[];
   ingredients: Ingredient[];
-  detailProvider?: string; // какая модель сгенерила развёрнутый рецепт
+  detailProvider?: string; // какая модель сгенерила развёрнутый рецепт (активный вариант)
+  activeModel?: string; // ключ активной модели-варианта рецепта
+  variantModels?: string[]; // ключи моделей, для которых вариант уже сгенерирован
 }
 
 export interface WeekPlan {

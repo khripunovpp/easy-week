@@ -247,10 +247,17 @@ export class EasyWeekApi {
     return this.http.get<ShoppingGroup[]>(`${API_BASE}/plans/${planId}/shopping-list`);
   }
 
-  dishDetails(planId: string, dishId: string, recipeModel: RecipeModel): Observable<Dish> {
+  // action: open — активный вариант (сгенерит первый, если детали нет);
+  // select — сделать recipeModel активным (сгенерит его вариант, если ещё нет).
+  dishDetails(
+    planId: string,
+    dishId: string,
+    recipeModel: RecipeModel | string,
+    action: 'open' | 'select' = 'open',
+  ): Observable<Dish> {
     return this.http.post<Dish>(
       `${API_BASE}/plans/${planId}/dishes/${dishId}/details`,
-      { recipeModel },
+      { recipeModel, action },
     );
   }
 

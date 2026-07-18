@@ -54,6 +54,105 @@
   font-weight: 700;
 }
 
+/* Варианты рецепта по моделям: 🤖 модель1 | модель2 | ⟳ */
+.d__models {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 6px 12px;
+  background: var(--surface);
+  border-radius: var(--r-pill);
+  box-shadow: var(--shadow-soft);
+  width: fit-content;
+  max-width: 100%;
+}
+.d__models-ic {
+  font-size: 13px;
+  margin-right: 2px;
+}
+.d__sep {
+  color: var(--ink-3);
+  opacity: 0.5;
+}
+.d__model {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-3);
+  padding: 3px 4px;
+  border-radius: 8px;
+  transition: color 0.12s ease;
+}
+.d__model--active {
+  color: var(--accent);
+}
+.d__refresh-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.d__refresh {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  color: var(--ink-2);
+  transition: background 0.15s ease, color 0.15s ease, transform 0.2s ease;
+}
+.d__refresh svg {
+  width: 16px;
+  height: 16px;
+}
+.d__refresh:active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.d__refresh--open {
+  color: var(--accent);
+  transform: rotate(-90deg);
+}
+
+/* Выпадашка выбора модели для перегенерации */
+.d__model-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-width: 190px;
+  padding: 8px;
+  background: var(--surface);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-float);
+  animation: d-menu-in 0.14s ease;
+}
+@keyframes d-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+.d__model-menu__title {
+  font-size: 12.5px;
+  color: var(--ink-2);
+  padding: 4px 10px 8px;
+}
+.d__model-opt {
+  padding: 10px 12px;
+  border-radius: 10px;
+  text-align: left;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
+  transition: background 0.12s ease;
+}
+.d__model-opt:active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 /* Карточки */
 .card {
   background: var(--surface);

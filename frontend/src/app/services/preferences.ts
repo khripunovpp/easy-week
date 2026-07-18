@@ -4,6 +4,15 @@ export type ThemeMode = 'system' | 'light' | 'dark';
 export type Gender = 'f' | 'm';
 export type RecipeModel = 'deepseek' | 'gemini' | 'cloudflare' | 'anthropic';
 
+// Модели рецептов: ключ → человекочитаемое имя (совпадает с provider плана на бэке).
+export const MODEL_LABELS: Record<RecipeModel, string> = {
+  deepseek: 'DeepSeek',
+  gemini: 'Gemini',
+  anthropic: 'Claude',
+  cloudflare: 'Cloudflare',
+};
+export const ALL_MODELS: RecipeModel[] = ['deepseek', 'gemini', 'anthropic', 'cloudflare'];
+
 const THEME_KEY = 'ew.theme';
 const GENDER_KEY = 'ew.gender';
 const MODEL_KEY = 'ew.recipeModel';
