@@ -108,6 +108,16 @@ class PlanSummary(CamelModel):
     dish_names: list[str] = []
 
 
+class MessageSearchHit(CamelModel):
+    # Результат поиска по сообщениям всех бесед: само сообщение + контекст беседы (план).
+    id: str
+    conversation_id: str
+    role: str
+    text: str
+    plan_title: str | None = None
+    plan_emoji: str | None = None
+
+
 class ShoppingItem(CamelModel):
     name: str
     qty: float

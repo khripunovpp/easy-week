@@ -28,6 +28,7 @@ from ..schemas import (
     ChatResponse,
     CurrentPlanBody,
     Dish,
+    MessageSearchHit,
     PreferencesBody,
 )
 from ..services import appstate
@@ -88,6 +89,44 @@ async def set_current_plan(body: CurrentPlanBody, session: SessionDep) -> dict:
         raise HTTPException(status_code=404, detail="План не найден")
     appstate.set_current_plan(pid)
     return {"planId": pid}
+
+
+@router.get("/messages/search")
+async def search_messages(q: str, session: SessionDep) -> list[MessageSearchHit]:
+    """Поиск по тексту сообщений всех бесед (регистронезависимо, в т.ч. кириллица).
+    Возвращает само сообщение + контекст беседы (последний план: название + эмодзи)."""
+    query = (q or "").strip().lower()
+    if not query:
+        return []
+    # Последний план каждой беседы — для контекста результата.
+    plans = session.exec(select(PlanRow).order_by(PlanRow.created_at.desc())).all()
+    conv_plan: dict[str, PlanRow] = {}
+    for p in plans:
+        conv_plan.setdefault(p.conversation_id, p)  # первый встреченный = самый свежий
+    rows = session.exec(select(MessageRow).order_by(MessageRow.created_at.desc())).all()
+    hits: list[MessageSearchHit] = []
+    for m in rows:
+        if not m.text or query not in m.text.lower():
+            continue
+        plan_row = session.get(PlanRow, m.plan_id) if m.plan_id else conv_plan.get(m.conversation_id)
+        title = plan_row.title if plan_row else None
+        emoji = None
+        if plan_row:
+            dishes = plan_row.dishes or []
+            emoji = dishes[0].get("emoji", "🍽️") if dishes else "🍽️"
+        hits.append(
+            MessageSearchHit(
+                id=m.id,
+                conversation_id=m.conversation_id,
+                role=m.role,
+                text=m.text,
+                plan_title=title,
+                plan_emoji=emoji,
+            )
+        )
+        if len(hits) >= 50:
+            break
+    return hits
 
 
 @router.get("/conversations/{conversation_id}/messages")

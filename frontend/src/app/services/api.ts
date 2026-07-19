@@ -46,6 +46,15 @@ export interface ChatResponse {
   plan: WeekPlan | null;
 }
 
+export interface MessageSearchHit {
+  id: string;
+  conversationId: string;
+  role: 'user' | 'assistant';
+  text: string;
+  planTitle: string | null;
+  planEmoji: string | null;
+}
+
 export interface ChatStreamMeta {
   conversationId: string;
   planId: string;
@@ -309,5 +318,11 @@ export class EasyWeekApi {
     return this.http.get<ChatMessage[]>(
       `${API_BASE}/conversations/${conversationId}/messages`,
     );
+  }
+
+  searchMessages(q: string): Observable<MessageSearchHit[]> {
+    return this.http.get<MessageSearchHit[]>(`${API_BASE}/messages/search`, {
+      params: { q },
+    });
   }
 }

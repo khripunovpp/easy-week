@@ -1,6 +1,7 @@
 import { afterNextRender, Component, ElementRef, effect, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { EasyWeekApi, MessageSearchHit } from '../../services/api';
 import { ChatStore } from '../../services/chat-store';
 import { RecipeModel } from '../../services/preferences';
 import { CookingLoader } from '../../shared/cooking-loader';
@@ -16,6 +17,57 @@ import { renderMarkdown } from '../../shared/markdown';
 export class Chat {
   readonly store = inject(ChatStore);
   private readonly router = inject(Router);
+  private readonly api = inject(EasyWeekApi);
+
+  // Поиск по сообщениям всех бесед. searchOpen — режим поиска (лента скрыта).
+  // fromSearch — текущая беседа открыта из результатов (показываем «назад»).
+  readonly searchOpen = signal(false);
+  readonly searchQuery = signal('');
+  readonly searchResults = signal<MessageSearchHit[]>([]);
+  readonly searchLoading = signal(false);
+  readonly fromSearch = signal(false);
+  private searchTimer: ReturnType<typeof setTimeout> | undefined;
+
+  openSearch(): void {
+    this.searchOpen.set(true);
+  }
+  closeSearch(): void {
+    this.searchOpen.set(false);
+  }
+  backToSearch(): void {
+    this.searchOpen.set(true);
+  }
+  onSearchInput(v: string): void {
+    this.searchQuery.set(v);
+    clearTimeout(this.searchTimer);
+    const q = v.trim();
+    if (!q) {
+      this.searchResults.set([]);
+      this.searchLoading.set(false);
+      return;
+    }
+    this.searchLoading.set(true);
+    this.searchTimer = setTimeout(() => {
+      this.api.searchMessages(q).subscribe({
+        next: (r) => {
+          this.searchResults.set(r);
+          this.searchLoading.set(false);
+        },
+        error: () => {
+          this.searchResults.set([]);
+          this.searchLoading.set(false);
+        },
+      });
+    }, 220);
+  }
+  openHit(hit: MessageSearchHit): void {
+    this.store.loadConversation(hit.conversationId);
+    this.searchOpen.set(false);
+    this.fromSearch.set(true);
+  }
+  roleLabel(role: string): string {
+    return role === 'user' ? 'Вы' : 'Бот';
+  }
 
   readonly menuOpen = signal(false);
   readonly modelMenuOpen = signal(false);
@@ -114,6 +166,11 @@ export class Chat {
     if (d10 === 1 && d100 !== 11) return 'блюдо';
     if (d10 >= 2 && d10 <= 4 && (d100 < 12 || d100 > 14)) return 'блюда';
     return 'блюд';
+  }
+
+  newChat(): void {
+    this.fromSearch.set(false);
+    this.store.newChat();
   }
 
   toggleMenu(): void {
