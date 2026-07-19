@@ -2,9 +2,9 @@
   <header class="page__header page__header--fixed fade-top">
     <div class="page__heading">
       <h1 class="page__title">Готовка</h1>
-      @if (currentWeekLabel()) {
-        <p class="page__subtitle">{{ currentWeekLabel() }}</p>
-      }
+      <p class="page__subtitle">
+        @if (currentWeekLabel()) { {{ currentWeekLabel() }} } @else { &nbsp; }
+      </p>
     </div>
   </header>
 
