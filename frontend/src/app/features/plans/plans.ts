@@ -23,14 +23,15 @@ export class Plans {
   // есть хоть один непробельный символ → показываем плоский список результатов (без групп).
   readonly query = signal('');
   readonly searchActive = computed(() => this.query().trim().length > 0);
-  readonly results = computed(() => {
+  readonly results = computed<{ plan: PlanSummary; dishes: string[] }[]>(() => {
     const q = this.query().trim().toLowerCase();
     if (!q) return [];
-    return this.plans().filter(
-      (p) =>
-        p.title.toLowerCase().includes(q) ||
-        (p.dishNames ?? []).some((n) => n.toLowerCase().includes(q)),
-    );
+    const out: { plan: PlanSummary; dishes: string[] }[] = [];
+    for (const p of this.plans()) {
+      const dishes = (p.dishNames ?? []).filter((n) => n.toLowerCase().includes(q));
+      if (p.title.toLowerCase().includes(q) || dishes.length) out.push({ plan: p, dishes });
+    }
+    return out;
   });
   onSearch(v: string): void {
     this.query.set(v);

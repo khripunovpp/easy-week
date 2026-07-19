@@ -103,18 +103,6 @@
   padding-bottom: 8px;
   background: var(--surface);
 }
-.pp__search-input {
-  width: 100%;
-  padding: 9px 14px;
-  border: none;
-  border-radius: var(--r-pill);
-  background: var(--surface-sunk);
-  color: var(--ink);
-  font-size: 14px;
-}
-.pp__search-input::placeholder {
-  color: var(--ink-3);
-}
 
 .pp__row {
   display: flex;

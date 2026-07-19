@@ -220,6 +220,21 @@ ul {
   list-style: none;
 }
 
+/* Поле поиска — единый вид во всех разделах (белая пилюля) */
+.search-field {
+  width: 100%;
+  padding: 11px 16px;
+  border: none;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+  color: var(--ink);
+  font-size: 15px;
+}
+.search-field::placeholder {
+  color: var(--ink-3);
+}
+
 /* Утилиты */
 .muted {
   color: var(--ink-2);

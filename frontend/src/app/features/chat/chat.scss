@@ -576,39 +576,16 @@
   gap: 8px;
 }
 .csearch__bar {
-  position: sticky;
-  top: 0;
-  z-index: 2;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 12px;
-  border-radius: var(--r-pill);
-  background: var(--surface-sunk);
-}
-.csearch__ic {
-  flex-shrink: 0;
-  width: 18px;
-  height: 18px;
-  color: var(--ink-3);
-}
-.csearch__input {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  background: none;
-  color: var(--ink);
-  font-size: 15px;
-}
-.csearch__input::placeholder {
-  color: var(--ink-3);
 }
 .csearch__close {
   flex-shrink: 0;
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   color: var(--ink-3);
 }
 .csearch__close svg {

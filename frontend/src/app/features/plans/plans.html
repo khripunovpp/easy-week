@@ -17,7 +17,7 @@
     } @else {
       <div class="pl__search">
         <input
-          class="pl__search-input"
+          class="search-field"
           type="search"
           placeholder="Поиск по названию и блюдам"
           [value]="query()"
@@ -25,8 +25,15 @@
       </div>
 
       @if (searchActive()) {
-        @for (plan of results(); track plan.id; let i = $index) {
-          <ng-container *ngTemplateOutlet="prow; context: { $implicit: plan, i: i }" />
+        @for (r of results(); track r.plan.id; let i = $index) {
+          <ng-container *ngTemplateOutlet="prow; context: { $implicit: r.plan, i: i }" />
+          @if (r.dishes.length) {
+            <div class="pl__hits">
+              @for (d of r.dishes; track d) {
+                <span class="pl__hit">{{ d }}</span>
+              }
+            </div>
+          }
         } @empty {
           <div class="pl__state pl__state--sm">
             <span class="pl__emoji">🔍</span>

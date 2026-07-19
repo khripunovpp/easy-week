@@ -29,17 +29,21 @@
 .pl__search {
   margin-bottom: 14px;
 }
-.pl__search-input {
-  width: 100%;
-  padding: 11px 16px;
-  border: none;
+
+/* Найденные рецепты под карточкой плана (совпадение по блюду) */
+.pl__hits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: -2px 0 10px 62px;
+}
+.pl__hit {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink-2);
+  padding: 3px 10px;
   border-radius: var(--r-pill);
   background: var(--surface-sunk);
-  color: var(--ink);
-  font-size: 15px;
-}
-.pl__search-input::placeholder {
-  color: var(--ink-3);
 }
 
 /* Подзаголовки групп */

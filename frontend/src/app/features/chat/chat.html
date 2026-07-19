@@ -79,12 +79,8 @@
   @if (searchOpen()) {
     <div class="page__inner chat__search">
       <div class="csearch__bar">
-        <svg class="csearch__ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
-          <circle cx="11" cy="11" r="7" />
-          <path d="M21 21l-4-4" stroke-linecap="round" />
-        </svg>
         <input
-          class="csearch__input"
+          class="search-field"
           type="search"
           placeholder="Поиск по сообщениям чатов"
           [value]="searchQuery()"
