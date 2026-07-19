@@ -5,6 +5,7 @@ import { Dish, WeekPlan } from '../../models/plan.model';
 import { ChatStore } from '../../services/chat-store';
 import { ALL_MODELS, MODEL_LABELS, RecipeModel } from '../../services/preferences';
 import { CookingLoader } from '../../shared/cooking-loader';
+import { dishColorClass } from '../../shared/dish-color';
 import { PlanPicker } from '../../shared/plan-picker';
 
 @Component({
@@ -121,6 +122,28 @@ export class CookingPlanPage {
 
   // Блюда плана — для ссылок в рецепты.
   readonly dishes = computed<Dish[]>(() => this.weekPlan()?.dishes ?? []);
+
+  private normName(s: string): string {
+    return (s || '').trim().toLowerCase();
+  }
+  // Блюдо по имени из шага/чипа (точное, затем частичное совпадение).
+  dishByName(name: string): Dish | undefined {
+    const n = this.normName(name);
+    const ds = this.dishes();
+    return (
+      ds.find((d) => this.normName(d.name) === n) ??
+      ds.find((d) => this.normName(d.name).includes(n) || n.includes(this.normName(d.name)))
+    );
+  }
+  dishColorClass(i: number): string {
+    return dishColorClass(i);
+  }
+  // Класс цвета по имени блюда (индекс в плане). Пусто, если блюдо не сопоставилось.
+  dishClassByName(name: string): string {
+    const d = this.dishByName(name);
+    const i = d ? this.dishes().indexOf(d) : -1;
+    return i >= 0 ? dishColorClass(i) : '';
+  }
 
   private fetch(planId: string, model?: string, action: 'open' | 'select' = 'open'): void {
     this.currentPlanId.set(planId);

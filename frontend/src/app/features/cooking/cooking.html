@@ -82,9 +82,10 @@
       <!-- Рецепты плана: переход к блюду (в варианте модели плана); в скобках — прочие варианты -->
       @if (dishes().length) {
         <div class="ck-recipes">
-          @for (d of dishes(); track d.id) {
+          @for (d of dishes(); track d.id; let i = $index) {
             <a
               class="ck-recipe"
+              [class]="dishColorClass(i)"
               [routerLink]="['/plan', selectedId(), 'dish', d.id]"
               [queryParams]="{ model: cp.activeModel }">
               <span class="ck-recipe__emoji">{{ d.emoji }}</span>
@@ -106,7 +107,17 @@
                 <div class="ck-step__meta">
                   @if (s.activeMin) { <span class="ck-chip ck-chip--active">🔥 {{ s.activeMin }} мин</span> }
                   @if (s.passiveMin) { <span class="ck-chip ck-chip--passive">⏳ {{ s.passiveMin }} мин</span> }
-                  @for (d of s.dishes; track d) { <span class="ck-dish">{{ d }}</span> }
+                  @for (d of s.dishes; track d) {
+                    @if (dishByName(d); as dish) {
+                      <a
+                        class="ck-dish"
+                        [class]="dishClassByName(d)"
+                        [routerLink]="['/plan', selectedId(), 'dish', dish.id]"
+                        [queryParams]="{ model: cp.activeModel }">{{ d }}</a>
+                    } @else {
+                      <span class="ck-dish">{{ d }}</span>
+                    }
+                  }
                 </div>
               </div>
             </div>

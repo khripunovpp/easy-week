@@ -139,8 +139,8 @@
   gap: 6px;
   padding: 6px 12px 6px 8px;
   border-radius: var(--r-pill);
-  background: var(--surface);
-  box-shadow: var(--shadow-soft);
+  background: color-mix(in srgb, var(--dish, var(--surface)) 12%, var(--surface));
+  box-shadow: inset 3px 0 0 var(--dish, transparent), var(--shadow-soft);
   color: var(--ink);
   text-decoration: none;
   font-size: 13.5px;
@@ -228,8 +228,12 @@
   font-size: 12px;
   padding: 3px 9px;
   border-radius: var(--r-pill);
-  background: var(--accent-soft);
-  color: var(--accent);
+  text-decoration: none;
+  color: var(--dish, var(--accent));
+  background: color-mix(in srgb, var(--dish, var(--accent)) 14%, transparent);
+}
+.ck-dish:active {
+  opacity: 0.75;
 }
 .ck-note {
   font-size: 13.5px;
