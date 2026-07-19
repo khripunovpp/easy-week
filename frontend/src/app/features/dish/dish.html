@@ -18,29 +18,26 @@
       <span class="d__emoji">{{ d.emoji }}</span>
       <h1>{{ d.name }}</h1>
       @if (d.variantModels?.length) {
-        <!-- Варианты рецепта по моделям: вкладки (активная подсвечена) + ⟳ добавить другой -->
+        <!-- Модели рецепта: чипы сгенерённых вариантов (активная — заливка), ⟳ добавить другую -->
         <div class="d__models">
-          <span class="d__models-ic">🤖</span>
-          @for (m of d.variantModels; track m; let first = $first) {
-            @if (!first) { <span class="d__sep">|</span> }
+          @for (m of d.variantModels; track m) {
             <button
               type="button"
-              class="d__model"
-              [class.d__model--active]="m === d.activeModel"
+              class="d__chip"
+              [class.d__chip--active]="m === d.activeModel"
               [disabled]="loading()"
               (click)="chooseModel(m)">
               {{ modelLabel(m) }}
             </button>
           }
           @if (remainingModels().length) {
-            <span class="d__sep">|</span>
             <button
               type="button"
-              class="d__refresh"
-              [class.d__refresh--open]="modelMenuOpen()"
+              class="d__chip d__chip--refresh"
+              [class.d__chip--open]="modelMenuOpen()"
               [disabled]="loading()"
               (click)="toggleModelMenu()"
-              aria-label="Перегенерить другой моделью">
+              aria-label="Сгенерить другой моделью">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M20 11a8 8 0 1 0-.9 4.5" stroke-linecap="round" />
                 <path d="M20 4v5h-5" stroke-linecap="round" stroke-linejoin="round" />
@@ -48,18 +45,19 @@
             </button>
           }
           @if (d.variantModels && d.variantModels.length >= 2) {
-            <span class="d__sep">|</span>
-            <a class="d__compare-btn" [routerLink]="['/plan', planId(), 'dish', dishId(), 'compare']">
+            <a
+              class="d__chip d__chip--compare"
+              [routerLink]="['/plan', planId(), 'dish', dishId(), 'compare']">
               ⇄ сравнить
             </a>
           }
         </div>
 
-        <!-- Меню перегенерации — попап по центру с оверлеем -->
+        <!-- Меню выбора модели для генерации нового варианта -->
         @if (modelMenuOpen()) {
           <div class="d__modal" (click)="modelMenuOpen.set(false)">
             <div class="d__modal-card" (click)="$event.stopPropagation()">
-              <p class="d__modal-title">Перегенерить другой моделью?</p>
+              <p class="d__modal-title">Сгенерить другой моделью?</p>
               <div class="d__modal-list">
                 @for (m of remainingModels(); track m) {
                   <button type="button" class="d__model-opt" [disabled]="loading()" (click)="chooseModel(m)">

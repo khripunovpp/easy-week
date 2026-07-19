@@ -40,7 +40,7 @@ export class DishPage {
   readonly errorMsg = signal('');
   readonly modelMenuOpen = signal(false);
 
-  // Модели, для которых варианта рецепта ещё нет (для ⟳-выпадашки). Пусто → ⟳ прячем.
+  // Модели, для которых варианта рецепта ещё нет — показываем чипом «+» (клик генерит).
   readonly remainingModels = computed<RecipeModel[]>(() => {
     const have = new Set(this.dish()?.variantModels ?? []);
     return ALL_MODELS.filter((m) => !have.has(m));
