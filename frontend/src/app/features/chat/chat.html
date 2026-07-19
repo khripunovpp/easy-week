@@ -280,12 +280,6 @@
           </svg>
         </button>
       </div>
-    } @else {
-      <div class="chips">
-        @for (s of suggestions; track s) {
-          <button class="chip" type="button" (click)="useSuggestion(s)">{{ s }}</button>
-        }
-      </div>
     }
 
     <div class="composer__row">

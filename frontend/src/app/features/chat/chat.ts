@@ -76,7 +76,6 @@ export class Chat {
     { value: 'anthropic', label: 'Claude' },
     { value: 'cloudflare', label: 'Cloudflare' },
   ];
-  readonly suggestions = ['Без свинины', 'На 2 порции', 'Побыстрее', 'Вегетарианские'];
 
   private readonly streamEl = viewChild<ElementRef<HTMLElement>>('stream');
   private lastBump = 0;
@@ -195,9 +194,5 @@ export class Chat {
   pickModel(m: RecipeModel): void {
     this.store.setModel(m);
     this.modelMenuOpen.set(false);
-  }
-
-  useSuggestion(text: string): void {
-    this.store.draft.set(text);
   }
 }
