@@ -135,20 +135,31 @@
   width: 18px;
   height: 18px;
 }
+.msg-actions {
+  position: relative;
+  flex-shrink: 0;
+}
 .msg-dots--open,
 .msg-dots:active {
   background: var(--surface-sunk);
   color: var(--accent);
 }
-/* Инлайн-оценка рядом с ⋮ */
-.msg-vote {
-  flex-shrink: 0;
-  animation: msg-vote-in 0.14s ease;
+/* Оценка — плавающим тултипом над кнопкой ⋮ */
+.msg-tip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  z-index: 10;
+  padding: 3px 5px;
+  background: var(--surface);
+  border-radius: var(--r-pill);
+  box-shadow: var(--shadow-float);
+  animation: msg-tip-in 0.14s ease;
 }
-@keyframes msg-vote-in {
+@keyframes msg-tip-in {
   from {
     opacity: 0;
-    transform: translateX(6px);
+    transform: translateY(4px);
   }
 }
 
