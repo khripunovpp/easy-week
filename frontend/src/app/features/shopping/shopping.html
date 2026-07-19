@@ -25,7 +25,27 @@
     } @else {
       @for (group of groups(); track group.category) {
         <section class="group">
-          <p class="group__label">{{ group.category }}</p>
+          <button
+            class="group__label"
+            type="button"
+            (click)="toggleGroup(group)"
+            [class.group__label--done]="groupState(group) === 'all'">
+            <span
+              class="check check--sm"
+              [class.check--on]="groupState(group) === 'all'"
+              [class.check--part]="groupState(group) === 'some'">
+              @if (groupState(group) === 'all') {
+                <svg fill="none" stroke="currentColor" stroke-width="2.6" viewBox="0 0 24 24">
+                  <path d="M5 12.5l4 4L19 7" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              } @else if (groupState(group) === 'some') {
+                <svg fill="none" stroke="currentColor" stroke-width="2.6" viewBox="0 0 24 24">
+                  <path d="M6 12h12" stroke-linecap="round" />
+                </svg>
+              }
+            </span>
+            <span class="group__name">{{ group.category }}</span>
+          </button>
           @for (item of group.items; track item.name + item.unit) {
             <button
               (click)="toggle(item)"

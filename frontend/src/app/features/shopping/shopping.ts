@@ -166,6 +166,30 @@ export class Shopping {
     this.saveChecked();
   }
 
+  // Состояние группы: все отмечены / часть / ничего — для чекбокса группы.
+  groupState(group: ShoppingGroup): 'all' | 'some' | 'none' {
+    const items = group.items;
+    if (!items.length) return 'none';
+    let on = 0;
+    for (const it of items) if (this.checked().has(this.key(it))) on++;
+    return on === 0 ? 'none' : on === items.length ? 'all' : 'some';
+  }
+
+  // Клик по группе: если всё отмечено — снять всё, иначе отметить всё.
+  toggleGroup(group: ShoppingGroup): void {
+    const turnOff = this.groupState(group) === 'all';
+    this.checked.update((set) => {
+      const next = new Set(set);
+      for (const it of group.items) {
+        const k = this.key(it);
+        if (turnOff) next.delete(k);
+        else next.add(k);
+      }
+      return next;
+    });
+    this.saveChecked();
+  }
+
   fmtQty(item: { qty: number; unit: string }): string {
     return `${item.qty} ${item.unit}`;
   }
