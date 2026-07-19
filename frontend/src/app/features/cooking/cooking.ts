@@ -91,6 +91,7 @@ export class CookingPlanPage {
     this.failed.set(false);
     this.empty.set(false);
     this.plan.set(null);
+    this.selectedDishIds.set(new Set());
     this.api.listPlans().subscribe({
       next: (list) => {
         this.plans.set(list);
@@ -161,6 +162,30 @@ export class CookingPlanPage {
   }
   dishColorClass(i: number): string {
     return dishColorClass(i);
+  }
+
+  // Фильтр по блюдам: выбранные рецепты подсвечивают свои шаги, остальные гаснут. Мультивыбор.
+  readonly selectedDishIds = signal<ReadonlySet<string>>(new Set());
+  toggleDish(id: string): void {
+    this.selectedDishIds.update((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  isDishSelected(id: string): boolean {
+    return this.selectedDishIds().has(id);
+  }
+  // Шаг активен, если фильтр пуст или в шаге есть хотя бы одно выбранное блюдо.
+  stepActive(s: CookingStep): boolean {
+    const sel = this.selectedDishIds();
+    if (!sel.size) return true;
+    for (const name of s.dishes) {
+      const d = this.dishByName(name);
+      if (d && sel.has(d.id)) return true;
+    }
+    return false;
   }
   // Класс цвета по имени блюда (индекс в плане). Пусто, если блюдо не сопоставилось.
   dishClassByName(name: string): string {

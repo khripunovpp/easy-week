@@ -144,6 +144,8 @@
   color: var(--ink);
   text-decoration: none;
   font-size: 13.5px;
+  cursor: pointer;
+  transition: opacity 0.18s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 .ck-recipe__emoji {
   font-size: 15px;
@@ -157,6 +159,12 @@
 }
 .ck-recipe:active {
   transform: scale(0.97);
+}
+/* Выбран как фильтр — насыщеннее фон + цветное кольцо блюда */
+.ck-recipe--on {
+  background: color-mix(in srgb, var(--dish, var(--accent)) 26%, var(--surface));
+  box-shadow: inset 3px 0 0 var(--dish, transparent), inset 0 0 0 1.5px var(--dish, var(--accent)),
+    var(--shadow-soft);
 }
 
 /* Фазы и шаги */
@@ -180,6 +188,13 @@
 }
 .ck-step:first-of-type {
   border-top: none;
+}
+/* Шаг вне фильтра выбранных блюд — приглушён */
+.ck-step {
+  transition: opacity 0.2s ease;
+}
+.ck-step--dim {
+  opacity: 0.32;
 }
 .ck-step__no {
   flex-shrink: 0;

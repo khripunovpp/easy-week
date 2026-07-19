@@ -79,18 +79,19 @@
         <p class="ck-note muted">{{ cp.note }}</p>
       }
 
-      <!-- Рецепты плана: переход к блюду (в варианте модели плана); в скобках — прочие варианты -->
+      <!-- Рецепты плана: клик — фильтр (подсветить шаги блюда, остальные гаснут). Мультивыбор. -->
       @if (dishes().length) {
         <div class="ck-recipes">
           @for (d of dishes(); track d.id; let i = $index) {
-            <a
+            <button
+              type="button"
               class="ck-recipe"
               [class]="dishColorClass(i)"
-              [routerLink]="['/plan', selectedId(), 'dish', d.id]"
-              [queryParams]="{ model: cp.activeModel }">
+              [class.ck-recipe--on]="isDishSelected(d.id)"
+              (click)="toggleDish(d.id)">
               <span class="ck-recipe__emoji">{{ d.emoji }}</span>
               <span class="ck-recipe__name">{{ d.name }}</span>
-            </a>
+            </button>
           }
         </div>
       }
@@ -100,7 +101,7 @@
         <section class="ck-phase">
           <h2 class="ck-phase__title">{{ ph.phase }}</h2>
           @for (item of ph.steps; track item.s.order) {
-            <div class="ck-step">
+            <div class="ck-step" [class.ck-step--dim]="!stepActive(item.s)">
               <span class="ck-step__no">{{ item.s.order }}</span>
               <div class="ck-step__body">
                 @if (item.html) {
