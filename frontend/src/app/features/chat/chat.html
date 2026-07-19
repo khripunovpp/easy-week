@@ -17,8 +17,13 @@
         </svg>
       </button>
 
-      <!-- Поиск по сообщениям -->
-      <button class="icon-btn" type="button" (click)="openSearch()" aria-label="Поиск по сообщениям">
+      <!-- Поиск по сообщениям (тумблер: активна = режим поиска включён) -->
+      <button
+        class="icon-btn"
+        type="button"
+        [class.icon-btn--active]="searchOpen()"
+        (click)="toggleSearch()"
+        aria-label="Поиск по сообщениям">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
           <circle cx="11" cy="11" r="7" />
           <path d="M21 21l-4-4" stroke-linecap="round" />
@@ -85,11 +90,6 @@
           placeholder="Поиск по сообщениям чатов"
           [value]="searchQuery()"
           (input)="onSearchInput($any($event.target).value)" />
-        <button class="csearch__close" type="button" (click)="closeSearch()" aria-label="Закрыть поиск">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M7 7l10 10M17 7L7 17" stroke-linecap="round" />
-          </svg>
-        </button>
       </div>
 
       @if (searchQuery().trim()) {

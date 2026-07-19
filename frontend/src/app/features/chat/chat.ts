@@ -28,11 +28,8 @@ export class Chat {
   readonly fromSearch = signal(false);
   private searchTimer: ReturnType<typeof setTimeout> | undefined;
 
-  openSearch(): void {
-    this.searchOpen.set(true);
-  }
-  closeSearch(): void {
-    this.searchOpen.set(false);
+  toggleSearch(): void {
+    this.searchOpen.update((v) => !v);
   }
   backToSearch(): void {
     this.searchOpen.set(true);

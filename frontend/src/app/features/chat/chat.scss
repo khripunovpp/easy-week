@@ -578,15 +578,6 @@
 .csearch__bar {
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-.csearch__close {
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  color: var(--ink-3);
 }
 .csearch__close svg {
   width: 16px;

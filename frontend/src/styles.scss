@@ -621,6 +621,11 @@ ul {
 .icon-btn:active {
   transform: scale(0.94);
 }
+/* Активное состояние (тумблер включён) — коралловая заливка */
+.icon-btn--active {
+  background: var(--accent);
+  color: #fff;
+}
 
 .icon-btn svg {
   width: 20px;
