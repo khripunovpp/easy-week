@@ -148,6 +148,10 @@ export class CookingPlanPage {
 
   // Блюда плана — для ссылок в рецепты.
   readonly dishes = computed<Dish[]>(() => this.weekPlan()?.dishes ?? []);
+  // Даты текущего плана — в подзаголовок шапки.
+  readonly currentWeekLabel = computed(
+    () => this.plans().find((p) => p.id === this.selectedId())?.weekLabel ?? '',
+  );
 
   private normName(s: string): string {
     return (s || '').trim().toLowerCase();

@@ -2,18 +2,21 @@
   <header class="page__header page__header--fixed fade-top">
     <div class="page__heading">
       <h1 class="page__title">Покупки</h1>
-      @if (!loading() && !empty()) {
-        <span class="shop__progress">{{ doneCount() }}/{{ total() }}</span>
+      @if (currentWeekLabel()) {
+        <p class="page__subtitle">{{ currentWeekLabel() }}</p>
       }
     </div>
-    @if (plans().length) {
+    @if (!loading() && !empty()) {
       <div class="page__actions">
-        <ew-plan-picker [plans]="plans()" [selectedId]="selectedId()" (pick)="onPickPlan($event)" />
+        <span class="shop__progress">{{ doneCount() }}/{{ total() }}</span>
       </div>
     }
   </header>
 
   <div class="page__inner">
+    @if (plans().length) {
+      <ew-plan-picker [plans]="plans()" [selectedId]="selectedId()" (pick)="onPickPlan($event)" />
+    }
     @if (empty()) {
       <div class="shop__state">
         <span class="shop__emoji">🛒</span>

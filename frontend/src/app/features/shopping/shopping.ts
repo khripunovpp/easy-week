@@ -63,6 +63,10 @@ export class Shopping {
 
   readonly total = computed(() => this.items().length);
   readonly doneCount = computed(() => this.checked().size);
+  // Даты текущего плана — в подзаголовок шапки.
+  readonly currentWeekLabel = computed(
+    () => this.plans().find((p) => p.id === this.selectedId())?.weekLabel ?? '',
+  );
 
   constructor() {
     effect(() => {

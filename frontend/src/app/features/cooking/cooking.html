@@ -2,15 +2,16 @@
   <header class="page__header page__header--fixed fade-top">
     <div class="page__heading">
       <h1 class="page__title">Готовка</h1>
+      @if (currentWeekLabel()) {
+        <p class="page__subtitle">{{ currentWeekLabel() }}</p>
+      }
     </div>
-    @if (plans().length) {
-      <div class="page__actions">
-        <ew-plan-picker [plans]="plans()" [selectedId]="selectedId()" (pick)="onPickPlan($event)" />
-      </div>
-    }
   </header>
 
   <div class="page__inner">
+    @if (plans().length) {
+      <ew-plan-picker [plans]="plans()" [selectedId]="selectedId()" (pick)="onPickPlan($event)" />
+    }
     @if (loading()) {
       <div class="ck-state"><ew-cooking /></div>
     } @else if (empty()) {
