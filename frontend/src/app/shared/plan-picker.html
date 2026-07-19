@@ -1,33 +1,35 @@
 <div class="pp">
-  <button class="pp__head" type="button" [class.pp__head--open]="open()" (click)="toggle()">
+  <button (click)="toggle()" [class.pp__head--open]="open()" class="pp__head" type="button">
     <span class="pp__head-main">
       <span class="pp__plan-title">{{ current()?.title || 'Выбрать план' }}</span>
       @if (current(); as c) {
         <span class="pp__st pp__st--{{ c.status }}">{{ statusLabel(c.status) }}</span>
+      } @else {
+        &nbsp;
       }
     </span>
-    <span class="pp__toggle" aria-hidden="true">
-      <svg class="pp__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+    <span aria-hidden="true" class="pp__toggle">
+      <svg class="pp__chev" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </span>
   </button>
 
   @if (open()) {
-    <div class="pp__backdrop" (click)="close()"></div>
+    <div (click)="close()" class="pp__backdrop"></div>
     <div class="pp__menu">
       <div class="pp__search">
         <input
-          class="search-field"
-          type="search"
-          placeholder="Поиск плана"
+          (input)="onQuery($any($event.target).value)"
           [value]="query()"
-          (input)="onQuery($any($event.target).value)" />
+          class="search-field"
+          placeholder="Поиск плана"
+          type="search"/>
       </div>
 
       @for (p of visible(); track p.id) {
-        <div class="pp__row" [class.pp__row--active]="p.id === selectedId()">
-          <button class="pp__opt" type="button" (click)="choose(p.id)">
+        <div [class.pp__row--active]="p.id === selectedId()" class="pp__row">
+          <button (click)="choose(p.id)" class="pp__opt" type="button">
             <span class="pp__opt-title">{{ p.title }}</span>
             <span class="pp__opt-sub">
               {{ p.weekLabel }} ·
@@ -35,12 +37,12 @@
             </span>
           </button>
           <a
-            class="pp__go"
-            [routerLink]="['/plan', p.id]"
             (click)="close()"
-            aria-label="Открыть план">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round" />
+            [routerLink]="['/plan', p.id]"
+            aria-label="Открыть план"
+            class="pp__go">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path d="M9 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </a>
         </div>
@@ -49,7 +51,7 @@
       }
 
       @if (hasMore()) {
-        <button class="pp__more" type="button" (click)="loadMore()">Загрузить ещё</button>
+        <button (click)="loadMore()" class="pp__more" type="button">Загрузить ещё</button>
       }
     </div>
   }
