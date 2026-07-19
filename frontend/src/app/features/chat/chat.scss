@@ -109,11 +109,14 @@
   box-shadow: var(--shadow-soft);
 }
 
-/* Обёртка реплики бота — якорь для тултипа оценки (long-press) */
+/* Обёртка реплики бота: бабл + кнопка ⋮ (оценка), якорь для тултипа */
 .msg-wrap {
   position: relative;
   align-self: flex-start;
-  max-width: 82%;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 88%;
 }
 .msg-wrap .msg {
   max-width: 100%;
@@ -121,10 +124,22 @@
 .msg-wrap--tip {
   z-index: 50; /* поверх бэкдропа при открытом тултипе */
 }
-.msg--pressable {
-  -webkit-user-select: none;
-  user-select: none;
-  -webkit-touch-callout: none;
+.msg-dots {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: var(--ink-3);
+}
+.msg-dots svg {
+  width: 18px;
+  height: 18px;
+}
+.msg-dots:active {
+  background: var(--surface-sunk);
+  color: var(--accent);
 }
 .msg-tip {
   position: absolute;

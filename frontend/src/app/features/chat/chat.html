@@ -122,15 +122,20 @@
     } @else {
       @if (m.text) {
         <div class="msg-wrap" [class.msg-wrap--tip]="tipId() === m.serverId">
-          <div
-            class="msg msg--bot markdown"
-            [class.msg--pressable]="canVote(m)"
-            [innerHTML]="renderMarkdown(m.text)"
-            (pointerdown)="pressStart(m)"
-            (pointerup)="pressEnd()"
-            (pointercancel)="pressEnd()"
-            (pointerleave)="pressEnd()"
-            (contextmenu)="canVote(m) && $event.preventDefault()"></div>
+          <div class="msg msg--bot markdown" [innerHTML]="renderMarkdown(m.text)"></div>
+          @if (canVote(m)) {
+            <button
+              class="msg-dots"
+              type="button"
+              (click)="toggleTip(m)"
+              aria-label="Оценить ответ">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="12" cy="5" r="1.6" />
+                <circle cx="12" cy="12" r="1.6" />
+                <circle cx="12" cy="19" r="1.6" />
+              </svg>
+            </button>
+          }
           @if (tipId() === m.serverId) {
             <div class="msg-tip">
               <ew-vote
