@@ -76,6 +76,17 @@
         }
       }
 
+      @if (cp.activeModel) {
+        <div class="ck-rate">
+          <span class="ck-rate-label">План готовки от {{ modelLabel(cp.activeModel) }}:</span>
+          <ew-vote
+            targetType="cooking"
+            [targetId]="currentPlanId()"
+            [model]="cp.activeModel"
+            [planId]="currentPlanId()" />
+        </div>
+      }
+
       @if (cp.note) {
         <p class="ck-note muted">{{ cp.note }}</p>
       }

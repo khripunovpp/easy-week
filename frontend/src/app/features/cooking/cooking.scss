@@ -167,6 +167,18 @@
     var(--shadow-soft);
 }
 
+/* Оценка плана готовки активной модели */
+.ck-rate {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+.ck-rate-label {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
 /* Фазы и шаги */
 .ck-phase {
   margin-bottom: 18px;

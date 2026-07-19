@@ -9,10 +9,11 @@ import { dishColorClass } from '../../shared/dish-color';
 import { ingTokens } from '../../shared/ingredient-match';
 import { HlOwner, highlightStepText } from '../../shared/step-highlight';
 import { PlanPicker } from '../../shared/plan-picker';
+import { Vote } from '../../shared/vote';
 
 @Component({
   selector: 'ew-cooking-plan',
-  imports: [RouterLink, CookingLoader, PlanPicker],
+  imports: [RouterLink, CookingLoader, PlanPicker, Vote],
   templateUrl: './cooking.html',
   styleUrl: './cooking.scss',
 })
