@@ -117,10 +117,11 @@
                       <a
                         class="ck-dish"
                         [class]="dishClassByName(d)"
+                        [class.ck-dish--dim]="filterActive() && !isDishSelected(dish.id)"
                         [routerLink]="['/plan', selectedId(), 'dish', dish.id]"
                         [queryParams]="{ model: cp.activeModel }">{{ d }}</a>
                     } @else {
-                      <span class="ck-dish">{{ d }}</span>
+                      <span class="ck-dish" [class.ck-dish--dim]="filterActive()">{{ d }}</span>
                     }
                   }
                 </div>

@@ -177,6 +177,9 @@ export class CookingPlanPage {
   isDishSelected(id: string): boolean {
     return this.selectedDishIds().has(id);
   }
+  filterActive(): boolean {
+    return this.selectedDishIds().size > 0;
+  }
   // Шаг активен, если фильтр пуст или в шаге есть хотя бы одно выбранное блюдо.
   stepActive(s: CookingStep): boolean {
     const sel = this.selectedDishIds();

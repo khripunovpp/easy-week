@@ -247,8 +247,15 @@
   color: var(--dish, var(--accent));
   background: color-mix(in srgb, var(--dish, var(--accent)) 14%, transparent);
 }
+.ck-dish {
+  transition: opacity 0.18s ease;
+}
 .ck-dish:active {
   opacity: 0.75;
+}
+/* Чип блюда, не выбранного в фильтре — приглушён */
+.ck-dish--dim {
+  opacity: 0.32;
 }
 .ck-note {
   font-size: 13.5px;
