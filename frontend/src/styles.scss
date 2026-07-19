@@ -362,6 +362,13 @@ ul {
 .dish-c8 { --dish: var(--dish-8); }
 .dish-c9 { --dish: var(--dish-9); }
 
+/* Подсветка упоминания ингредиента цветом блюда-владельца (парой с .dish-cN).
+   Глобальная — спаны вставляются через [innerHTML] и не получают скоуп компонента. */
+.dish-hl {
+  color: var(--dish, inherit);
+  font-weight: 600;
+}
+
 /* ===== Эмодзи-бейдж блюда ===== */
 .emoji-badge {
   flex-shrink: 0;
