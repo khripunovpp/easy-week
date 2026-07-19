@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { DishVariant, EasyWeekApi } from '../../services/api';
 import { MODEL_LABELS, RecipeModel } from '../../services/preferences';
 import { CookingLoader } from '../../shared/cooking-loader';
+import { ingTokens, levRatio } from '../../shared/ingredient-match';
 
 // Порядок категорий (как в списке покупок) — по нему группируем/сортируем ингредиенты.
 const CATEGORY_ORDER = [
@@ -63,47 +64,17 @@ export class ComparePage {
     return MODEL_LABELS[key as RecipeModel] ?? key;
   }
 
-  // --- Похожесть ингредиентов: взвешенный многослойный скор, порог >50% ---
-  private readonly ingStop = new Set(['и', 'из', 'с', 'со', 'в', 'во', 'на', 'для', 'до', 'по']);
-
-  private ingTokens(name: string): string[] {
-    return (name || '')
-      .toLowerCase()
-      .replace(/\([^)]*\)/g, ' ')
-      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .split(' ')
-      .filter((t) => t.length > 1 && !this.ingStop.has(t));
-  }
-
-  private levRatio(a: string, b: string): number {
-    const m = a.length;
-    const n = b.length;
-    if (!m || !n) return m === n ? 1 : 0;
-    const d = Array.from({ length: n + 1 }, (_, i) => i);
-    for (let i = 1; i <= m; i++) {
-      let prev = d[0];
-      d[0] = i;
-      for (let j = 1; j <= n; j++) {
-        const tmp = d[j];
-        d[j] = Math.min(d[j] + 1, d[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
-        prev = tmp;
-      }
-    }
-    return 1 - d[n] / Math.max(m, n);
-  }
-
+  // --- Похожесть ингредиентов: взвешенный многослойный скор, порог >50% (общий матчер) ---
   private ingSimilarity(a: string, b: string): number {
-    const ta = this.ingTokens(a);
-    const tb = this.ingTokens(b);
+    const ta = ingTokens(a);
+    const tb = ingTokens(b);
     if (ta.length && ta.slice().sort().join(' ') === tb.slice().sort().join(' ')) return 1;
     const sa = [...new Set(ta)];
     const sb = [...new Set(tb)];
     let inter = 0;
-    for (const t of sa) if (sb.some((u) => u === t || this.levRatio(t, u) >= 0.8)) inter++;
+    for (const t of sa) if (sb.some((u) => u === t || levRatio(t, u) >= 0.8)) inter++;
     const dice = sa.length + sb.length ? (2 * inter) / (sa.length + sb.length) : 0;
-    const lev = this.levRatio(ta.join(' '), tb.join(' '));
+    const lev = levRatio(ta.join(' '), tb.join(' '));
     return 0.7 * dice + 0.3 * lev;
   }
 

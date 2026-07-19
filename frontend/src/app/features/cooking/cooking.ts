@@ -6,6 +6,8 @@ import { ChatStore } from '../../services/chat-store';
 import { ALL_MODELS, MODEL_LABELS, RecipeModel } from '../../services/preferences';
 import { CookingLoader } from '../../shared/cooking-loader';
 import { dishColorClass } from '../../shared/dish-color';
+import { ingTokens } from '../../shared/ingredient-match';
+import { HlOwner, highlightStepText } from '../../shared/step-highlight';
 import { PlanPicker } from '../../shared/plan-picker';
 
 @Component({
@@ -39,21 +41,43 @@ export class CookingPlanPage {
     return ALL_MODELS.filter((m) => !have.has(m));
   });
 
-  // Шаги, сгруппированные по фазам (в порядке order).
-  readonly phases = computed<{ phase: string; steps: CookingStep[] }[]>(() => {
-    const steps = [...(this.plan()?.steps ?? [])].sort((a, b) => a.order - b.order);
-    const out: { phase: string; steps: CookingStep[] }[] = [];
-    for (const s of steps) {
-      const ph = s.phase || 'Готовка';
-      let g = out[out.length - 1];
-      if (!g || g.phase !== ph) {
-        g = { phase: ph, steps: [] };
-        out.push(g);
+  // Шаги, сгруппированные по фазам (в порядке order); html — подсветка ингредиентов
+  // (только для мульти-блюдных шагов; иначе null → рендерим чистый текст).
+  readonly phases = computed<{ phase: string; steps: { s: CookingStep; html: string | null }[] }[]>(
+    () => {
+      const steps = [...(this.plan()?.steps ?? [])].sort((a, b) => a.order - b.order);
+      const out: { phase: string; steps: { s: CookingStep; html: string | null }[] }[] = [];
+      for (const s of steps) {
+        const ph = s.phase || 'Готовка';
+        let g = out[out.length - 1];
+        if (!g || g.phase !== ph) {
+          g = { phase: ph, steps: [] };
+          out.push(g);
+        }
+        g.steps.push({ s, html: this.stepHtml(s) });
       }
-      g.steps.push(s);
+      return out;
+    },
+  );
+
+  // Подсветка ингредиентов в тексте шага цветом блюда-владельца.
+  // Гейт: только шаги с >1 блюдом (у одношаговых владелец один — не парсим).
+  private stepHtml(s: CookingStep): string | null {
+    if ((s.dishes?.length ?? 0) <= 1) return null;
+    const owners: HlOwner[] = [];
+    for (const name of s.dishes) {
+      const cls = this.dishClassByName(name);
+      const dish = this.dishByName(name);
+      if (!cls || !dish) continue;
+      for (const ing of dish.ingredients) {
+        const toks = ingTokens(ing.name);
+        if (!toks.length) continue;
+        owners.push({ tokens: toks, colorClass: cls }); // фраза целиком (длинные — вперёд)
+        for (const t of toks) if (t.length > 2) owners.push({ tokens: [t], colorClass: cls }); // головное слово в тексте
+      }
     }
-    return out;
-  });
+    return owners.length ? highlightStepText(s.text, owners) : null;
+  }
 
   constructor() {
     effect(() => {

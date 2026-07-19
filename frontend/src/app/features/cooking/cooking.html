@@ -99,15 +99,19 @@
       @for (ph of phases(); track $index) {
         <section class="ck-phase">
           <h2 class="ck-phase__title">{{ ph.phase }}</h2>
-          @for (s of ph.steps; track s.order) {
+          @for (item of ph.steps; track item.s.order) {
             <div class="ck-step">
-              <span class="ck-step__no">{{ s.order }}</span>
+              <span class="ck-step__no">{{ item.s.order }}</span>
               <div class="ck-step__body">
-                <p class="ck-step__text">{{ s.text }}</p>
+                @if (item.html) {
+                  <p class="ck-step__text" [innerHTML]="item.html"></p>
+                } @else {
+                  <p class="ck-step__text">{{ item.s.text }}</p>
+                }
                 <div class="ck-step__meta">
-                  @if (s.activeMin) { <span class="ck-chip ck-chip--active">🔥 {{ s.activeMin }} мин</span> }
-                  @if (s.passiveMin) { <span class="ck-chip ck-chip--passive">⏳ {{ s.passiveMin }} мин</span> }
-                  @for (d of s.dishes; track d) {
+                  @if (item.s.activeMin) { <span class="ck-chip ck-chip--active">🔥 {{ item.s.activeMin }} мин</span> }
+                  @if (item.s.passiveMin) { <span class="ck-chip ck-chip--passive">⏳ {{ item.s.passiveMin }} мин</span> }
+                  @for (d of item.s.dishes; track d) {
                     @if (dishByName(d); as dish) {
                       <a
                         class="ck-dish"
