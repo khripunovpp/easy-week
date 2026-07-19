@@ -368,6 +368,11 @@ ul {
   color: var(--dish, inherit);
   font-weight: 600;
 }
+/* Ингредиент общий для нескольких блюд шага — нейтральная подсветка (без цвета блюда). */
+.dish-hl--shared {
+  color: var(--ink);
+  border-bottom: 1px dotted var(--ink-3);
+}
 
 /* ===== Эмодзи-бейдж блюда ===== */
 .emoji-badge {

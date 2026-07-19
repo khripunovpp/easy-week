@@ -31,12 +31,16 @@ function split(text: string): Part[] {
   return parts;
 }
 
-// Матч фразы (owner.tokens) начиная со слова parts[pi]; возвращает индекс последнего слова + цвет.
+// Матч ингредиента начиная со слова parts[pi]. Берём самое длинное совпадение (фраза важнее
+// одиночного токена). Класс: цвет блюда, если владелец один; 'dish-hl--shared', если ингредиент
+// принадлежит нескольким блюдам шага (общий — не привязываем к одному цвету).
 function matchAt(
   parts: Part[],
   pi: number,
   phrases: HlOwner[],
 ): { end: number; colorClass: string } | null {
+  const colorsByEnd = new Map<number, Set<string>>();
+  let best = -1;
   for (const ph of phrases) {
     let k = 0;
     let j = pi;
@@ -52,9 +56,15 @@ function matchAt(
       j++;
       k++;
     }
-    if (ok) return { end: lastWord, colorClass: ph.colorClass };
+    if (!ok) continue;
+    if (lastWord > best) best = lastWord;
+    let set = colorsByEnd.get(lastWord);
+    if (!set) colorsByEnd.set(lastWord, (set = new Set()));
+    set.add(ph.colorClass);
   }
-  return null;
+  if (best < 0) return null;
+  const colors = colorsByEnd.get(best)!;
+  return { end: best, colorClass: colors.size === 1 ? [...colors][0] : 'dish-hl--shared' };
 }
 
 // Подсветить в тексте шага упоминания ингредиентов цветом блюда-владельца.
