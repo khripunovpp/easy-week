@@ -4,6 +4,7 @@ import { Router, RouterLink } from '@angular/router';
 import { ChatStore } from '../../services/chat-store';
 import { RecipeModel } from '../../services/preferences';
 import { CookingLoader } from '../../shared/cooking-loader';
+import { dishColorClass } from '../../shared/dish-color';
 import { renderMarkdown } from '../../shared/markdown';
 
 @Component({
@@ -100,7 +101,7 @@ export class Chat {
   }
 
   pastel(i: number): string {
-    return `pastel-${i % 5}`;
+    return dishColorClass(i); // цвет блюда по индексу (единая палитра)
   }
 
   totalTime(prep: number, cook: number): number {

@@ -41,6 +41,19 @@
   --pastel-yellow: #fbf1d8;
   --pastel-blue: #deebf5;
 
+  /* Идентичность блюда: 10 цветов по индексу (макс блюд в плане). Читаются как текст
+     и как мягкий фон (через color-mix). Тёмная тема — см. ew-dark. */
+  --dish-0: #d9534f;
+  --dish-1: #e0862e;
+  --dish-2: #b58900;
+  --dish-3: #4f9d3a;
+  --dish-4: #1f9e9e;
+  --dish-5: #3d8bd4;
+  --dish-6: #6b5bd6;
+  --dish-7: #b45cc4;
+  --dish-8: #d9548a;
+  --dish-9: #8a6d54;
+
   /* Радиусы, тени, ритм */
   --r-card: 28px;
   --r-md: 18px;
@@ -114,6 +127,18 @@
   --pastel-lilac: #2c2740;
   --pastel-yellow: #38311d;
   --pastel-blue: #223140;
+
+  /* Цвета блюд для тёмной темы — светлее/приглушённее, читаются на тёмном фоне */
+  --dish-0: #f08a80;
+  --dish-1: #f0a95a;
+  --dish-2: #d9bd52;
+  --dish-3: #7cc26a;
+  --dish-4: #57c7c7;
+  --dish-5: #6fb3e8;
+  --dish-6: #9c8ff0;
+  --dish-7: #cf8ad9;
+  --dish-8: #ec89b3;
+  --dish-9: #bda58c;
 
   --shadow-card: 0 14px 34px -18px rgba(0, 0, 0, 0.6);
   --shadow-soft: 0 6px 18px -10px rgba(0, 0, 0, 0.5);
@@ -324,6 +349,19 @@ ul {
   background: var(--pastel-blue);
 }
 
+/* ===== Цвет блюда по индексу: класс-носитель задаёт переменную --dish ===== */
+/* Потребители (бейдж, чип, подсветка) используют var(--dish); один цвет на блюдо везде. */
+.dish-c0 { --dish: var(--dish-0); }
+.dish-c1 { --dish: var(--dish-1); }
+.dish-c2 { --dish: var(--dish-2); }
+.dish-c3 { --dish: var(--dish-3); }
+.dish-c4 { --dish: var(--dish-4); }
+.dish-c5 { --dish: var(--dish-5); }
+.dish-c6 { --dish: var(--dish-6); }
+.dish-c7 { --dish: var(--dish-7); }
+.dish-c8 { --dish: var(--dish-8); }
+.dish-c9 { --dish: var(--dish-9); }
+
 /* ===== Эмодзи-бейдж блюда ===== */
 .emoji-badge {
   flex-shrink: 0;
@@ -333,6 +371,8 @@ ul {
   height: 50px;
   font-size: 24px;
   border-radius: var(--r-badge);
+  /* мягкий фон из цвета блюда (--dish задаёт класс .dish-cN); fallback — нейтральный */
+  background: color-mix(in srgb, var(--dish, var(--ink-3)) 16%, var(--surface));
 }
 
 /* ===== Мета-чип блюда (время / порции) ===== */

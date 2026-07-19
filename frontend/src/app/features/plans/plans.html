@@ -20,7 +20,7 @@
         @for (plan of acceptedList(); track plan.id; let i = $index) {
           <div class="prow">
             <a class="prow__link" [routerLink]="['/plan', plan.id]">
-              <span class="emoji-badge" [class]="'pastel-' + (i % 5)">{{ plan.emoji }}</span>
+              <span class="emoji-badge" [class]="pastel(i)">{{ plan.emoji }}</span>
               <span class="prow__body">
                 <span class="prow__title">{{ plan.title }}</span>
                 <span class="prow__sub muted">{{ plan.weekLabel }} · {{ plan.dishesCount }} блюд@if (plan.totalCookMin) { · ~{{ cookTime(plan.totalCookMin) }}}</span>
@@ -46,7 +46,7 @@
         @for (plan of historyList(); track plan.id; let i = $index) {
           <div class="prow">
             <a class="prow__link" [routerLink]="['/plan', plan.id]">
-              <span class="emoji-badge" [class]="'pastel-' + (i % 5)">{{ plan.emoji }}</span>
+              <span class="emoji-badge" [class]="pastel(i)">{{ plan.emoji }}</span>
               <span class="prow__body">
                 <span
                   class="prow__title"

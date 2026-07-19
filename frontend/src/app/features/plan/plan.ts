@@ -4,6 +4,7 @@ import { PlanStatus, WeekPlan } from '../../models/plan.model';
 import { EasyWeekApi } from '../../services/api';
 import { ChatStore } from '../../services/chat-store';
 import { CookingLoader } from '../../shared/cooking-loader';
+import { dishColorClass } from '../../shared/dish-color';
 import { formatDuration } from '../../shared/format';
 
 @Component({
@@ -54,7 +55,7 @@ export class PlanPage {
   }
 
   pastel(i: number): string {
-    return `pastel-${i % 5}`;
+    return dishColorClass(i); // цвет блюда по индексу (единая палитра)
   }
 
   dishWord(n: number): string {

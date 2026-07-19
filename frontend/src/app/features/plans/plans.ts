@@ -3,6 +3,7 @@ import { RouterLink } from '@angular/router';
 import { PlanStatus } from '../../models/plan.model';
 import { EasyWeekApi, PlanSummary } from '../../services/api';
 import { CookingLoader } from '../../shared/cooking-loader';
+import { dishColorClass } from '../../shared/dish-color';
 import { formatDuration } from '../../shared/format';
 
 @Component({
@@ -77,5 +78,9 @@ export class Plans {
 
   cookTime(mins: number): string {
     return formatDuration(mins);
+  }
+
+  pastel(i: number): string {
+    return dishColorClass(i); // цвет по индексу (единая палитра)
   }
 }
