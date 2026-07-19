@@ -35,6 +35,7 @@ export class CookingPlanPage {
   readonly title = signal('');
   readonly currentPlanId = signal('');
   readonly modelMenuOpen = signal(false);
+  readonly generatingModel = signal<string | null>(null); // модель, чей вариант сейчас собирается
 
   // Модели, для которых варианта плана готовки ещё нет (для ⟳). Пусто → ⟳ прячем.
   readonly remainingModels = computed<RecipeModel[]>(() => {
@@ -211,11 +212,15 @@ export class CookingPlanPage {
       next: (cp) => {
         this.plan.set(cp);
         this.loading.set(false);
+        this.generatingModel.set(null);
+        this.modelMenuOpen.set(false);
       },
       error: (err) => {
         this.errorMsg.set(err?.error?.detail ?? '');
         this.failed.set(true);
         this.loading.set(false);
+        this.generatingModel.set(null);
+        this.modelMenuOpen.set(false);
       },
     });
   }
@@ -228,10 +233,17 @@ export class CookingPlanPage {
     this.modelMenuOpen.update((v) => !v);
   }
 
+  // Выбор модели в выпадашке: активная — закрыть; несгенерённую держим открытой со спиннером.
   chooseModel(model: string): void {
-    this.modelMenuOpen.set(false);
     const p = this.plan();
-    if (this.loading() || (p && model === p.activeModel)) return;
+    if (!p || model === p.activeModel) {
+      this.modelMenuOpen.set(false);
+      return;
+    }
+    if (this.loading()) return;
+    const isNew = !(p.variantModels ?? []).includes(model);
+    if (isNew) this.generatingModel.set(model);
+    else this.modelMenuOpen.set(false);
     this.fetch(this.currentPlanId(), model, 'select');
   }
 

@@ -326,4 +326,8 @@
     </div>
   </div>
   }
+
+  @if (tipId()) {
+    <div class="msg-tip-backdrop" (click)="closeTip()"></div>
+  }
 </div>

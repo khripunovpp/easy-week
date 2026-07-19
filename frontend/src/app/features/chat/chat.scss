@@ -162,6 +162,15 @@
     transform: translateY(4px);
   }
 }
+/* Открытый тултип — поверх бэкдропа (клик мимо закрывает) */
+.msg-wrap--tip {
+  z-index: 50;
+}
+.msg-tip-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+}
 
 .msg--user {
   align-self: flex-end;
