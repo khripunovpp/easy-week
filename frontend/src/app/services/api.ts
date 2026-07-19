@@ -91,6 +91,7 @@ export interface PlanSummary {
   dishesCount: number;
   totalCookMin: number;
   emoji: string;
+  dishNames: string[];
 }
 
 export interface ShoppingGroup {

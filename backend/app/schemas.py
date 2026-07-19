@@ -105,6 +105,7 @@ class PlanSummary(CamelModel):
     dishes_count: int
     total_cook_min: int
     emoji: str
+    dish_names: list[str] = []
 
 
 class ShoppingItem(CamelModel):

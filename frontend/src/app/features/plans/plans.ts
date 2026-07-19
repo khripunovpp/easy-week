@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { PlanStatus } from '../../models/plan.model';
@@ -8,7 +9,7 @@ import { formatDuration } from '../../shared/format';
 
 @Component({
   selector: 'ew-plans',
-  imports: [RouterLink, CookingLoader],
+  imports: [RouterLink, CookingLoader, NgTemplateOutlet],
   templateUrl: './plans.html',
   styleUrl: './plans.scss',
 })
@@ -17,6 +18,23 @@ export class Plans {
 
   readonly plans = signal<PlanSummary[]>([]);
   readonly loading = signal(true);
+
+  // Глобальный поиск: по названию плана и по названиям блюд внутри. Активен, если в поле
+  // есть хоть один непробельный символ → показываем плоский список результатов (без групп).
+  readonly query = signal('');
+  readonly searchActive = computed(() => this.query().trim().length > 0);
+  readonly results = computed(() => {
+    const q = this.query().trim().toLowerCase();
+    if (!q) return [];
+    return this.plans().filter(
+      (p) =>
+        p.title.toLowerCase().includes(q) ||
+        (p.dishNames ?? []).some((n) => n.toLowerCase().includes(q)),
+    );
+  });
+  onSearch(v: string): void {
+    this.query.set(v);
+  }
 
   // Сверху — принятые; ниже — История (отклонённые + черновики).
   // Список с бэка отсортирован по дате (свежие первыми), поэтому slice(0, N) = последние.

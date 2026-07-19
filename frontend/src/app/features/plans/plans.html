@@ -15,68 +15,80 @@
         <p class="muted">Планов пока нет.</p>
       </div>
     } @else {
-      @if (acceptedList().length) {
-        <p class="pl__label">Принятые</p>
-        @for (plan of acceptedList(); track plan.id; let i = $index) {
-          <div class="prow">
-            <a class="prow__link" [routerLink]="['/plan', plan.id]">
-              <span class="emoji-badge" [class]="pastel(i)">{{ plan.emoji }}</span>
-              <span class="prow__body">
-                <span class="prow__title">{{ plan.title }}</span>
-                <span class="prow__sub muted">{{ plan.weekLabel }} · {{ plan.dishesCount }} блюд@if (plan.totalCookMin) { · ~{{ cookTime(plan.totalCookMin) }}}</span>
-              </span>
-              <span class="tag tag--ok">{{ statusLabel(plan.status) }}</span>
-            </a>
-            <button class="prow__del" type="button" (click)="askDelete(plan)" aria-label="Удалить план">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                <path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </button>
-          </div>
-        }
-        @if (moreAccepted() > 0) {
-          <button class="pl__more" type="button" (click)="showMoreAccepted()">
-            Загрузить ещё
-          </button>
-        }
-      }
+      <div class="pl__search">
+        <input
+          class="pl__search-input"
+          type="search"
+          placeholder="Поиск по названию и блюдам"
+          [value]="query()"
+          (input)="onSearch($any($event.target).value)" />
+      </div>
 
-      @if (historyList().length) {
-        <p class="pl__label">История</p>
-        @for (plan of historyList(); track plan.id; let i = $index) {
-          <div class="prow">
-            <a class="prow__link" [routerLink]="['/plan', plan.id]">
-              <span class="emoji-badge" [class]="pastel(i)">{{ plan.emoji }}</span>
-              <span class="prow__body">
-                <span
-                  class="prow__title"
-                  [class.prow__title--rejected]="plan.status === 'rejected'">{{ plan.title }}</span>
-                @if (plan.status !== 'rejected') {
-                  <span class="prow__sub muted">{{ plan.weekLabel }} · {{ plan.dishesCount }} блюд@if (plan.totalCookMin) { · ~{{ cookTime(plan.totalCookMin) }}}</span>
-                }
-              </span>
-              <span
-                class="tag"
-                [class.tag--no]="plan.status === 'rejected'"
-                [class.tag--draft]="plan.status === 'draft'">
-                {{ statusLabel(plan.status) }}
-              </span>
-            </a>
-            <button class="prow__del" type="button" (click)="askDelete(plan)" aria-label="Удалить план">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                <path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </button>
+      @if (searchActive()) {
+        @for (plan of results(); track plan.id; let i = $index) {
+          <ng-container *ngTemplateOutlet="prow; context: { $implicit: plan, i: i }" />
+        } @empty {
+          <div class="pl__state pl__state--sm">
+            <span class="pl__emoji">🔍</span>
+            <p class="muted">Ничего не найдено.</p>
           </div>
         }
-        @if (moreHistory() > 0) {
-          <button class="pl__more" type="button" (click)="showMoreHistory()">
-            Загрузить ещё
-          </button>
+      } @else {
+        @if (acceptedList().length) {
+          <p class="pl__label">Принятые</p>
+          @for (plan of acceptedList(); track plan.id; let i = $index) {
+            <ng-container *ngTemplateOutlet="prow; context: { $implicit: plan, i: i }" />
+          }
+          @if (moreAccepted() > 0) {
+            <button class="pl__more" type="button" (click)="showMoreAccepted()">
+              Загрузить ещё
+            </button>
+          }
+        }
+
+        @if (historyList().length) {
+          <p class="pl__label">История</p>
+          @for (plan of historyList(); track plan.id; let i = $index) {
+            <ng-container *ngTemplateOutlet="prow; context: { $implicit: plan, i: i }" />
+          }
+          @if (moreHistory() > 0) {
+            <button class="pl__more" type="button" (click)="showMoreHistory()">
+              Загрузить ещё
+            </button>
+          }
         }
       }
     }
   </div>
+
+  <!-- Строка плана (общая для групп и результатов поиска) -->
+  <ng-template #prow let-plan let-i="i">
+    <div class="prow">
+      <a class="prow__link" [routerLink]="['/plan', plan.id]">
+        <span class="emoji-badge" [class]="pastel(i)">{{ plan.emoji }}</span>
+        <span class="prow__body">
+          <span
+            class="prow__title"
+            [class.prow__title--rejected]="plan.status === 'rejected'">{{ plan.title }}</span>
+          @if (plan.status !== 'rejected') {
+            <span class="prow__sub muted">{{ plan.weekLabel }} · {{ plan.dishesCount }} блюд@if (plan.totalCookMin) { · ~{{ cookTime(plan.totalCookMin) }}}</span>
+          }
+        </span>
+        <span
+          class="tag"
+          [class.tag--ok]="plan.status === 'accepted'"
+          [class.tag--no]="plan.status === 'rejected'"
+          [class.tag--draft]="plan.status === 'draft'">
+          {{ statusLabel(plan.status) }}
+        </span>
+      </a>
+      <button class="prow__del" type="button" (click)="askDelete(plan)" aria-label="Удалить план">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </div>
+  </ng-template>
 
   <footer class="page__footer page__footer--fixed fade-bottom">
     <a class="btn-primary" routerLink="/chat">

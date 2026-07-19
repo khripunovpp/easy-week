@@ -54,4 +54,5 @@ def to_summary(row: PlanRow) -> PlanSummary:
         dishes_count=len(dishes),
         total_cook_min=total_cook,
         emoji=emoji,
+        dish_names=[str(d.get("name", "")) for d in dishes if d.get("name")],
     )

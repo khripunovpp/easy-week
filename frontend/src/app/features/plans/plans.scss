@@ -17,6 +17,30 @@
 .pl__emoji {
   font-size: 44px;
 }
+.pl__state--sm {
+  min-height: 0;
+  padding: 32px 40px;
+}
+.pl__state--sm .pl__emoji {
+  font-size: 34px;
+}
+
+/* Поиск по планам */
+.pl__search {
+  margin-bottom: 14px;
+}
+.pl__search-input {
+  width: 100%;
+  padding: 11px 16px;
+  border: none;
+  border-radius: var(--r-pill);
+  background: var(--surface-sunk);
+  color: var(--ink);
+  font-size: 15px;
+}
+.pl__search-input::placeholder {
+  color: var(--ink-3);
+}
 
 /* Подзаголовки групп */
 .pl__label {
