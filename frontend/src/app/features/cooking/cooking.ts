@@ -72,11 +72,12 @@ export class CookingPlanPage {
       for (const ing of dish.ingredients) {
         const toks = ingTokens(ing.name);
         if (!toks.length) continue;
-        owners.push({ tokens: toks, colorClass: cls }); // фраза целиком (длинные — вперёд)
-        for (const t of toks) if (t.length > 2) owners.push({ tokens: [t], colorClass: cls }); // головное слово в тексте
+        owners.push({ tokens: toks, dishId: dish.id, colorClass: cls }); // фраза целиком (длинные — вперёд)
+        for (const t of toks)
+          if (t.length > 2) owners.push({ tokens: [t], dishId: dish.id, colorClass: cls }); // головное слово в тексте
       }
     }
-    return owners.length ? highlightStepText(s.text, owners) : null;
+    return owners.length ? highlightStepText(s.text, owners, this.selectedDishIds()) : null;
   }
 
   constructor() {

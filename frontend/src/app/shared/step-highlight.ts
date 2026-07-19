@@ -1,8 +1,9 @@
 import { tokenMatch } from './ingredient-match';
 
-// Один «владелец» ингредиента: его токены (ingTokens) + класс цвета блюда (.dish-cN).
+// Один «владелец» ингредиента: токены (ingTokens), id блюда и класс его цвета (.dish-cN).
 export interface HlOwner {
   tokens: string[];
+  dishId: string;
   colorClass: string;
 }
 
@@ -31,15 +32,28 @@ function split(text: string): Part[] {
   return parts;
 }
 
+// Класс подсветки по владельцам ингредиента и активному фильтру блюд:
+// — фильтр пуст: один владелец → цвет блюда, несколько → нейтральный «общий»;
+// — фильтр активен: среди выбранных владельцев один → его цвет; несколько → «общий»;
+//   ни одного выбранного → ингредиент чужой в этом шаге → затухание (--dim, цвет сохраняем).
+function classFor(owners: Map<string, string>, selected: ReadonlySet<string>): string {
+  const ids = [...owners.keys()];
+  const base = (list: string[]) => (list.length === 1 ? owners.get(list[0])! : 'dish-hl--shared');
+  if (!selected.size) return base(ids);
+  const sel = ids.filter((id) => selected.has(id));
+  if (sel.length) return base(sel);
+  return base(ids) + ' dish-hl--dim';
+}
+
 // Матч ингредиента начиная со слова parts[pi]. Берём самое длинное совпадение (фраза важнее
-// одиночного токена). Класс: цвет блюда, если владелец один; 'dish-hl--shared', если ингредиент
-// принадлежит нескольким блюдам шага (общий — не привязываем к одному цвету).
+// одиночного токена) и собираем всех блюд-владельцев на этой позиции.
 function matchAt(
   parts: Part[],
   pi: number,
   phrases: HlOwner[],
-): { end: number; colorClass: string } | null {
-  const colorsByEnd = new Map<number, Set<string>>();
+  selected: ReadonlySet<string>,
+): { end: number; cls: string } | null {
+  const ownersByEnd = new Map<number, Map<string, string>>();
   let best = -1;
   for (const ph of phrases) {
     let k = 0;
@@ -58,18 +72,21 @@ function matchAt(
     }
     if (!ok) continue;
     if (lastWord > best) best = lastWord;
-    let set = colorsByEnd.get(lastWord);
-    if (!set) colorsByEnd.set(lastWord, (set = new Set()));
-    set.add(ph.colorClass);
+    let owners = ownersByEnd.get(lastWord);
+    if (!owners) ownersByEnd.set(lastWord, (owners = new Map()));
+    owners.set(ph.dishId, ph.colorClass);
   }
   if (best < 0) return null;
-  const colors = colorsByEnd.get(best)!;
-  return { end: best, colorClass: colors.size === 1 ? [...colors][0] : 'dish-hl--shared' };
+  return { end: best, cls: classFor(ownersByEnd.get(best)!, selected) };
 }
 
-// Подсветить в тексте шага упоминания ингредиентов цветом блюда-владельца.
+// Подсветить в тексте шага упоминания ингредиентов цветом блюда-владельца (с учётом фильтра).
 // Возвращает безопасный HTML (текст экранирован, вставляются только наши <span>).
-export function highlightStepText(text: string, owners: HlOwner[]): string {
+export function highlightStepText(
+  text: string,
+  owners: HlOwner[],
+  selected: ReadonlySet<string> = new Set(),
+): string {
   const t = text || '';
   const phrases = owners.filter((o) => o.tokens.length).sort((a, b) => b.tokens.length - a.tokens.length);
   if (!phrases.length) return esc(t);
@@ -83,10 +100,10 @@ export function highlightStepText(text: string, owners: HlOwner[]): string {
       pi++;
       continue;
     }
-    const hit = matchAt(parts, pi, phrases);
+    const hit = matchAt(parts, pi, phrases, selected);
     if (hit) {
       const raw = parts.slice(pi, hit.end + 1).map((p) => p.text).join('');
-      out += `<span class="dish-hl ${hit.colorClass}">${esc(raw)}</span>`;
+      out += `<span class="dish-hl ${hit.cls}">${esc(raw)}</span>`;
       pi = hit.end + 1;
     } else {
       out += esc(parts[pi].text);

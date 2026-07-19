@@ -373,6 +373,10 @@ ul {
   color: var(--ink);
   border-bottom: 1px dotted var(--ink-3);
 }
+/* Ингредиент чужого (не выбранного в фильтре) блюда — приглушён. */
+.dish-hl--dim {
+  opacity: 0.32;
+}
 
 /* ===== Эмодзи-бейдж блюда ===== */
 .emoji-badge {
