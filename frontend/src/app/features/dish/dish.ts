@@ -39,8 +39,9 @@ export class DishPage {
   readonly failed = signal(false);
   readonly errorMsg = signal('');
   readonly modelMenuOpen = signal(false);
+  readonly generatingModel = signal<string | null>(null); // модель, чей вариант сейчас генерится
 
-  // Модели, для которых варианта рецепта ещё нет — показываем чипом «+» (клик генерит).
+  // Модели, для которых варианта рецепта ещё нет — в выпадашке показываем со стрелкой ↓.
   readonly remainingModels = computed<RecipeModel[]>(() => {
     const have = new Set(this.dish()?.variantModels ?? []);
     return ALL_MODELS.filter((m) => !have.has(m));
@@ -67,12 +68,16 @@ export class DishPage {
       next: (d) => {
         this.dish.set(d);
         this.loading.set(false);
+        this.generatingModel.set(null);
+        this.modelMenuOpen.set(false);
       },
       error: (err) => {
         // 429 (дневной лимит) и прочие ошибки — показываем текст с бэка, если есть
         this.errorMsg.set(err?.error?.detail ?? '');
         this.failed.set(true);
         this.loading.set(false);
+        this.generatingModel.set(null);
+        this.modelMenuOpen.set(false);
       },
     });
   }
@@ -85,12 +90,18 @@ export class DishPage {
     this.modelMenuOpen.update((v) => !v);
   }
 
-  // Клик по вкладке модели или выбор в ⟳-выпадашке: делаем вариант активным
-  // (генерим на бэке, если его ещё нет). Активная модель — no-op.
+  // Выбор модели в выпадашке: делаем вариант активным (генерим на бэке, если его ещё нет).
+  // Уже активная — просто закрыть. Для несгенерённой держим меню открытым со спиннером в строке.
   chooseModel(model: string): void {
-    this.modelMenuOpen.set(false);
     const d = this.dish();
-    if (!d || this.loading() || model === d.activeModel) return;
+    if (!d || model === d.activeModel) {
+      this.modelMenuOpen.set(false);
+      return;
+    }
+    if (this.loading()) return;
+    const isNew = !(d.variantModels ?? []).includes(model);
+    if (isNew) this.generatingModel.set(model);
+    else this.modelMenuOpen.set(false);
     this.load(this.planId(), this.dishId(), model, 'select');
   }
 

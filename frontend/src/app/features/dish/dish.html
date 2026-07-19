@@ -5,6 +5,68 @@
         <path d="M15 6l-6 6 6 6" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
     </button>
+
+    <!-- Выбор модели рецепта: выпадашка. ✓ — вариант готов, ↓ — сгенерится по тапу. -->
+    @if (dish(); as d) {
+      @if (d.activeModel) {
+        <div class="page__actions">
+          <div class="msel">
+            <button
+              type="button"
+              class="msel__btn"
+              [class.msel__btn--open]="modelMenuOpen()"
+              (click)="toggleModelMenu()">
+              <span class="msel__ic">🤖</span>
+              <span class="msel__name">{{ modelLabel(d.activeModel) }}</span>
+              <svg class="msel__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+
+            @if (modelMenuOpen()) {
+              <div class="msel__backdrop" (click)="modelMenuOpen.set(false)"></div>
+              <div class="msel__menu">
+                @for (m of d.variantModels; track m) {
+                  <button
+                    type="button"
+                    class="msel__opt"
+                    [class.msel__opt--active]="m === d.activeModel"
+                    [disabled]="loading()"
+                    (click)="chooseModel(m)">
+                    <span class="msel__mark msel__mark--ok">✓</span>
+                    <span class="msel__opt-name">{{ modelLabel(m) }}</span>
+                    @if (m === d.activeModel) { <span class="msel__tag">активна</span> }
+                  </button>
+                }
+                @for (m of remainingModels(); track m) {
+                  <button
+                    type="button"
+                    class="msel__opt msel__opt--new"
+                    [disabled]="loading()"
+                    (click)="chooseModel(m)">
+                    @if (generatingModel() === m) {
+                      <span class="msel__spin"></span>
+                    } @else {
+                      <span class="msel__mark msel__mark--dl">↓</span>
+                    }
+                    <span class="msel__opt-name">{{ modelLabel(m) }}</span>
+                    <span class="msel__tag">{{ generatingModel() === m ? 'генерирую…' : 'сгенерировать' }}</span>
+                  </button>
+                }
+                @if (d.variantModels && d.variantModels.length >= 2) {
+                  <a
+                    class="msel__opt msel__compare"
+                    [routerLink]="['/plan', planId(), 'dish', dishId(), 'compare']"
+                    (click)="modelMenuOpen.set(false)">
+                    ⇄ сравнить варианты
+                  </a>
+                }
+              </div>
+            }
+          </div>
+        </div>
+      }
+    }
   </header>
 
   <div class="page__inner">
@@ -17,58 +79,6 @@
     <div class="d__hero">
       <span class="d__emoji">{{ d.emoji }}</span>
       <h1>{{ d.name }}</h1>
-      @if (d.variantModels?.length) {
-        <!-- Модели рецепта: чипы сгенерённых вариантов (активная — заливка), ⟳ добавить другую -->
-        <div class="d__models">
-          @for (m of d.variantModels; track m) {
-            <button
-              type="button"
-              class="d__chip"
-              [class.d__chip--active]="m === d.activeModel"
-              [disabled]="loading()"
-              (click)="chooseModel(m)">
-              {{ modelLabel(m) }}
-            </button>
-          }
-          @if (remainingModels().length) {
-            <button
-              type="button"
-              class="d__chip d__chip--refresh"
-              [class.d__chip--open]="modelMenuOpen()"
-              [disabled]="loading()"
-              (click)="toggleModelMenu()"
-              aria-label="Сгенерить другой моделью">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M20 11a8 8 0 1 0-.9 4.5" stroke-linecap="round" />
-                <path d="M20 4v5h-5" stroke-linecap="round" stroke-linejoin="round" />
-              </svg>
-            </button>
-          }
-          @if (d.variantModels && d.variantModels.length >= 2) {
-            <a
-              class="d__chip d__chip--compare"
-              [routerLink]="['/plan', planId(), 'dish', dishId(), 'compare']">
-              ⇄ сравнить
-            </a>
-          }
-        </div>
-
-        <!-- Меню выбора модели для генерации нового варианта -->
-        @if (modelMenuOpen()) {
-          <div class="d__modal" (click)="modelMenuOpen.set(false)">
-            <div class="d__modal-card" (click)="$event.stopPropagation()">
-              <p class="d__modal-title">Сгенерить другой моделью?</p>
-              <div class="d__modal-list">
-                @for (m of remainingModels(); track m) {
-                  <button type="button" class="d__model-opt" [disabled]="loading()" (click)="chooseModel(m)">
-                    🤖 {{ modelLabel(m) }}
-                  </button>
-                }
-              </div>
-            </div>
-          </div>
-        }
-      }
 
       @if (d.activeModel) {
         <div class="d__rate">

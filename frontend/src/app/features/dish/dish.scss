@@ -66,130 +66,134 @@
   font-weight: 700;
 }
 
-/* Варианты рецепта по моделям: 🤖 модель1 | модель2 | ⟳ */
-/* Модели рецепта — чипы (переносятся аккуратно, без разделителей) */
-.d__models {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  margin: 0 0 12px;
+/* Выбор модели рецепта — выпадашка в шапке (по типу модели в чате) */
+.msel {
+  position: relative;
 }
-.d__chip {
+.msel__btn {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 6px 12px;
+  gap: 6px;
+  max-width: 100%;
+  padding: 7px 12px;
   border-radius: var(--r-pill);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ink-2);
   background: var(--surface);
   box-shadow: var(--shadow-soft);
-  text-decoration: none;
-  transition: transform 0.12s ease, color 0.15s ease, background 0.15s ease;
+  color: var(--ink);
 }
-.d__chip:active {
-  transform: scale(0.96);
+.msel__ic {
+  font-size: 14px;
 }
-.d__chip--active {
-  color: #fff;
-  background: var(--accent);
-  box-shadow: none;
+.msel__name {
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-/* ⟳ добавить другой моделью — иконка-чип (открывает попап выбора) */
-.d__chip--refresh {
-  padding: 0;
-  width: 34px;
-  justify-content: center;
-  color: var(--ink-2);
+.msel__chev {
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+  color: var(--ink-3);
+  transition: transform 0.2s ease;
 }
-.d__chip--refresh svg {
-  width: 16px;
-  height: 16px;
-}
-.d__chip--open {
-  color: var(--accent);
-}
-.d__chip--compare {
-  color: var(--accent);
-  background: transparent;
-  box-shadow: none;
-}
-.d__chip:disabled {
-  opacity: 0.55;
-  pointer-events: none;
+.msel__btn--open .msel__chev {
+  transform: rotate(180deg);
 }
 
-/* Меню перегенерации — попап по центру с оверлеем (как модалка удаления в «Планах») */
-.d__modal {
+.msel__backdrop {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: 20;
+}
+.msel__menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  min-width: 250px;
+  max-width: 82vw;
+  padding: 6px;
+  background: var(--surface);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-float);
+  animation: msel-in 0.14s ease;
+}
+@keyframes msel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+.msel__opt {
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 28px;
-  background: rgba(34, 29, 26, 0.42);
-  animation: d-modal-fade 0.15s ease;
-}
-@keyframes d-modal-fade {
-  from {
-    opacity: 0;
-  }
-}
-.d__modal-card {
+  gap: 10px;
   width: 100%;
-  max-width: 320px;
-  background: var(--surface);
-  border-radius: var(--r-card);
-  padding: 20px 18px;
-  box-shadow: var(--shadow-float);
-  animation: d-modal-pop 0.16s ease;
-}
-@keyframes d-modal-pop {
-  from {
-    opacity: 0;
-    transform: scale(0.94);
-  }
-}
-.d__modal-title {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 18px;
-  margin: 0 0 12px;
-  padding: 0 2px;
-}
-.d__modal-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.d__model-opt {
-  padding: 12px 12px;
-  border-radius: 12px;
+  padding: 10px;
+  border-radius: 10px;
   text-align: left;
-  font-size: 15px;
+  font-size: 14.5px;
   font-weight: 500;
   color: var(--ink);
-  transition: background 0.12s ease;
 }
-.d__model-opt:active {
+.msel__opt:active {
+  background: var(--surface-sunk);
+}
+.msel__opt--active {
   background: var(--accent-soft);
-  color: var(--accent);
 }
-
-/* Кнопка «сравнить» в бейдже моделей */
-.d__compare-btn {
-  font-size: 13px;
-  font-weight: 600;
+.msel__opt--new {
+  color: var(--ink-2);
+}
+.msel__opt:disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+.msel__opt-name {
+  flex: 1;
+  min-width: 0;
+}
+.msel__mark {
+  flex-shrink: 0;
+  width: 18px;
+  text-align: center;
+  font-weight: 700;
+}
+.msel__mark--ok {
+  color: var(--ok);
+}
+.msel__mark--dl {
   color: var(--ink-3);
-  padding: 3px 4px;
-  border-radius: 8px;
-  transition: color 0.12s ease;
 }
-.d__compare-btn:active {
+.msel__tag {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.msel__compare {
   color: var(--accent);
+  font-weight: 600;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  margin-top: 2px;
+  text-decoration: none;
+}
+/* мини-спиннер в строке генерации */
+.msel__spin {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: msel-spin 0.7s linear infinite;
+}
+@keyframes msel-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 .d__compare-btn:active {
   opacity: 0.7;
