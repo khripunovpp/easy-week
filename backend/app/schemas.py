@@ -95,6 +95,24 @@ class ChatMessageOut(CamelModel):
     role: str
     text: str = ""
     plan: WeekPlan | None = None
+    model: str = ""
+
+
+class RatingBody(CamelModel):
+    # Голос 👍/👎 за ответ модели. vote: 1 | -1. Апсерт по (target_type, target_id, model).
+    target_type: str  # recipe | plan | cooking | message
+    target_id: str
+    model: str = ""
+    vote: int
+    note: str = ""
+    plan_id: str | None = None
+    dish_id: str | None = None
+    conversation_id: str | None = None
+
+
+class RatingOut(CamelModel):
+    # Текущее состояние голоса цели: 1 | -1 | 0 (нет голоса).
+    vote: int = 0
 
 
 class PlanSummary(CamelModel):

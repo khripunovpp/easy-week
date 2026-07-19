@@ -146,7 +146,7 @@ async def conversation_messages(
             plan_row = session.get(PlanRow, m.plan_id)
             if plan_row:
                 plan = to_week_plan(plan_row)
-        out.append(ChatMessageOut(id=m.id, role=m.role, text=m.text, plan=plan))
+        out.append(ChatMessageOut(id=m.id, role=m.role, text=m.text, plan=plan, model=m.model or ""))
     return out
 
 
@@ -231,6 +231,7 @@ async def chat_stream(
             role="assistant",
             text=reply,
             plan_id=plan_id,
+            model=req.recipe_model,
         )
     )
     session.commit()
@@ -282,6 +283,7 @@ async def chat(req: ChatRequest, session: SessionDep) -> ChatResponse:
             role="assistant",
             text=data["reply"],
             plan_id=plan_row.id,
+            model=req.recipe_model,
         )
     )
     session.commit()
@@ -404,7 +406,11 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
     if not result.get("changed"):
         session.add(
             MessageRow(
-                id=uuid4().hex, conversation_id=conv.id, role="assistant", text=reply
+                id=uuid4().hex,
+                conversation_id=conv.id,
+                role="assistant",
+                text=reply,
+                model=req.recipe_model,
             )
         )
         session.commit()
@@ -436,6 +442,7 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
             role="assistant",
             text="" if req.remove_dish_id else reply,
             plan_id=new_plan.id,
+            model=req.recipe_model,
         )
     )
     session.commit()

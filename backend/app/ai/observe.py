@@ -44,11 +44,19 @@ _errors = Counter("easyweek_ai_errors_total", "Ошибки AI-вызовов", 
 # Бизнес-счётчики: из них в Grafana считаем токены/чат, токены/план, планы/чат.
 _plans = Counter("easyweek_plans_total", "Созданные планы", ["source"])  # create | edit
 _conversations = Counter("easyweek_conversations_total", "Начатые диалоги")
+# Оценки ответов моделей — из них в Grafana: 👍/👎 по моделям и типам ответов.
+_ratings = Counter("easyweek_ratings_total", "Оценки ответов", ["target_type", "model", "vote"])
 
 
 def record_plan(source: str = "create") -> None:
     """source=create — новый план в чате; edit — новая версия при правке."""
     _plans.labels(source).inc()
+
+
+def record_rating(target_type: str, model: str, vote: int) -> None:
+    """vote: 1 (👍) | -1 (👎). model — ключ модели (пусто → 'unknown')."""
+    label = "up" if vote > 0 else "down"
+    _ratings.labels(target_type or "?", model or "unknown", label).inc()
 
 
 def record_conversation() -> None:

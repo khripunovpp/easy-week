@@ -42,4 +42,23 @@ class MessageRow(SQLModel, table=True):
     role: str  # user | assistant
     text: str = ""
     plan_id: str | None = Field(default=None, foreign_key="planrow.id")
+    # Ключ модели, сгенерившей ответ (для оценки 👍/👎 у реплик бота). Пусто у user/старых.
+    model: str = Field(default="")
+    created_at: datetime = Field(default_factory=_now)
+
+
+class RatingRow(SQLModel, table=True):
+    """Оценка 👍/👎 сгенерированного моделью ответа. Авторизации нет — одно глобальное
+    хранилище; один голос на (target_type, target_id, model), апсерт в роутере."""
+
+    id: str = Field(primary_key=True)
+    target_type: str = Field(index=True)  # recipe | plan | cooking | message
+    target_id: str = Field(index=True)
+    model: str = Field(default="", index=True)  # ключ модели (deepseek|gemini|anthropic|cloudflare)
+    vote: int = 0  # 1 | -1
+    note: str = Field(default="")
+    # Корреляция для анализа (nullable).
+    plan_id: str | None = Field(default=None)
+    dish_id: str | None = Field(default=None)
+    conversation_id: str | None = Field(default=None)
     created_at: datetime = Field(default_factory=_now)
