@@ -330,8 +330,15 @@
 }
 
 /* Нейтральная метка: какой моделью собран план */
-.plan__model {
+.plan__model-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   margin: -2px 4px 2px;
+}
+.plan__model {
+  margin: 0;
   padding: 6px 12px;
   border-radius: var(--r-md);
   background: var(--surface-sunk);

@@ -37,8 +37,15 @@
   font-size: 14px;
   margin: 6px 0 0;
 }
-.pv__model {
+.pv__model-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   margin-top: 8px;
+}
+.pv__model {
+  margin-top: 0;
 }
 
 /* Блюда */

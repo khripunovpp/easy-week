@@ -3,14 +3,15 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { EasyWeekApi, MessageSearchHit } from '../../services/api';
 import { ChatStore } from '../../services/chat-store';
-import { RecipeModel } from '../../services/preferences';
+import { providerToModel, RecipeModel } from '../../services/preferences';
 import { CookingLoader } from '../../shared/cooking-loader';
 import { dishColorClass } from '../../shared/dish-color';
 import { renderMarkdown } from '../../shared/markdown';
+import { Vote } from '../../shared/vote';
 
 @Component({
   selector: 'ew-chat',
-  imports: [FormsModule, RouterLink, CookingLoader],
+  imports: [FormsModule, RouterLink, CookingLoader, Vote],
   templateUrl: './chat.html',
   styleUrl: './chat.scss',
 })
@@ -151,6 +152,10 @@ export class Chat {
 
   pastel(i: number): string {
     return dishColorClass(i); // цвет блюда по индексу (единая палитра)
+  }
+
+  providerKey(provider: string): string {
+    return providerToModel(provider); // человекочитаемый provider → ключ модели для оценки
   }
 
   totalTime(prep: number, cook: number): number {

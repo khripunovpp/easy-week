@@ -3,13 +3,15 @@ import { Router, RouterLink } from '@angular/router';
 import { PlanStatus, WeekPlan } from '../../models/plan.model';
 import { EasyWeekApi } from '../../services/api';
 import { ChatStore } from '../../services/chat-store';
+import { providerToModel } from '../../services/preferences';
 import { CookingLoader } from '../../shared/cooking-loader';
 import { dishColorClass } from '../../shared/dish-color';
 import { formatDuration } from '../../shared/format';
+import { Vote } from '../../shared/vote';
 
 @Component({
   selector: 'ew-plan',
-  imports: [RouterLink, CookingLoader],
+  imports: [RouterLink, CookingLoader, Vote],
   templateUrl: './plan.html',
   styleUrl: './plan.scss',
 })
@@ -56,6 +58,10 @@ export class PlanPage {
 
   pastel(i: number): string {
     return dishColorClass(i); // цвет блюда по индексу (единая палитра)
+  }
+
+  providerKey(provider: string): string {
+    return providerToModel(provider); // provider → ключ модели для оценки
   }
 
   dishWord(n: number): string {

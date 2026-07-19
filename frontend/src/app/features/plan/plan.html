@@ -36,7 +36,14 @@
           {{ p.dishes.length }} {{ dishWord(p.dishes.length) }} · готовка ~{{ cookTime() }}
         </p>
         @if (p.provider) {
-          <span class="badge-frost pv__model">🤖 {{ p.provider }}</span>
+          <div class="pv__model-row">
+            <span class="badge-frost pv__model">🤖 {{ p.provider }}</span>
+            <ew-vote
+              targetType="plan"
+              [targetId]="p.id"
+              [model]="providerKey(p.provider)"
+              [planId]="p.id" />
+          </div>
         }
       </div>
 

@@ -148,7 +148,14 @@
           </div>
 
           @if (plan.provider) {
-            <p class="plan__model">🤖 Собрано моделью {{ plan.provider }}</p>
+            <div class="plan__model-row">
+              <p class="plan__model">🤖 Собрано моделью {{ plan.provider }}</p>
+              <ew-vote
+                targetType="plan"
+                [targetId]="plan.id"
+                [model]="providerKey(plan.provider)"
+                [planId]="plan.id" />
+            </div>
           }
 
           @for (d of plan.dishes; track d.id; let i = $index) {

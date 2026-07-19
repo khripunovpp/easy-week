@@ -24,9 +24,9 @@ import { EasyWeekApi, RatingTarget } from '../services/api';
         [class.vote__btn--down]="vote() === -1"
         (click)="cast(-1)"
         aria-label="Не нравится ответ модели">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-          <path d="M17 2H8.5a2 2 0 0 0-2 1.5L4.3 11a1.6 1.6 0 0 0 1.5 2.1H11l-.9 3.6a1.7 1.7 0 0 0 3.2.9L17 13" stroke-linejoin="round" stroke-linecap="round" />
-          <path d="M17 2h1.5A1.5 1.5 0 0 1 20 3.5V11a1.5 1.5 0 0 1-1.5 1.5H17z" stroke-linejoin="round" />
+        <svg class="vote__ic--flip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M7 22H5.5A1.5 1.5 0 0 1 4 20.5V13a1.5 1.5 0 0 1 1.5-1.5H7z" stroke-linejoin="round" />
+          <path d="M7 22h8.5a2 2 0 0 0 2-1.5l2.2-7.5a1.6 1.6 0 0 0-1.5-2.1H13l.9-3.6a1.7 1.7 0 0 0-3.2-.9L7 11" stroke-linejoin="round" stroke-linecap="round" />
         </svg>
       </button>
     </div>
@@ -39,26 +39,33 @@ import { EasyWeekApi, RatingTarget } from '../services/api';
     .vote__btn {
       display: grid;
       place-items: center;
-      width: 32px;
-      height: 32px;
+      width: 34px;
+      height: 34px;
       border-radius: 50%;
-      color: var(--ink-3);
+      color: var(--ink-2);
+      background: var(--surface);
+      box-shadow: var(--shadow-soft);
       transition: transform 0.12s ease, color 0.15s ease, background 0.15s ease;
     }
     .vote__btn svg {
       width: 18px;
       height: 18px;
+      display: block;
+    }
+    /* 👎 — тот же значок, повёрнутый на 180°: идентичная геометрия и вертикальный центр */
+    .vote__ic--flip {
+      transform: rotate(180deg);
     }
     .vote__btn:active {
       transform: scale(0.9);
     }
     .vote__btn--up {
-      color: var(--ok);
-      background: color-mix(in srgb, var(--ok) 15%, transparent);
+      color: #fff;
+      background: var(--ok);
     }
     .vote__btn--down {
-      color: var(--no);
-      background: color-mix(in srgb, var(--no) 15%, transparent);
+      color: #fff;
+      background: var(--no);
     }
   `,
 })
