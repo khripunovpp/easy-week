@@ -72,6 +72,18 @@
         }
       }
 
+      @if (d.activeModel) {
+        <div class="d__rate">
+          <span class="d__rate-label">Рецепт от {{ modelLabel(d.activeModel) }}:</span>
+          <ew-vote
+            targetType="recipe"
+            [targetId]="dishId()"
+            [model]="d.activeModel"
+            [planId]="planId()"
+            [dishId]="dishId()" />
+        </div>
+      }
+
       <div class="d__meta">
         <span class="pill"><b>{{ d.prepMin }}</b> мин подготовка</span>
         <span class="pill"><b>{{ d.cookMin }}</b> мин готовка</span>

@@ -6,10 +6,11 @@ import { EasyWeekApi } from '../../services/api';
 import { ChatStore } from '../../services/chat-store';
 import { ALL_MODELS, MODEL_LABELS, RecipeModel } from '../../services/preferences';
 import { CookingLoader } from '../../shared/cooking-loader';
+import { Vote } from '../../shared/vote';
 
 @Component({
   selector: 'ew-dish',
-  imports: [RouterLink, CookingLoader],
+  imports: [RouterLink, CookingLoader, Vote],
   templateUrl: './dish.html',
   styleUrl: './dish.scss',
 })

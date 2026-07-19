@@ -13,6 +13,16 @@ export const MODEL_LABELS: Record<RecipeModel, string> = {
 };
 export const ALL_MODELS: RecipeModel[] = ['deepseek', 'gemini', 'anthropic', 'cloudflare'];
 
+// Провайдер плана (человекочитаемый, из бэка: «DeepSeek»/«Claude»…) → ключ модели.
+// Пусто, если не распознан. Обратный маппинг к MODEL_LABELS.
+export function providerToModel(provider: string): RecipeModel | '' {
+  const p = (provider || '').trim();
+  const byLabel = (Object.keys(MODEL_LABELS) as RecipeModel[]).find((k) => MODEL_LABELS[k] === p);
+  if (byLabel) return byLabel;
+  const low = p.toLowerCase();
+  return (ALL_MODELS as string[]).includes(low) ? (low as RecipeModel) : '';
+}
+
 const THEME_KEY = 'ew.theme';
 const GENDER_KEY = 'ew.gender';
 const MODEL_KEY = 'ew.recipeModel';

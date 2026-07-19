@@ -55,6 +55,17 @@ export interface MessageSearchHit {
   planEmoji: string | null;
 }
 
+export type RatingTarget = 'recipe' | 'plan' | 'cooking' | 'message';
+export interface RatingBody {
+  targetType: RatingTarget;
+  targetId: string;
+  model: string;
+  vote: 1 | -1;
+  planId?: string;
+  dishId?: string;
+  conversationId?: string;
+}
+
 export interface ChatStreamMeta {
   conversationId: string;
   planId: string;
@@ -323,6 +334,16 @@ export class EasyWeekApi {
   searchMessages(q: string): Observable<MessageSearchHit[]> {
     return this.http.get<MessageSearchHit[]>(`${API_BASE}/messages/search`, {
       params: { q },
+    });
+  }
+
+  // Оценка 👍/👎 ответа модели. vote: 1 | -1. Возврат — текущее состояние (1|-1|0).
+  rate(body: RatingBody): Observable<{ vote: number }> {
+    return this.http.post<{ vote: number }>(`${API_BASE}/ratings`, body);
+  }
+  rating(targetType: string, targetId: string, model: string): Observable<{ vote: number }> {
+    return this.http.get<{ vote: number }>(`${API_BASE}/ratings`, {
+      params: { targetType, targetId, model },
     });
   }
 }
