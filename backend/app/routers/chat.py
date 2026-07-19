@@ -224,9 +224,10 @@ async def chat_stream(
         dishes=dishes,
     )
     session.add(plan_row)
+    msg_id = uuid4().hex
     session.add(
         MessageRow(
-            id=uuid4().hex,
+            id=msg_id,
             conversation_id=conv.id,
             role="assistant",
             text=reply,
@@ -236,7 +237,15 @@ async def chat_stream(
     )
     session.commit()
     record_plan("create")
-    yield ServerSentEvent(event="done", data={"planId": plan_id, "dishesCount": len(dishes)})
+    yield ServerSentEvent(
+        event="done",
+        data={
+            "planId": plan_id,
+            "dishesCount": len(dishes),
+            "messageId": msg_id,
+            "model": req.recipe_model,
+        },
+    )
 
 
 @router.post("/chat")
@@ -276,9 +285,10 @@ async def chat(req: ChatRequest, session: SessionDep) -> ChatResponse:
         dishes=data["dishes"],
     )
     session.add(plan_row)
+    chat_msg_id = uuid4().hex
     session.add(
         MessageRow(
-            id=uuid4().hex,
+            id=chat_msg_id,
             conversation_id=conv.id,
             role="assistant",
             text=data["reply"],
@@ -294,6 +304,8 @@ async def chat(req: ChatRequest, session: SessionDep) -> ChatResponse:
         conversation_id=conv.id,
         reply=data["reply"],
         plan=to_week_plan(plan_row),
+        message_id=chat_msg_id,
+        model=req.recipe_model,
     )
 
 
@@ -404,9 +416,10 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
 
     # Ничего не изменили (модель не поняла правку) — новую версию не создаём.
     if not result.get("changed"):
+        nc_id = uuid4().hex
         session.add(
             MessageRow(
-                id=uuid4().hex,
+                id=nc_id,
                 conversation_id=conv.id,
                 role="assistant",
                 text=reply,
@@ -414,7 +427,13 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
             )
         )
         session.commit()
-        return ChatResponse(conversation_id=conv.id, reply=reply, plan=None)
+        return ChatResponse(
+            conversation_id=conv.id,
+            reply=reply,
+            plan=None,
+            message_id=nc_id,
+            model=req.recipe_model,
+        )
 
     # Правка создаёт НОВУЮ версию плана (копию), исходный план остаётся доступен по ссылке.
     new_plan = PlanRow(
@@ -435,9 +454,10 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
     session.add(row)
     # Крестик — без реплики: сообщение несёт только новую версию плана (пустой текст),
     # чтобы карточка отрисовалась при перезагрузке чата.
+    edit_msg_id = uuid4().hex
     session.add(
         MessageRow(
-            id=uuid4().hex,
+            id=edit_msg_id,
             conversation_id=conv.id,
             role="assistant",
             text="" if req.remove_dish_id else reply,
@@ -453,4 +473,6 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
         conversation_id=conv.id,
         reply=reply,
         plan=to_week_plan(new_plan),
+        message_id=edit_msg_id,
+        model=req.recipe_model,
     )

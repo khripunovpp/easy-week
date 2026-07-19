@@ -61,6 +61,8 @@ export interface ChatMessage {
   role: ChatRole;
   text?: string;
   plan?: WeekPlan;
+  model?: string; // ключ модели, сгенерившей ответ (для оценки 👍/👎)
+  serverId?: string; // серверный id сообщения (для оценки); у intro/ошибок нет
 }
 
 // Позиция в списке покупок — агрегируется из всех блюд плана.

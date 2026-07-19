@@ -104,6 +104,28 @@ export class Chat {
     return renderMarkdown(md);
   }
 
+  // --- Long-press по реплике бота → тултип с оценкой 👍/👎 ---
+  readonly tipId = signal<string | null>(null); // serverId сообщения с открытым тултипом
+  private pressTimer: ReturnType<typeof setTimeout> | undefined;
+
+  canVote(m: { role: string; serverId?: string }): boolean {
+    return m.role === 'assistant' && !!m.serverId;
+  }
+  convId(): string {
+    return this.store.conversationId ?? '';
+  }
+  pressStart(m: { role: string; serverId?: string }): void {
+    if (!this.canVote(m)) return;
+    clearTimeout(this.pressTimer);
+    this.pressTimer = setTimeout(() => this.tipId.set(m.serverId!), 420);
+  }
+  pressEnd(): void {
+    clearTimeout(this.pressTimer);
+  }
+  closeTip(): void {
+    this.tipId.set(null);
+  }
+
   onStreamScroll(): void {
     const el = this.streamEl()?.nativeElement;
     if (!el) return;

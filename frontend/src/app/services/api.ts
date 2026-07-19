@@ -44,6 +44,8 @@ export interface ChatResponse {
   conversationId: string;
   reply: string;
   plan: WeekPlan | null;
+  messageId?: string;
+  model?: string;
 }
 
 export interface MessageSearchHit {
@@ -78,7 +80,7 @@ export interface ChatStreamMeta {
 export interface ChatStreamHandlers {
   onMeta: (meta: ChatStreamMeta) => void;
   onDish: (dish: Dish) => void;
-  onDone: (info: { planId: string; dishesCount: number }) => void;
+  onDone: (info: { planId: string; dishesCount: number; messageId?: string; model?: string }) => void;
   onError: (message: string) => void;
 }
 
@@ -182,7 +184,9 @@ export class EasyWeekApi {
         if (event === 'meta') handlers.onMeta(payload as ChatStreamMeta);
         else if (event === 'dish') handlers.onDish(payload as Dish);
         else if (event === 'done')
-          handlers.onDone(payload as { planId: string; dishesCount: number });
+          handlers.onDone(
+            payload as { planId: string; dishesCount: number; messageId?: string; model?: string },
+          );
         else if (event === 'error')
           handlers.onError((payload as { message?: string }).message ?? 'Ошибка генерации');
       },

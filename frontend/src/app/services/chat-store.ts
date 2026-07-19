@@ -43,7 +43,7 @@ export class ChatStore {
   // Действие с карточки, ждущее отправки (бейдж в композере): замена блюда или добавление.
   readonly pending = signal<PendingAction | null>(null);
 
-  private conversationId: string | null = null;
+  conversationId: string | null = null; // публичный — нужен для оценки сообщений
   private seq = 100;
 
   setCount(n: number): void {
@@ -73,7 +73,8 @@ export class ChatStore {
     this.recipeModel.set(this.prefs.recipeModel());
     this.api.conversationMessages(conversationId).subscribe({
       next: (msgs) => {
-        this.messages.set(msgs.length ? msgs : [INTRO]);
+        // У загруженных сообщений id = серверный → сразу доступны для оценки.
+        this.messages.set(msgs.length ? msgs.map((m) => ({ ...m, serverId: m.id })) : [INTRO]);
         // Модель чата — по последнему плану диалога: правки/рецепты идут той же моделью,
         // что собрала план, а не глобальным дефолтом профиля (выставленным выше как фолбэк).
         this.syncModelToLastPlan(msgs);
@@ -164,6 +165,14 @@ export class ChatStore {
       onDone: (info) => {
         this.streamingMsgId.set(null);
         this.loading.set(false);
+        // Проставляем серверный id + модель стримленному сообщению — чтобы можно было оценить.
+        if (info.messageId) {
+          this.messages.update((list) =>
+            list.map((m) =>
+              m.id === msgId ? { ...m, serverId: info.messageId, model: info.model } : m,
+            ),
+          );
+        }
         // Число блюд решает модель (пользователь мог указать другое в тексте) —
         // приводим счётчик в шапке к фактическому результату.
         if (info.dishesCount >= 1 && info.dishesCount <= 12) {
@@ -227,7 +236,14 @@ export class ChatStore {
           }
           return [
             ...next,
-            { id: msgId, role: 'assistant', text: res.reply, plan: res.plan ?? undefined },
+            {
+              id: msgId,
+              role: 'assistant',
+              text: res.reply,
+              plan: res.plan ?? undefined,
+              serverId: res.messageId,
+              model: res.model,
+            },
           ];
         });
         this.loading.set(false);

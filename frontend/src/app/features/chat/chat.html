@@ -121,7 +121,26 @@
       <div class="msg msg--user">{{ m.text }}</div>
     } @else {
       @if (m.text) {
-        <div class="msg msg--bot markdown" [innerHTML]="renderMarkdown(m.text)"></div>
+        <div class="msg-wrap" [class.msg-wrap--tip]="tipId() === m.serverId">
+          <div
+            class="msg msg--bot markdown"
+            [class.msg--pressable]="canVote(m)"
+            [innerHTML]="renderMarkdown(m.text)"
+            (pointerdown)="pressStart(m)"
+            (pointerup)="pressEnd()"
+            (pointercancel)="pressEnd()"
+            (pointerleave)="pressEnd()"
+            (contextmenu)="canVote(m) && $event.preventDefault()"></div>
+          @if (tipId() === m.serverId) {
+            <div class="msg-tip">
+              <ew-vote
+                targetType="message"
+                [targetId]="m.serverId!"
+                [model]="m.model || ''"
+                [conversationId]="convId()" />
+            </div>
+          }
+        </div>
       }
 
       @if (m.plan; as plan) {
@@ -298,5 +317,9 @@
       </button>
     </div>
   </div>
+  }
+
+  @if (tipId()) {
+    <div class="msg-tip-backdrop" (click)="closeTip()"></div>
   }
 </div>

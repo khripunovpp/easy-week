@@ -173,6 +173,8 @@ class ChatResponse(CamelModel):
     conversation_id: str
     reply: str
     plan: WeekPlan | None = None
+    message_id: str = ""  # id ассистентского сообщения (для оценки 👍/👎)
+    model: str = ""
 
 
 class StatusRequest(CamelModel):
