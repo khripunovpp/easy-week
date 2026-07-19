@@ -124,9 +124,18 @@
         <div class="msg-wrap" [class.msg-wrap--tip]="tipId() === m.serverId">
           <div class="msg msg--bot markdown" [innerHTML]="renderMarkdown(m.text)"></div>
           @if (canVote(m)) {
+            @if (tipId() === m.serverId) {
+              <ew-vote
+                class="msg-vote"
+                targetType="message"
+                [targetId]="m.serverId!"
+                [model]="m.model || ''"
+                [conversationId]="convId()" />
+            }
             <button
               class="msg-dots"
               type="button"
+              [class.msg-dots--open]="tipId() === m.serverId"
               (click)="toggleTip(m)"
               aria-label="Оценить ответ">
               <svg viewBox="0 0 24 24" fill="currentColor">
@@ -135,15 +144,6 @@
                 <circle cx="12" cy="19" r="1.6" />
               </svg>
             </button>
-          }
-          @if (tipId() === m.serverId) {
-            <div class="msg-tip">
-              <ew-vote
-                targetType="message"
-                [targetId]="m.serverId!"
-                [model]="m.model || ''"
-                [conversationId]="convId()" />
-            </div>
           }
         </div>
       }
@@ -322,9 +322,5 @@
       </button>
     </div>
   </div>
-  }
-
-  @if (tipId()) {
-    <div class="msg-tip-backdrop" (click)="closeTip()"></div>
   }
 </div>

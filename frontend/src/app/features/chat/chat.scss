@@ -120,9 +120,7 @@
 }
 .msg-wrap .msg {
   max-width: 100%;
-}
-.msg-wrap--tip {
-  z-index: 50; /* поверх бэкдропа при открытом тултипе */
+  min-width: 0;
 }
 .msg-dots {
   flex-shrink: 0;
@@ -137,31 +135,21 @@
   width: 18px;
   height: 18px;
 }
+.msg-dots--open,
 .msg-dots:active {
   background: var(--surface-sunk);
   color: var(--accent);
 }
-.msg-tip {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 8px;
-  z-index: 51;
-  padding: 3px 5px;
-  background: var(--surface);
-  border-radius: var(--r-pill);
-  box-shadow: var(--shadow-float);
-  animation: msg-tip-in 0.14s ease;
+/* Инлайн-оценка рядом с ⋮ */
+.msg-vote {
+  flex-shrink: 0;
+  animation: msg-vote-in 0.14s ease;
 }
-@keyframes msg-tip-in {
+@keyframes msg-vote-in {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateX(6px);
   }
-}
-.msg-tip-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 45;
 }
 
 .msg--user {
