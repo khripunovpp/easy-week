@@ -93,8 +93,8 @@
         @if (p.status === 'draft') {
           <button class="pv__vote pv__vote--no" type="button" (click)="setStatus('rejected')" aria-label="Отклонить">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-              <path d="M17 2H8.5a2 2 0 0 0-2 1.5L4.3 11a1.6 1.6 0 0 0 1.5 2.1H11l-.9 3.6a1.7 1.7 0 0 0 3.2.9L17 13" stroke-linejoin="round" stroke-linecap="round"/>
-              <path d="M17 2h1.5A1.5 1.5 0 0 1 20 3.5V11a1.5 1.5 0 0 1-1.5 1.5H17z" stroke-linejoin="round"/>
+              <circle cx="12" cy="12" r="9" />
+              <path d="M6 6l12 12" stroke-linecap="round" />
             </svg>
           </button>
         }
@@ -106,9 +106,8 @@
         </button>
         @if (p.status === 'draft') {
           <button class="pv__vote pv__vote--ok" type="button" (click)="setStatus('accepted')" aria-label="Принять">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-              <path d="M7 22H5.5A1.5 1.5 0 0 1 4 20.5V13a1.5 1.5 0 0 1 1.5-1.5H7z" stroke-linejoin="round"/>
-              <path d="M7 22h8.5a2 2 0 0 0 2-1.5l2.2-7.5a1.6 1.6 0 0 0-1.5-2.1H13l.9-3.6a1.7 1.7 0 0 0-3.2-.9L7 11" stroke-linejoin="round" stroke-linecap="round"/>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 12.5l4.5 4.5L19 7" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
           </button>
         }
