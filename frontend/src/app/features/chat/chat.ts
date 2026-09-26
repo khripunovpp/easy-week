@@ -78,9 +78,27 @@ export class Chat {
   ];
 
   private readonly streamEl = viewChild<ElementRef<HTMLElement>>('stream');
+  private readonly composerInput = viewChild<ElementRef<HTMLTextAreaElement>>('composerInput');
   private lastBump = 0;
 
+  /** Поле ввода выросло больше одной строки — row скругляется мягче (см. .composer__row--multi). */
+  readonly composerMulti = signal(false);
+
   constructor() {
+    // Автовысота поля: на каждое изменение черновика (ввод, очистка после отправки,
+    // смена чата) пересчитываем высоту. Потолок в 3 строки — max-height в chat.scss.
+    effect(() => {
+      this.store.draft();
+      const el = this.composerInput()?.nativeElement;
+      if (!el) return;
+      // ngModel пишет значение в DOM через промис — меряем в следующем кадре, когда оно уже там.
+      requestAnimationFrame(() => {
+        el.style.height = 'auto';
+        el.style.height = `${el.scrollHeight}px`;
+        // 44px = одна строка (22px) + вертикальные паддинги (2 × 11px)
+        this.composerMulti.set(el.scrollHeight > 44);
+      });
+    });
     // При входе в чат — прижимаем ленту к низу, чтобы сразу видеть последние сообщения.
     afterNextRender(() => this.scrollToBottom());
     // Пока идёт генерация — держим ленту прижатой к низу, чтобы новые блюда
@@ -125,6 +143,19 @@ export class Chat {
     if (!el) return;
     const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
     this.showScrollDown.set(dist > 120);
+  }
+
+  /** Enter — отправить; Shift+Enter — перенос строки; во время IME-набора Enter не трогаем. */
+  onComposerEnter(e: KeyboardEvent): void {
+    if (e.shiftKey || e.isComposing) return;
+    e.preventDefault();
+    this.store.send();
+  }
+
+  /** Крестик в композере: очищаем черновик и оставляем фокус в поле, чтобы сразу печатать. */
+  clearDraft(): void {
+    this.store.draft.set('');
+    this.composerInput()?.nativeElement.focus();
   }
 
   scrollDown(): void {

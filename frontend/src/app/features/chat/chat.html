@@ -309,15 +309,26 @@
       </div>
     }
 
-    <div class="composer__row">
-      <input
+    <div class="composer__row" [class.composer__row--multi]="composerMulti()">
+      <!-- Textarea с автовысотой: 1 строка → до 3, дальше скролл внутри. Enter — отправить,
+           Shift+Enter — перенос строки. -->
+      <textarea
+        #composerInput
         class="composer__input"
-        type="text"
+        rows="1"
         [placeholder]="composerPlaceholder()"
         [ngModel]="store.draft()"
         (ngModelChange)="store.draft.set($event)"
-        (keyup.enter)="store.send()"
-        aria-label="Сообщение" />
+        (keydown.enter)="onComposerEnter($any($event))"
+        aria-label="Сообщение"></textarea>
+      @if (store.draft()) {
+        <!-- Очистить поле: сбрасываем черновик и возвращаем фокус в поле -->
+        <button class="composer__clear" type="button" (click)="clearDraft()" aria-label="Очистить">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M7 7l10 10M17 7L7 17" stroke-linecap="round" />
+          </svg>
+        </button>
+      }
       <button class="composer__send" type="button" (click)="store.send()" aria-label="Отправить">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
           <path d="M5 12h13M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round" />

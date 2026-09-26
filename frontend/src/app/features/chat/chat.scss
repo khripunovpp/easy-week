@@ -597,26 +597,61 @@
 
 .composer__row {
   display: flex;
-  align-items: center;
+  /* Кнопка отправки остаётся внизу, когда поле растёт до 3 строк */
+  align-items: flex-end;
   gap: 10px;
   background: var(--surface);
   border-radius: var(--r-pill);
   padding: 6px 6px 6px 18px;
   box-shadow: var(--shadow-card);
+  transition: border-radius 0.15s ease;
+}
+/* Многострочное поле: «пилюля» на высоком блоке съедает углы текста — скругляем мягче */
+.composer__row--multi {
+  border-radius: var(--r-md);
 }
 
 .composer__input {
   flex: 1;
+  min-width: 0;
   border: none;
   outline: none;
   background: none;
+  resize: none;
+  font: inherit;
   /* 16px — иначе iOS Safari зумит при фокусе */
   font-size: 16px;
+  line-height: 22px;
   color: var(--ink);
-  padding: 10px 0;
+  /* (44px кнопки − 22px строки) / 2 — одна строка по центру кнопки */
+  padding: 11px 0;
+  /* 3 строки максимум, дальше — скролл внутри поля. Высоту задаёт autosize в chat.ts */
+  max-height: calc(22px * 3 + 22px);
+  overflow-y: auto;
 }
 .composer__input::placeholder {
   color: var(--ink-3);
+}
+
+/* Крестик «очистить» — тихая кнопка между полем и «Отправить», по центру последней строки */
+.composer__clear {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin-bottom: 6px;
+  border-radius: 50%;
+  color: var(--ink-3);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.composer__clear svg {
+  width: 16px;
+  height: 16px;
+}
+.composer__clear:active {
+  background: var(--surface-sunk);
+  color: var(--ink);
 }
 
 .composer__send {
