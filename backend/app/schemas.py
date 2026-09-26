@@ -98,6 +98,11 @@ class ChatMessageOut(CamelModel):
     text: str = ""
     plan: WeekPlan | None = None
     model: str = ""
+    # Реплика обсуждения («💬 Обсудить в чате»): цель recipe|cooking|shopping, блюдо и план
+    # (последняя версия плана беседы) — для ссылки «Открыть рецепт/план готовки/покупки».
+    discuss_target: str | None = None
+    dish_id: str | None = None
+    discuss_plan_id: str | None = None
 
 
 class RatingBody(CamelModel):
@@ -187,7 +192,8 @@ class DetailRequest(CamelModel):
     # Модель для ленивой догенерации рецепта (та же, что выбрана в чате).
     recipe_model: str = ""
     # open — вернуть активный вариант (сгенерить первый, если деталей ещё нет);
-    # select — сделать recipe_model активным (сгенерить его вариант, если ещё нет).
+    # select — сделать recipe_model активным (сгенерить его вариант, если ещё нет);
+    # regenerate — «↻ Перегенерировать»: всегда новый вариант recipe_model с учётом обсуждения.
     action: str = "open"
 
 
@@ -200,3 +206,34 @@ class PreferencesBody(CamelModel):
     # Пищевые предпочтения пользователя: что не любит / любит.
     dislikes: list[str] = []
     likes: list[str] = []
+
+
+class DiscussRequest(CamelModel):
+    # Реплика в режиме «Обсуждение: …» (бейдж в композере). Версий плана не создаёт.
+    conversation_id: str | None = None  # пусто → беседа плана (plan.conversation_id)
+    plan_id: str
+    target: str  # recipe | cooking | shopping
+    dish_id: str | None = None  # для target=recipe
+    message: str
+    recipe_model: str = ""
+    gender: str = "f"
+
+
+class DiscussResponse(CamelModel):
+    conversation_id: str
+    reply: str
+    message_id: str = ""
+    model: str = ""
+    target: str
+    plan_id: str
+    dish_id: str | None = None
+    # Что применено по явной просьбе: none | edit (рецепт обновлён) | regenerate (пересобрано)
+    # | replace (предложена замена блюда — кнопка «Заменить блюдо» на фронте).
+    op: str = "none"
+    dish: Dish | None = None  # обновлённое блюдо после edit
+    cooking: CookingPlan | None = None  # пересобранный план готовки
+    shopping: list[ShoppingGroup] | None = None  # пересобранный список покупок
+    suggest_replace: bool = False
+    replace_query: str = ""
+    # Ответ получен, но применить изменение не удалось (модель упала) — текст ошибки.
+    apply_error: str = ""

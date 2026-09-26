@@ -130,13 +130,20 @@ async def conversation_messages(
         .order_by(MessageRow.created_at)
     ).all()
     out: list[ChatMessageOut] = []
+    # Реплики обсуждения ссылаются на последнюю версию плана беседы (id блюд между версиями
+    # сохраняются) — для ссылки «Открыть рецепт/план готовки/покупки».
+    latest = _latest_plan(session, conversation_id) if any(m.discuss_target for m in rows) else None
     for m in rows:
         plan = None
         if m.plan_id:
             plan_row = session.get(PlanRow, m.plan_id)
             if plan_row:
                 plan = to_week_plan(plan_row)
-        out.append(ChatMessageOut(id=m.id, role=m.role, text=m.text, plan=plan, model=m.model or ""))
+        out.append(ChatMessageOut(
+            id=m.id, role=m.role, text=m.text, plan=plan, model=m.model or "",
+            discuss_target=m.discuss_target, dish_id=m.dish_id,
+            discuss_plan_id=latest.id if (m.discuss_target and latest) else None,
+        ))
     return out
 
 
@@ -319,6 +326,8 @@ def _edit_context(session: Session, conversation_id: str, current_text: str, max
         .where(MessageRow.conversation_id == conversation_id)
         .order_by(MessageRow.created_at)
     ).all()
+    # Реплики обсуждения рецепта/готовки/покупок к правке плана не относятся — мимо контекста.
+    msgs = [m for m in msgs if not m.discuss_target]
     if not msgs:
         return ""
     original = next((m for m in msgs if m.role == "user" and m.text.strip()), None)

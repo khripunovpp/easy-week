@@ -8,7 +8,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from . import auth
 from .config import settings
 from .db import init_db
-from .routers import chat, plans, ratings
+from .routers import chat, discuss, plans, ratings
 
 # Логи приложения (plan via DeepSeek, валидатор, ошибки провайдеров) видны в контейнере.
 logging.basicConfig(
@@ -40,6 +40,7 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(chat.router)
+app.include_router(discuss.router)
 app.include_router(plans.router)
 app.include_router(ratings.router)
 

@@ -1,6 +1,4 @@
 import asyncio
-import hashlib
-import json
 from datetime import datetime, timezone
 from typing import Annotated
 
@@ -8,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlmodel import Session, select
 
 from ..ai.base import AIError
-from ..ai.gates import GATES, gate_for
+from ..ai.gates import gate_for
 from ..ai.limits import LimitError
 from ..ai.observe import set_ai_context
 from ..ai.planner import generate_cooking_plan, generate_dish_detail, normalize_shopping
@@ -28,10 +26,18 @@ from ..schemas import (
 from ..services.export_pdf import build_plan_pdf
 from ..services.history import original_request, reply_mention
 from ..services.mapping import to_cook_plan, to_dish, to_summary, to_week_plan
-
-# Провайдер (человекочитаемый) → ключ модели — для миграции legacy-детали в вариант.
-_PROVIDER_KEY = {g.provider: g.key for g in GATES.values()}
+from ..services.regenerate import (
+    DishNotFound,
+    backfill_all,
+    cook_sig,
+    regenerate_cooking,
+    regenerate_dish,
+    regenerate_shopping,
+    shopping_base,
+)
 from ..services.shopping import aggregate_ingredients, group_items
+from ..services.variants import apply_variant, variant_from_detail
+from ..services.variants import dish_variants as variants_of  # имя dish_variants занято роутом
 
 import logging
 
@@ -49,58 +55,6 @@ def _get_plan(session: Session, plan_id: str) -> PlanRow:
     if row is None:
         raise HTTPException(status_code=404, detail="План не найден")
     return row
-
-
-def _merge_detail(dish: dict, detail: dict) -> dict:
-    """Вливает ленивую деталь (ингредиенты/шаги/советы/note) в блюдо."""
-    d = {
-        **dish,
-        "ingredients": detail.get("ingredients") or [],
-        "steps": detail.get("steps") or [],
-        "tips": detail.get("tips") or [],
-        "detail_provider": detail.get("provider") or "",
-    }
-    if detail.get("note"):
-        d["storage"] = {**(dish.get("storage") or {}), "note": detail["note"]}
-    return d
-
-
-async def _backfill_all(
-    session: Session, row: PlanRow, need_steps: bool = False, model: str = ""
-) -> list[dict]:
-    """Догенерить детали для блюд, у которых их нет, параллельно. Кэш в row.dishes.
-    need_steps=False (покупки: нужны только ингредиенты), True (PDF: нужны и шаги).
-    model — выбранная модель рецептов (пусто → дефолт из настроек)."""
-    dishes = list(row.dishes or [])
-    missing = [
-        (i, d)
-        for i, d in enumerate(dishes)
-        if not d.get("ingredients") or (need_steps and not d.get("steps"))
-    ]
-    if not missing:
-        return dishes
-    request = original_request(session, row.conversation_id)  # фон: исходный запрос беседы
-    results = await asyncio.gather(
-        *(
-            generate_dish_detail(
-                d.get("name", ""), d.get("servings", 4), model=model, dish=d, request=request,
-                mention=reply_mention(session, row.id, d.get("name", "")),
-            )
-            for _, d in missing
-        ),
-        return_exceptions=True,
-    )
-    changed = False
-    for (i, d), det in zip(missing, results):
-        if isinstance(det, dict):
-            dishes[i] = _merge_detail(d, det)
-            changed = True
-    if changed:
-        row.dishes = dishes
-        session.add(row)
-        session.commit()
-        session.refresh(row)
-    return list(row.dishes or [])
 
 
 @router.get("")
@@ -143,12 +97,8 @@ async def set_status(plan_id: str, req: StatusRequest, session: SessionDep) -> W
 async def shopping_list(plan_id: str, session: SessionDep) -> list[ShoppingGroup]:
     set_ai_context(plan_id=plan_id, endpoint="shopping_list")
     row = _get_plan(session, plan_id)
-    await _backfill_all(session, row)  # ингредиенты лениво — догрузить перед агрегацией
-    plan = to_week_plan(row)
-    base = aggregate_ingredients(plan.dishes)
-    sig = hashlib.md5(
-        json.dumps(base, sort_keys=True, ensure_ascii=False).encode()
-    ).hexdigest()
+    await backfill_all(session, row)  # ингредиенты лениво — догрузить перед агрегацией
+    base, sig = shopping_base(row)
 
     # Один вызов модели на план; дальше — из кэша.
     if row.shopping_sig == sig and row.shopping_cache:
@@ -170,6 +120,27 @@ async def shopping_list(plan_id: str, session: SessionDep) -> list[ShoppingGroup
     return group_items(items)
 
 
+@router.post("/{plan_id}/shopping-list/regenerate")
+async def shopping_regenerate(
+    plan_id: str, req: DetailRequest, session: SessionDep
+) -> list[ShoppingGroup]:
+    """«↻ Перегенерировать» список покупок: нормализация мимо кэша по подписи, с учётом
+    обсуждения списка в чате. В отличие от GET, сбой нормализации — честная ошибка (502):
+    пользователь явно просил пересобрать, тихо отдавать базу нельзя."""
+    set_ai_context(plan_id=plan_id, endpoint="shopping_list", action="regenerate")
+    row = _get_plan(session, plan_id)
+    try:
+        items = await _single_flight(
+            (plan_id, "shopping", "regenerate"),
+            lambda: regenerate_shopping(session, row, req.recipe_model),
+        )
+    except LimitError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+    except AIError as exc:
+        raise HTTPException(
+            status_code=502, detail=f"Не удалось пересобрать список покупок: {exc}"
+        ) from exc
+    return group_items(items)
 
 
 @router.get("/{plan_id}/pdf")
@@ -182,7 +153,7 @@ async def plan_pdf(
     """PDF плана (рецепты и/или список покупок). Детали генерятся лениво — догрузим при экспорте."""
     set_ai_context(plan_id=plan_id, endpoint="plan_pdf")
     row = _get_plan(session, plan_id)
-    await _backfill_all(session, row, need_steps=recipes)
+    await backfill_all(session, row, need_steps=recipes)
     plan = to_week_plan(row)
     groups = group_items(aggregate_ingredients(plan.dishes)) if shopping else []
     pdf_bytes = build_plan_pdf(plan, groups, recipes=recipes, shop=shopping)
@@ -199,52 +170,10 @@ async def full_plan(plan_id: str, req: DetailRequest, session: SessionDep) -> We
     set_ai_context(plan_id=plan_id, endpoint="full_plan")
     row = _get_plan(session, plan_id)
     try:
-        await _backfill_all(session, row, need_steps=True, model=req.recipe_model)
+        await backfill_all(session, row, need_steps=True, model=req.recipe_model)
     except AIError as exc:
         raise HTTPException(status_code=502, detail=f"Не удалось собрать рецепты: {exc}") from exc
     return to_week_plan(row)
-
-
-def _variant_from_detail(detail: dict) -> dict:
-    """Деталь модели → вариант рецепта (ингредиенты/шаги/советы/note/провайдер)."""
-    return {
-        "ingredients": detail.get("ingredients") or [],
-        "steps": detail.get("steps") or [],
-        "tips": detail.get("tips") or [],
-        "note": detail.get("note") or "",
-        "provider": detail.get("provider") or "",
-    }
-
-
-def _dish_variants(dish: dict) -> dict:
-    """Варианты рецепта по моделям; при отсутствии — мигрируем плоскую деталь (legacy)."""
-    variants = dict(dish.get("variants") or {})
-    if not variants and (dish.get("ingredients") or dish.get("steps")):
-        key = _PROVIDER_KEY.get(dish.get("detail_provider", ""))
-        if key:
-            variants[key] = {
-                "ingredients": dish.get("ingredients") or [],
-                "steps": dish.get("steps") or [],
-                "tips": dish.get("tips") or [],
-                "note": (dish.get("storage") or {}).get("note") or "",
-                "provider": dish.get("detail_provider") or "",
-            }
-    return variants
-
-
-def _apply_variant(dish: dict, model: str, variants: dict) -> dict:
-    """Делает вариант model активным: зеркалим его в плоские поля (для покупок/PDF)."""
-    v = variants.get(model) or {}
-    return {
-        **dish,
-        "variants": variants,
-        "active_model": model,
-        "ingredients": v.get("ingredients") or [],
-        "steps": v.get("steps") or [],
-        "tips": v.get("tips") or [],
-        "detail_provider": v.get("provider") or "",
-        "storage": {**(dish.get("storage") or {}), "note": v.get("note") or ""},
-    }
 
 
 # Склейка одинаковых запросов генерации (single-flight): пока идёт генерация рецепта
@@ -273,8 +202,10 @@ async def dish_details(
     """Рецепт блюда с вариантами по моделям (лениво, кэш в плане).
 
     action=open — вернуть активный вариант (сгенерить первый, если деталей ещё нет);
-    action=select — сделать recipe_model активным (сгенерить его вариант, если ещё нет).
-    Одной моделью повторно не генерим — если вариант уже есть, просто переключаемся.
+    action=select — сделать recipe_model активным (сгенерить его вариант, если ещё нет);
+    action=regenerate — «↻ Перегенерировать»: ВСЕГДА новый вариант для recipe_model с учётом
+    обсуждения рецепта в чате; пишем только после успеха (при ошибке старый вариант цел).
+    Кроме regenerate одной моделью повторно не генерим — если вариант есть, переключаемся.
     Параллельные одинаковые запросы склеиваются (single-flight)."""
     action = (req.action or "open").lower()
     set_ai_context(plan_id=plan_id, dish_id=dish_id, endpoint="dish_details", action=action)
@@ -294,8 +225,21 @@ async def _resolve_dish_detail(
         raise HTTPException(status_code=404, detail="Блюдо не найдено")
 
     dish = dishes[idx]
-    variants = _dish_variants(dish)
+    variants = variants_of(dish)
     resolved = gate_for(req.recipe_model).key  # реальный ключ модели (учёт дефолта)
+
+    if action == "regenerate":
+        try:
+            new = await regenerate_dish(session, row, dish_id, resolved)
+        except DishNotFound as exc:
+            raise HTTPException(status_code=404, detail="Блюдо не найдено") from exc
+        except LimitError as exc:
+            raise HTTPException(status_code=429, detail=str(exc)) from exc
+        except AIError as exc:
+            raise HTTPException(
+                status_code=502, detail=f"Не удалось перегенерировать рецепт: {exc}"
+            ) from exc
+        return to_dish(new)
 
     if action == "select":
         target = resolved
@@ -314,23 +258,15 @@ async def _resolve_dish_detail(
             raise HTTPException(status_code=429, detail=str(exc)) from exc
         except AIError as exc:
             raise HTTPException(status_code=502, detail=f"Не удалось получить рецепт: {exc}") from exc
-        variants[target] = _variant_from_detail(detail)
+        variants[target] = variant_from_detail(detail)
 
-    dish = _apply_variant(dish, target, variants)
+    dish = apply_variant(dish, target, variants)
     dishes[idx] = dish
     row.dishes = dishes
     session.add(row)
     session.commit()
 
     return to_dish(dish)
-
-
-def _cook_sig(row: PlanRow) -> str:
-    """Подпись СОСТАВА плана (набор блюд) для кэша готовки. Меняется только при
-    добавлении/удалении/замене блюда — НЕ при переключении варианта рецепта отдельного
-    блюда (иначе план готовки пересобирался бы после каждого касания рецептов)."""
-    names = sorted(str(d.get("name", "")) for d in (row.dishes or []))
-    return hashlib.md5(json.dumps(names, ensure_ascii=False).encode()).hexdigest()
 
 
 def _cook_variants(row: PlanRow) -> dict:
@@ -345,8 +281,10 @@ async def cooking_plan(
     """Единый оптимизированный план готовки по всем блюдам недели (лениво, кэш в плане).
 
     action=open — вернуть активный вариант (сгенерить первый, если ещё нет);
-    action=select — сделать recipe_model активным (сгенерить его вариант, если ещё нет).
-    Кэш протухает, если поменялись блюда/рецепты (по _cook_sig). Одной моделью повторно
+    action=select — сделать recipe_model активным (сгенерить его вариант, если ещё нет);
+    action=regenerate — «↻ Перегенерировать»: принудительно пересобрать вариант recipe_model
+    с учётом обсуждения плана готовки в чате (запись — только после успеха).
+    Кэш протухает, если поменялись блюда/рецепты (по cook_sig). Одной моделью повторно
     не генерим. Параллельные одинаковые запросы склеиваются (single-flight)."""
     action = (req.action or "open").lower()
     set_ai_context(plan_id=plan_id, endpoint="cooking", action=action)
@@ -361,13 +299,23 @@ async def _resolve_cooking_plan(
     plan_id: str, req: DetailRequest, action: str, target: str, session: SessionDep
 ) -> CookingPlan:
     row = _get_plan(session, plan_id)
+    if action == "regenerate":
+        try:
+            await regenerate_cooking(session, row, target)
+        except LimitError as exc:
+            raise HTTPException(status_code=429, detail=str(exc)) from exc
+        except AIError as exc:
+            raise HTTPException(
+                status_code=502, detail=f"Не удалось пересобрать план готовки: {exc}"
+            ) from exc
+        return to_cook_plan(row)
     # План готовки строится по РАЗВЁРНУТЫМ рецептам — догенерим шаги всем блюдам.
     try:
-        await _backfill_all(session, row, need_steps=True, model=req.recipe_model)
+        await backfill_all(session, row, need_steps=True, model=req.recipe_model)
     except AIError as exc:
         raise HTTPException(status_code=502, detail=f"Не удалось собрать рецепты: {exc}") from exc
 
-    sig = _cook_sig(row)
+    sig = cook_sig(row)
     cp = dict(row.cooking_plan or {})
     variants = dict(cp.get("variants") or {})
     if cp.get("sig") != sig:  # состав/рецепты поменялись — старые варианты протухли
@@ -417,5 +365,5 @@ async def dish_variants(plan_id: str, dish_id: str, session: SessionDep) -> list
     dish = next((d for d in (row.dishes or []) if d.get("id") == dish_id), None)
     if dish is None:
         raise HTTPException(status_code=404, detail="Блюдо не найдено")
-    variants = _dish_variants(dish)
+    variants = variants_of(dish)
     return [DishVariant.model_validate({"model": m, **v}) for m, v in variants.items()]
