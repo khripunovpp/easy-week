@@ -33,6 +33,26 @@
 .pv__titlerow h1 {
   font-size: 26px;
 }
+/* Заголовок плана: долгое нажатие → правка на месте */
+.pv__title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  /* Без выделения текста и системного меню, пока держим палец (иначе long-press = copy) */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.pv__title--editing {
+  -webkit-user-select: text;
+  user-select: text;
+  outline: none;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  box-shadow: 0 0 0 2px var(--accent-soft), var(--shadow-card);
+  padding: 2px 8px;
+  margin: -2px -8px;
+  cursor: text;
+}
 .pv__count {
   font-size: 14px;
   margin: 6px 0 0;

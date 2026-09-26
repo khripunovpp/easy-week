@@ -21,6 +21,7 @@ from ..schemas import (
     Dish,
     DishVariant,
     PlanSummary,
+    RenameRequest,
     ShoppingGroup,
     StatusRequest,
     WeekPlan,
@@ -124,6 +125,20 @@ async def delete_plan(plan_id: str, session: SessionDep) -> None:
     row = _get_plan(session, plan_id)
     session.delete(row)
     session.commit()
+
+
+@router.patch("/{plan_id}")
+async def rename_plan(plan_id: str, req: RenameRequest, session: SessionDep) -> WeekPlan:
+    """Переименование плана пользователем (долгое нажатие на заголовок на странице плана)."""
+    title = " ".join(req.title.split())  # схлопываем переносы/лишние пробелы из contenteditable
+    if not title:
+        raise HTTPException(status_code=422, detail="Пустое название")
+    row = _get_plan(session, plan_id)
+    row.title = title
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return to_week_plan(row)
 
 
 @router.post("/{plan_id}/status")

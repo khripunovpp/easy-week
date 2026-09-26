@@ -293,6 +293,11 @@ export class EasyWeekApi {
     return this.http.post<WeekPlan>(`${API_BASE}/plans/${planId}/status`, { status });
   }
 
+  // Переименовать план (долгое нажатие на заголовок на странице плана).
+  renamePlan(planId: string, title: string): Observable<WeekPlan> {
+    return this.http.patch<WeekPlan>(`${API_BASE}/plans/${planId}`, { title });
+  }
+
   deletePlan(planId: string): Observable<void> {
     return this.http.delete<void>(`${API_BASE}/plans/${planId}`);
   }

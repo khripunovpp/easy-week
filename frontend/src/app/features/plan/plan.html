@@ -23,7 +23,24 @@
       <div class="pv__head">
         <p class="eyebrow">План · {{ p.weekLabel }}</p>
         <div class="pv__titlerow">
-          <h1>{{ p.title }}</h1>
+          <!-- Долгое нажатие (или двойной клик) → заголовок становится contenteditable.
+               Enter/blur — сохранить, Esc — отменить. -->
+          <h1
+            #titleEl
+            class="pv__title"
+            [class.pv__title--editing]="editingTitle()"
+            [attr.contenteditable]="editingTitle() ? 'plaintext-only' : null"
+            [attr.title]="editingTitle() ? null : 'Удерживайте, чтобы переименовать'"
+            (pointerdown)="titlePressStart($event)"
+            (pointerup)="titlePressCancel()"
+            (pointerleave)="titlePressCancel()"
+            (pointercancel)="titlePressCancel()"
+            (contextmenu)="$event.preventDefault()"
+            (dblclick)="startTitleEdit()"
+            (keydown.enter)="$event.preventDefault(); titleEl.blur()"
+            (keydown.escape)="cancelTitleEdit()"
+            (blur)="saveTitle()"
+            [textContent]="p.title"></h1>
           <span
             class="tag"
             [class.tag--ok]="p.status === 'accepted'"

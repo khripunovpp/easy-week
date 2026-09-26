@@ -1,4 +1,4 @@
-import { Component, effect, inject, input, signal } from '@angular/core';
+import { Component, ElementRef, effect, inject, input, signal, viewChild } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { PlanStatus, WeekPlan } from '../../models/plan.model';
 import { EasyWeekApi } from '../../services/api';
@@ -26,6 +26,13 @@ export class PlanPage {
   readonly loading = signal(true);
   readonly failed = signal(false);
 
+  // ---- Переименование плана ----
+  /** Заголовок сейчас в режиме contenteditable. */
+  readonly editingTitle = signal(false);
+  private readonly titleEl = viewChild<ElementRef<HTMLElement>>('titleEl');
+  private pressTimer: ReturnType<typeof setTimeout> | null = null;
+  private static readonly LONG_PRESS_MS = 500;
+
   constructor() {
     effect(() => {
       const id = this.id();
@@ -42,6 +49,72 @@ export class PlanPage {
           this.loading.set(false);
         },
       });
+    });
+  }
+
+  /** Начало нажатия на заголовок: через LONG_PRESS_MS включаем правку. */
+  titlePressStart(e: PointerEvent): void {
+    if (this.editingTitle() || e.button > 0) return;
+    this.titlePressCancel();
+    this.pressTimer = setTimeout(() => {
+      this.pressTimer = null;
+      navigator.vibrate?.(10); // лёгкий отклик на Android, где поддерживается
+      this.startTitleEdit();
+    }, PlanPage.LONG_PRESS_MS);
+  }
+
+  /** Палец отпустили/увели раньше времени — это не долгое нажатие. */
+  titlePressCancel(): void {
+    if (this.pressTimer) clearTimeout(this.pressTimer);
+    this.pressTimer = null;
+  }
+
+  startTitleEdit(): void {
+    if (this.editingTitle() || !this.plan()) return;
+    this.editingTitle.set(true);
+    // contenteditable появится после отрисовки — тогда фокус и выделение всего текста.
+    setTimeout(() => {
+      const el = this.titleEl()?.nativeElement;
+      if (!el) return;
+      el.focus();
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(range);
+    });
+  }
+
+  /** Esc: возвращаем прежнее название без запроса. */
+  cancelTitleEdit(): void {
+    const el = this.titleEl()?.nativeElement;
+    const p = this.plan();
+    if (el && p) el.textContent = p.title;
+    this.editingTitle.set(false);
+    el?.blur();
+  }
+
+  /** Blur/Enter: сохраняем, если название изменилось и не пустое. */
+  saveTitle(): void {
+    if (!this.editingTitle()) return;
+    this.editingTitle.set(false);
+    const el = this.titleEl()?.nativeElement;
+    const p = this.plan();
+    if (!el || !p) return;
+    const title = (el.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 80);
+    if (!title || title === p.title) {
+      el.textContent = p.title; // пусто или без изменений — откатываем текст
+      return;
+    }
+    // Оптимистично показываем новое название; при ошибке — откатываем.
+    this.plan.set({ ...p, title });
+    el.textContent = title;
+    this.api.renamePlan(p.id, title).subscribe({
+      next: (updated) => this.plan.set(updated),
+      error: () => {
+        this.plan.set(p);
+        el.textContent = p.title;
+      },
     });
   }
 

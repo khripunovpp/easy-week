@@ -183,6 +183,11 @@ class StatusRequest(CamelModel):
     status: str  # accepted | rejected | draft
 
 
+class RenameRequest(CamelModel):
+    # Новое название плана (правка пользователем на странице плана)
+    title: str = Field(min_length=1, max_length=80)
+
+
 class DetailRequest(CamelModel):
     # Модель для ленивой догенерации рецепта (та же, что выбрана в чате).
     recipe_model: str = ""
