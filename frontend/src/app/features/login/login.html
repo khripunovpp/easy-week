@@ -1,0 +1,31 @@
+<div class="page login">
+  <div class="page__inner login__inner">
+    <form class="card auth-card" (submit)="submit($event)">
+      <span class="emoji-badge pastel-0 auth-card__badge" aria-hidden="true">🥕</span>
+      <h2>Easy Week</h2>
+      <p class="muted auth-card__hint">Введите пароль, чтобы открыть приложение на этом устройстве</p>
+
+      <!-- username для менеджеров паролей (браузер связывает пароль с «пользователем») -->
+      <input type="text" name="username" value="easy-week" autocomplete="username" hidden />
+      <input
+        #pwd
+        class="text-field"
+        type="password"
+        name="password"
+        autocomplete="current-password"
+        placeholder="Пароль"
+        aria-label="Пароль"
+        autofocus
+        [value]="password()"
+        (input)="password.set($any($event.target).value); error.set(null)" />
+
+      @if (error(); as e) {
+        <p class="field-error" role="alert">{{ e }}</p>
+      }
+
+      <button class="btn-primary" type="submit" [disabled]="busy() || !password()">
+        {{ busy() ? 'Входим…' : 'Войти' }}
+      </button>
+    </form>
+  </div>
+</div>

@@ -35,6 +35,7 @@ export interface CookingPlanVariant {
   note: string;
 }
 import { Preferences, RecipeModel } from './preferences';
+import { AuthService } from './auth';
 
 // Относительный путь: в проде nginx проксирует /api → бэкенд;
 // в деве — dev-прокси Angular (proxy.conf.json) на localhost:8000.
@@ -125,6 +126,7 @@ export interface ShoppingGroup {
 export class EasyWeekApi {
   private readonly http = inject(HttpClient);
   private readonly prefs = inject(Preferences);
+  private readonly auth = inject(AuthService);
 
   chat(
     message: string,
@@ -202,9 +204,17 @@ export class EasyWeekApi {
   ): Promise<void> {
     let resp: Response;
     try {
-      resp = await fetch(url, init);
+      // Голый fetch мимо HttpClient: интерсептор сюда не попадает. same-origin — кука сессии
+      // уходит сама (явно, чтобы не зависеть от дефолта).
+      resp = await fetch(url, { credentials: 'same-origin', ...init });
     } catch {
       onError('Нет связи с сервером');
+      return;
+    }
+    if (resp.status === 401) {
+      // Сессия протухла — как в интерсепторе: на экран входа.
+      onError('Нужно войти заново');
+      this.auth.handleUnauthorized();
       return;
     }
     if (!resp.ok || !resp.body) {

@@ -104,6 +104,10 @@
       </div>
     </section>
 
+    @if (auth.status()?.required) {
+      <button class="btn-ghost profile__logout" type="button" (click)="logout()">Выйти</button>
+    }
+
     <p class="profile__foot muted">Easy Week — меню на неделю под заморозку</p>
     </div>
   </div>

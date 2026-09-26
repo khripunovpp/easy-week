@@ -235,6 +235,33 @@ ul {
   color: var(--ink-3);
 }
 
+/* Поле ввода для форм (пароль и т.п.) — пилюля как у поиска, но утопленная внутри карточки.
+   font-size 16px — иначе iOS Safari зумит при фокусе. */
+.text-field {
+  width: 100%;
+  padding: 14px 18px;
+  border: 1.5px solid transparent;
+  border-radius: var(--r-pill);
+  background: var(--surface-sunk);
+  color: var(--ink);
+  font-size: 16px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.text-field::placeholder {
+  color: var(--ink-3);
+}
+.text-field:focus {
+  border-color: var(--accent);
+}
+
+/* Текст ошибки под полем */
+.field-error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--no);
+}
+
 /* Выбор модели (рецепт/готовка) — выпадашка в шапке. ✓ готово, ↓ соберётся по тапу. */
 .msel {
   position: relative;
