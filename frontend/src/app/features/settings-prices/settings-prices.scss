@@ -1,3 +1,8 @@
+/* Каркас держит .page (styles.scss); host прозрачен — иначе .page без высоты и не скроллится */
+:host {
+  display: contents;
+}
+
 /* Экран цен: карточка на модель, внутри — сетка 2×2 полей (GUIDEBOOK → «Экраны настроек») */
 .prices__intro {
   margin: 0 4px 4px;
