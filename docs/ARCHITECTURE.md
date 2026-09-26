@@ -3,29 +3,43 @@
 Как в Easy Week работает выбор модели для рецептов. Правила — в [`CLAUDE.md`](../CLAUDE.md),
 код — в `backend/app/ai/`. Наглядная интерактивная версия этой схемы — артефакт (ссылку см. в задаче).
 
-**Главное:** три провайдера спрятаны за общим интерфейсом `ModelGate`. Пользователь выбирает
-модель для рецептов; выбранная модель либо отвечает, либо честно падает с `AIError` — **тихого
-перехода на другую модель нет (фолбэков нет)**.
+**Главное:** провайдеры спрятаны за общим интерфейсом `ModelGate`. Пользователь выбирает
+модель для каждой задачи (дефолты — в общих настройках на сервере, страница может выбрать свою);
+выбранная модель либо отвечает, либо честно падает с `AIError` — **тихого перехода на другую
+модель нет (фолбэков нет)**.
 
 Провайдеры (цвет = провайдер на схемах):
 - 🔵 **DeepSeek** — `deepseek-chat`
 - 🟣 **Gemini** — `gemini-flash-latest`
+- 🟤 **Claude** — Anthropic API
 - 🟠 **Cloudflare** — Workers AI (mistral / llama)
 
 ## 1. Выбор модели и роутинг
 
-Два независимых уровня выбора на фронте; переключение в чате **не** меняет дефолт профиля.
-`recipeModel` едет в теле каждого запроса (как `gender`), на бэке `gate_for()` отдаёт нужный гейт.
+Два уровня: **дефолт задачи** (сервер, общий для семьи) и **локальный выбор страницы**
+(чат — override на этот чат; рецепт/готовка — выпадашка вариантов; покупки — выпадашка для ↻).
+Локальный выбор настройки **не** меняет. `recipeModel` едет в теле запроса (как `gender`);
+пусто → бэк берёт дефолт задачи: `gate_for(model, task)` (`task` = chat | recipe | shopping | cooking).
+Миграция: если на сервере настроек ещё нет (`initialized: false`), фронт разово переносит старый
+`localStorage ew.recipeModel` на chat/recipe/cooking (покупки — Cloudflare).
 
 ```mermaid
 flowchart TD
-  subgraph FE["Фронт — выбор модели"]
-    P["Профиль · Preferences.recipeModel<br/>localStorage ew.recipeModel · дефолт deepseek"]
-    C["Чат · ChatStore.recipeModel<br/>override, профиль НЕ трогает"]
-    P -. "инициализирует при newChat/load" .-> C
+  subgraph SRV["Сервер — модели по умолчанию"]
+    S["GET/PUT /api/settings<br/>data/settings.json · services/settings.py<br/>chat · recipe · shopping · cooking"]
   end
-  C -- "recipeModel в теле запроса" --> API["/chat · /chat/stream · /chat/edit · /chat/discuss<br/>/plans/../dishes/../details · /cooking · /full"]
-  API --> GF{{"gate_for(recipeModel)<br/>ai/gates.py"}}
+  subgraph FE["Фронт — выбор модели"]
+    MS["ModelSettings (services/model-settings.ts)<br/>экран «Модели по умолчанию» /settings/models"]
+    C["Чат · ChatStore.recipeModel<br/>linkedSignal от chat, override на чат"]
+    PG["Рецепт / Готовка / Покупки<br/>локальная выпадашка"]
+    MS -. "дефолт" .-> C
+    MS -. "дефолт" .-> PG
+  end
+  S <--> MS
+  C -- "recipeModel в теле запроса" --> API["/chat · /chat/stream · /chat/edit · /chat/discuss<br/>/plans/../dishes/../details · /cooking · /full · /shopping-list(/regenerate)"]
+  PG -- "recipeModel или пусто" --> API
+  API --> GF{{"gate_for(recipeModel, task)<br/>пусто → дефолт задачи"}}
+  S -. "default_model(task)" .-> GF
   GF --> DS["DeepSeekGate<br/>stream ✓ · tools ✓"]
   GF --> GM["GeminiGate<br/>stream ✓ · tools ✗"]
   GF --> CF["CloudflareGate<br/>stream ✗ · tools ✗"]
@@ -65,18 +79,21 @@ classDiagram
 
 ## 3. Что делает каждая модель по задачам
 
-Выбранная модель обслуживает все рецептные задачи. Список покупок — исключение (всегда Cloudflare).
+Каждую задачу делает её модель: выбранная на странице, иначе дефолт задачи из настроек
+(колонка «Задача» → ключ `task`). Недостающие рецепты для покупок / PDF / плана готовки
+догенерирует модель задачи `recipe`.
 
 | Задача | 🔵 DeepSeek | 🟣 Gemini | 🟠 Cloudflare |
 |---|---|---|---|
-| **План** (блюда + короткие шаги) | один запрос — весь план | один запрос — весь план | **пайплайн:** меню (mistral) → спеки блюд (llama-8b, параллельно) → валидатор (mistral) |
+| **План** (`chat`; блюда + короткие шаги) | один запрос — весь план | один запрос — весь план | **пайплайн:** меню (mistral) → спеки блюд (llama-8b, параллельно) → валидатор (mistral) |
 | **Стриминг плана** | блюда по мере генерации (SSE) | блюда по мере генерации (SSE) | стрима нет: собирает целиком, отдаёт блюда теми же событиями |
-| **Деталь рецепта** (ингредиенты + шаги) | один JSON-запрос текущей моделью чата — одинаково для всех трёх | ← | ← |
-| **Правки плана** | function calling (tools) | structured actions | structured actions |
-| **Список покупок** | всегда Cloudflare (mistral) — вспомогательная задача, в выборе не участвует | ← | ← |
-| **Обсуждение** (`/chat/discuss`: рецепт / готовка / покупки) | function calling (`DISCUSS_TOOLS`: update_recipe · replace_dish · regenerate) | structured JSON (`DISCUSS_SCHEMA`) | structured JSON (json_schema) |
+| **Деталь рецепта** (`recipe`; ингредиенты + шаги) | один JSON-запрос: модель из выпадашки рецепта, первый вариант — дефолт `recipe` | ← | ← (json_schema, mistral) |
+| **План готовки** (`cooking`) | один JSON-запрос: модель из выпадашки готовки, первый вариант — дефолт `cooking` | ← | ← (json_schema, mistral) |
+| **Правки плана** (`chat`) | function calling (tools) | structured actions | structured actions |
+| **Список покупок** (`shopping`, дефолт Cloudflare) | JSON-режим, форма ответа в `SHOP_SYSTEM` | ← | mistral + строгая json_schema `SHOP_SCHEMA` (Claude — как DeepSeek/Gemini: строгий JSON в промпте) |
+| **Обсуждение** (`chat`; `/chat/discuss`: рецепт / готовка / покупки; применение — той же моделью чата, без неё — дефолт цели) | function calling (`DISCUSS_TOOLS`: update_recipe · replace_dish · regenerate) | structured JSON (`DISCUSS_SCHEMA`) | structured JSON (json_schema) |
 | **↻ Перегенерировать** (рецепт / план готовки) | выбранная (открытая) модель, всегда новый вариант с учётом обсуждения | ← | ← |
-| **↻ Перегенерировать** (покупки) | нормализация Cloudflare мимо кэша, с учётом обсуждения | ← | ← |
+| **↻ Перегенерировать** (покупки) | нормализация моделью из выпадашки страницы (дефолт `shopping`) мимо кэша, с учётом обсуждения | ← | ← |
 
 Метка провайдера сохраняется у плана (`provider`) и у детали блюда (`detail_provider`) — показывается бейджем.
 
@@ -158,7 +175,7 @@ System-промпты стабильны (общий префикс `COOK_PREAMB
 ```
 backend/app/ai/
   base.py        # AIError/AINonRetryable + ModelGate (шаблонный метод + хуки)
-  gates.py       # реестр GATES + gate_for(model)
+  gates.py       # реестр GATES + gate_for(model, task) / resolve_key — пусто → дефолт задачи
   deepseek.py    # DeepSeekGate
   gemini.py      # GeminiGate
   anthropic.py   # AnthropicGate (prefill + корректирующая попытка JSON)
@@ -167,10 +184,12 @@ backend/app/ai/
   prompt.py      # промпты (system стабильны, динамика — в user)
   observe.py     # log_ai_call (консоль + JSONL + Prometheus)
 backend/app/services/
+  settings.py    # модели по умолчанию по задачам (data/settings.json, атомарная запись)
   history.py     # «недавно ели или отвергли», отвергнутое в беседе, исходный запрос
   discussion.py  # реплики обсуждения цели: контекст перегенерации и мульти-тёрн
   regenerate.py  # (пере)генерация рецепта / плана готовки / покупок, бэкфилл деталей
   variants.py    # варианты рецепта по моделям (variants + active_model)
 backend/app/routers/
+  settings.py    # GET/PUT /api/settings
   discuss.py     # POST /api/chat/discuss
 ```
