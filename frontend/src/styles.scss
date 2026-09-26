@@ -1099,3 +1099,10 @@ ul {
     background: #fff;
   }
 }
+
+/* Подпись «когда сгенерировано» (рецепт, план готовки, покупки, план) — см. GUIDEBOOK */
+.gen-at {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--ink-3);
+}

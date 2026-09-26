@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
@@ -41,6 +42,8 @@ class Dish(CamelModel):
     ingredients: list[Ingredient] = []
     # Какой моделью сгенерирован развёрнутый рецепт (пусто, пока деталь не грузили).
     detail_provider: str = ""
+    # Когда сгенерирован развёрнутый рецепт (ISO UTC; пусто — старые данные / не грузили).
+    detail_generated_at: str = ""
     # Варианты рецепта по моделям: активный ключ + список ключей с готовыми вариантами
     # (deepseek/gemini/anthropic/cloudflare). Плоские поля выше = активный вариант.
     active_model: str = ""
@@ -55,6 +58,7 @@ class DishVariant(CamelModel):
     steps: list[str] = []
     tips: list[str] = []
     note: str = ""
+    generated_at: str = ""  # когда сгенерирован вариант (ISO UTC)
 
 
 class CookingStep(CamelModel):
@@ -74,6 +78,7 @@ class CookingPlanVariant(CamelModel):
     provider: str = ""
     steps: list[CookingStep] = []
     note: str = ""
+    generated_at: str = ""  # когда сгенерирован вариант (ISO UTC)
 
 
 class CookingPlan(CamelModel):
@@ -83,6 +88,7 @@ class CookingPlan(CamelModel):
     provider: str = ""
     steps: list[CookingStep] = []
     note: str = ""
+    generated_at: str = ""  # когда сгенерирован активный вариант (ISO UTC)
 
 
 class WeekPlan(CamelModel):
@@ -94,6 +100,9 @@ class WeekPlan(CamelModel):
     # Модель, составившая план (DeepSeek | Cloudflare).
     provider: str = ""
     dishes: list[Dish]
+    # Когда создан план и когда собран закэшированный список покупок (для подписей на страницах).
+    created_at: datetime | None = None
+    shopping_generated_at: datetime | None = None
 
 
 class ChatMessageOut(CamelModel):
@@ -135,6 +144,7 @@ class PlanSummary(CamelModel):
     total_cook_min: int
     emoji: str
     dish_names: list[str] = []
+    created_at: datetime | None = None
 
 
 class MessageSearchHit(CamelModel):

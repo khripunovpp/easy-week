@@ -6,7 +6,7 @@ import { ChatStore } from '../../services/chat-store';
 import { providerToModel } from '../../services/preferences';
 import { CookingLoader } from '../../shared/cooking-loader';
 import { dishColorClass } from '../../shared/dish-color';
-import { formatDuration } from '../../shared/format';
+import { formatDuration, formatGeneratedAt } from '../../shared/format';
 import { Vote } from '../../shared/vote';
 
 @Component({
@@ -16,6 +16,11 @@ import { Vote } from '../../shared/vote';
   styleUrl: './plan.scss',
 })
 export class PlanPage {
+  /** Подпись даты генерации: «сегодня, 14:05» / «26 сен, 14:05»; пусто — не показываем. */
+  genAt(iso: string | null | undefined): string {
+    return formatGeneratedAt(iso);
+  }
+
   private readonly api = inject(EasyWeekApi);
   private readonly store = inject(ChatStore);
   private readonly router = inject(Router);

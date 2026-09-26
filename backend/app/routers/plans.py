@@ -37,7 +37,7 @@ from ..services.regenerate import (
     shopping_base,
 )
 from ..services.shopping import aggregate_ingredients, group_items
-from ..services.variants import apply_variant, variant_from_detail
+from ..services.variants import apply_variant, now_iso, variant_from_detail
 from ..services.variants import dish_variants as variants_of  # имя dish_variants занято роутом
 
 import logging
@@ -130,6 +130,7 @@ async def shopping_list(plan_id: str, session: SessionDep) -> list[ShoppingGroup
         return group_items(base)
     row.shopping_cache = items
     row.shopping_sig = sig
+    row.shopping_at = datetime.now(timezone.utc)
     session.add(row)
     session.commit()
     return group_items(items)
@@ -358,6 +359,7 @@ async def _resolve_cooking_plan(
             "steps": detail.get("steps") or [],
             "note": detail.get("note") or "",
             "provider": detail.get("provider") or "",
+            "generated_at": now_iso(),
         }
 
     row.cooking_plan = {"variants": variants, "active_model": active, "sig": sig}

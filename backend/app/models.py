@@ -29,6 +29,8 @@ class PlanRow(SQLModel, table=True):
     # Кэш нормализованного списка покупок (mistral) + подпись состава.
     shopping_cache: list = Field(default_factory=list, sa_column=Column(JSON))
     shopping_sig: str = ""
+    # Когда собран закэшированный список покупок (для подписи «собран …» на странице).
+    shopping_at: datetime | None = None
     # Кэш единого плана готовки: {"variants": {model: {steps, note, provider}},
     # "active_model": str, "sig": str}. Варианты по моделям — для сравнения.
     cooking_plan: dict = Field(default_factory=dict, sa_column=Column(JSON))

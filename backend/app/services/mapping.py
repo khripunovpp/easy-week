@@ -1,5 +1,14 @@
+from datetime import datetime, timezone
+
 from ..models import PlanRow
 from ..schemas import CookingPlan, Dish, PlanSummary, WeekPlan
+
+
+def _utc(dt: datetime | None) -> datetime | None:
+    """SQLite отдаёт naive datetime (пишем в UTC) — помечаем зону, чтобы фронт показал локальное."""
+    if dt is None:
+        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
 def to_dish(d: dict) -> Dish:
@@ -20,6 +29,8 @@ def to_week_plan(row: PlanRow) -> WeekPlan:
         status=row.status,
         provider=row.provider,
         dishes=dishes,
+        created_at=_utc(row.created_at),
+        shopping_generated_at=_utc(row.shopping_at),
     )
 
 
@@ -39,6 +50,7 @@ def to_cook_plan(row: PlanRow) -> CookingPlan:
         "provider": v.get("provider", ""),
         "steps": v.get("steps") or [],
         "note": v.get("note", ""),
+        "generated_at": v.get("generated_at", ""),
     })
 
 
@@ -55,4 +67,5 @@ def to_summary(row: PlanRow) -> PlanSummary:
         total_cook_min=total_cook,
         emoji=emoji,
         dish_names=[str(d.get("name", "")) for d in dishes if d.get("name")],
+        created_at=_utc(row.created_at),
     )

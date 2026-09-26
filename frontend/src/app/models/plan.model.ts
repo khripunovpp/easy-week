@@ -39,6 +39,7 @@ export interface Dish {
   steps: string[];
   ingredients: Ingredient[];
   detailProvider?: string; // какая модель сгенерила развёрнутый рецепт (активный вариант)
+  detailGeneratedAt?: string; // когда сгенерирован активный вариант рецепта (ISO)
   activeModel?: string; // ключ активной модели-варианта рецепта
   variantModels?: string[]; // ключи моделей, для которых вариант уже сгенерирован
 }
@@ -51,6 +52,8 @@ export interface WeekPlan {
   status: PlanStatus;
   provider?: string; // модель, составившая план (DeepSeek | Cloudflare)
   dishes: Dish[];
+  createdAt?: string | null; // когда создан план (ISO)
+  shoppingGeneratedAt?: string | null; // когда собран закэшированный список покупок (ISO)
 }
 
 export type ChatRole = 'user' | 'assistant';

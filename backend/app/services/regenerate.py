@@ -10,6 +10,7 @@ import asyncio
 import hashlib
 import json
 import logging
+from datetime import datetime, timezone
 
 from sqlmodel import Session
 
@@ -20,7 +21,7 @@ from ..services.mapping import to_week_plan
 from .discussion import discussion_text
 from .history import original_request, reply_mention
 from .shopping import aggregate_ingredients
-from .variants import dish_variants, variant_summary, with_detail
+from .variants import dish_variants, now_iso, variant_summary, with_detail
 
 logger = logging.getLogger("easy_week.regenerate")
 
@@ -37,6 +38,7 @@ def merge_detail(dish: dict, detail: dict) -> dict:
         "steps": detail.get("steps") or [],
         "tips": detail.get("tips") or [],
         "detail_provider": detail.get("provider") or "",
+        "detail_generated_at": now_iso(),
     }
     if detail.get("note"):
         d["storage"] = {**(dish.get("storage") or {}), "note": detail["note"]}
@@ -162,6 +164,7 @@ async def regenerate_cooking(
         "steps": detail.get("steps") or [],
         "note": detail.get("note") or "",
         "provider": detail.get("provider") or "",
+        "generated_at": now_iso(),
     }
     row.cooking_plan = {"variants": variants, "active_model": key, "sig": sig}
     session.add(row)
@@ -186,6 +189,7 @@ async def regenerate_shopping(session: Session, row: PlanRow, model: str = "") -
         return base
     row.shopping_cache = items
     row.shopping_sig = sig
+    row.shopping_at = datetime.now(timezone.utc)
     session.add(row)
     session.commit()
     logger.info(

@@ -10,6 +10,7 @@ import { ingTokens } from '../../shared/ingredient-match';
 import { HlOwner, highlightStepText } from '../../shared/step-highlight';
 import { PlanPicker } from '../../shared/plan-picker';
 import { Vote } from '../../shared/vote';
+import { formatGeneratedAt } from '../../shared/format';
 
 @Component({
   selector: 'ew-cooking-plan',
@@ -18,6 +19,11 @@ import { Vote } from '../../shared/vote';
   styleUrl: './cooking.scss',
 })
 export class CookingPlanPage {
+  /** Подпись даты генерации: «сегодня, 14:05» / «26 сен, 14:05»; пусто — не показываем. */
+  genAt(iso: string | null | undefined): string {
+    return formatGeneratedAt(iso);
+  }
+
   private readonly api = inject(EasyWeekApi);
   private readonly store = inject(ChatStore);
   private readonly router = inject(Router);

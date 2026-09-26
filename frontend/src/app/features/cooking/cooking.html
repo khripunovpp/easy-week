@@ -95,6 +95,9 @@
             [model]="cp.activeModel"
             [planId]="currentPlanId()" />
         </div>
+        @if (genAt(cp.generatedAt)) {
+          <p class="gen-at">Сгенерирован {{ genAt(cp.generatedAt) }}</p>
+        }
       }
 
       @if (cp.note) {

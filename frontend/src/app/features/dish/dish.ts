@@ -7,6 +7,7 @@ import { ChatStore } from '../../services/chat-store';
 import { ALL_MODELS, MODEL_LABELS, RecipeModel } from '../../services/preferences';
 import { CookingLoader } from '../../shared/cooking-loader';
 import { Vote } from '../../shared/vote';
+import { formatGeneratedAt } from '../../shared/format';
 
 @Component({
   selector: 'ew-dish',
@@ -15,6 +16,11 @@ import { Vote } from '../../shared/vote';
   styleUrl: './dish.scss',
 })
 export class DishPage {
+  /** Подпись даты генерации: «сегодня, 14:05» / «26 сен, 14:05»; пусто — не показываем. */
+  genAt(iso: string | null | undefined): string {
+    return formatGeneratedAt(iso);
+  }
+
   private readonly api = inject(EasyWeekApi);
   private readonly store = inject(ChatStore);
   private readonly location = inject(Location);

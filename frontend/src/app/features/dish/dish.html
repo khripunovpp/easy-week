@@ -90,6 +90,9 @@
             [planId]="planId()"
             [dishId]="dishId()" />
         </div>
+        @if (genAt(d.detailGeneratedAt)) {
+          <p class="gen-at">Сгенерирован {{ genAt(d.detailGeneratedAt) }}</p>
+        }
       }
 
       <div class="d__meta">

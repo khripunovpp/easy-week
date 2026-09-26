@@ -5,7 +5,14 @@
 (routers/plans.py), правки рецепта в чате (ai/planner.edit_plan → edit_dish) и обсуждения.
 """
 
+from datetime import datetime, timezone
+
 from ..ai.gates import GATES
+
+
+def now_iso() -> str:
+    """Время генерации для JSON-кэшей (варианты рецепта/плана готовки): ISO-строка в UTC."""
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 # Провайдер (человекочитаемый) → ключ модели — для миграции legacy-детали в вариант.
 _PROVIDER_KEY = {g.provider: g.key for g in GATES.values()}
@@ -19,6 +26,7 @@ def variant_from_detail(detail: dict) -> dict:
         "tips": detail.get("tips") or [],
         "note": detail.get("note") or "",
         "provider": detail.get("provider") or "",
+        "generated_at": now_iso(),
     }
 
 
@@ -49,6 +57,8 @@ def apply_variant(dish: dict, model: str, variants: dict) -> dict:
         "steps": v.get("steps") or [],
         "tips": v.get("tips") or [],
         "detail_provider": v.get("provider") or "",
+        # Когда сгенерирован активный вариант (пусто у старых данных — подпись не показываем).
+        "detail_generated_at": v.get("generated_at") or "",
         "storage": {**(dish.get("storage") or {}), "note": v.get("note") or ""},
     }
 

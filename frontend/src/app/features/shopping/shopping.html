@@ -4,6 +4,7 @@
       <h1 class="page__title">Покупки</h1>
       <p class="page__subtitle">
         @if (currentWeekLabel()) { {{ currentWeekLabel() }} } @else { &nbsp; }
+        @if (genAt(shoppingAt())) { · собран {{ genAt(shoppingAt()) }} }
       </p>
     </div>
     @if (!loading() && !empty()) {

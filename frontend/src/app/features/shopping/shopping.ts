@@ -6,6 +6,7 @@ import { ModelSettings } from '../../services/model-settings';
 import { ALL_MODELS, MODEL_LABELS, RecipeModel } from '../../services/preferences';
 import { CookingLoader } from '../../shared/cooking-loader';
 import { PlanPicker } from '../../shared/plan-picker';
+import { formatGeneratedAt } from '../../shared/format';
 
 // Порядок категорий в списке (как на бэке). Незнакомые — в конце.
 const CATEGORY_ORDER = [
@@ -25,6 +26,14 @@ const CATEGORY_ORDER = [
   styleUrl: './shopping.scss',
 })
 export class Shopping {
+  /** Когда собран список покупок на сервере (из плана) — для подписи «собран …». */
+  readonly shoppingAt = signal<string | null>(null);
+
+  /** Подпись даты генерации: «сегодня, 14:05» / «26 сен, 14:05»; пусто — не показываем. */
+  genAt(iso: string | null | undefined): string {
+    return formatGeneratedAt(iso);
+  }
+
   private readonly api = inject(EasyWeekApi);
   private readonly store = inject(ChatStore);
   private readonly router = inject(Router);
@@ -149,6 +158,7 @@ export class Shopping {
     this.activePlanId = planId;
     this.currentPlanId.set(planId);
     this.checked.set(this.loadChecked(planId));
+    this.shoppingAt.set(null);
 
     // Мгновенно показываем закэшированный список (в т.ч. офлайн), затем обновляем с сервера.
     const cached = this.loadItems(planId);
@@ -162,6 +172,10 @@ export class Shopping {
         this.saveItems(planId, items);
         this.loading.set(false);
         this.empty.set(items.length === 0);
+        // Время сборки хранится в плане — подтягиваем для подписи «собран …».
+        this.api.getPlan(planId).subscribe({
+          next: (p) => this.activePlanId === planId && this.shoppingAt.set(p.shoppingGeneratedAt ?? null),
+        });
       },
       error: () => {
         // Офлайн/ошибка — остаёмся на кэше, если он есть.
@@ -196,6 +210,7 @@ export class Shopping {
           ),
         );
         this.saveChecked();
+        this.shoppingAt.set(new Date().toISOString()); // только что пересобран
         this.regenerating.set(false);
       },
       error: (err) => {

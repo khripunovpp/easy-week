@@ -17,6 +17,7 @@ export interface DishVariant {
   steps: string[];
   tips: string[];
   note: string;
+  generatedAt?: string; // когда сгенерирован вариант (ISO)
 }
 
 // Единый план готовки на весь недельный план (по всем блюдам).
@@ -34,12 +35,14 @@ export interface CookingPlan {
   provider: string;
   steps: CookingStep[];
   note: string;
+  generatedAt?: string; // когда сгенерирован активный вариант (ISO)
 }
 export interface CookingPlanVariant {
   model: string;
   provider: string;
   steps: CookingStep[];
   note: string;
+  generatedAt?: string; // когда сгенерирован вариант (ISO)
 }
 import { Preferences, RecipeModel } from './preferences';
 import { AuthService } from './auth';
@@ -176,6 +179,7 @@ export interface PlanSummary {
   totalCookMin: number;
   emoji: string;
   dishNames: string[];
+  createdAt?: string | null; // когда создан план (ISO)
 }
 
 export interface ShoppingGroup {
