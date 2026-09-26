@@ -61,11 +61,14 @@ def _get_plan(session: Session, plan_id: str) -> PlanRow:
 @router.get("")
 async def list_plans(session: SessionDep) -> list[PlanSummary]:
     rows = session.exec(select(PlanRow).order_by(PlanRow.created_at.desc())).all()
-    # Промежуточные ЧЕРНОВИКИ, у которых уже есть более новая версия (правка в чате),
-    # в списке не показываем — только последнюю версию. Принятые/отклонённые остаются
-    # всегда (их ссылки могли быть расшарены).
+    # Промежуточные версии, у которых уже есть более новая (правка в чате), в списке не
+    # показываем — только последнюю. Ссылки на них по-прежнему открываются.
     superseded = {r.parent_id for r in rows if r.parent_id}
-    visible = [r for r in rows if not (r.status == "draft" and r.id in superseded)]
+    # Версии, заменённые правкой (черновик или авто-«отклонён» при правке), тоже прячем —
+    # иначе после «убрать блюдо» в списке висели две «Соляночки»: старая и новая.
+    visible = [
+        r for r in rows if not (r.status in ("draft", "rejected") and r.id in superseded)
+    ]
     return [to_summary(r) for r in visible]
 
 

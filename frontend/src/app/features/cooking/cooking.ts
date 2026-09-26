@@ -133,7 +133,9 @@ export class CookingPlanPage {
           this.fetch(target);
         };
         // Явный план в URL важнее; иначе — выбранный «текущий» с сервера.
-        if (inputPlanId) resolve(null);
+        // Явный план в URL — только если это актуальная версия (из списка); ссылка на
+        // заменённую правкой версию → берём «текущий» с сервера (он уже указывает на новую).
+        if (inputPlanId && list.some((p) => p.id === inputPlanId)) resolve(null);
         else
           this.api.getCurrentPlan().subscribe({
             next: (r) => resolve(r.planId),

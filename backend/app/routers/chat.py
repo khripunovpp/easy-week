@@ -72,7 +72,29 @@ async def get_current_plan(session: SessionDep) -> dict:
     pid = appstate.get_current_plan()
     if pid and session.get(PlanRow, pid) is None:
         pid = None
+    # Правка в чате (убрать/заменить/добавить блюдо) создаёт новую версию плана — текущим
+    # должен быть её последний потомок, иначе покупки/готовка показывают старый состав.
+    latest = _latest_version(session, pid) if pid else None
+    if latest and latest != pid:
+        appstate.set_current_plan(latest)
+        pid = latest
     return {"planId": pid}
+
+
+def _latest_version(session: Session, plan_id: str) -> str:
+    """Последняя версия плана по цепочке parent_id → потомок (самый свежий на каждом шаге)."""
+    seen = {plan_id}
+    cur = plan_id
+    while True:
+        child = session.exec(
+            select(PlanRow.id)
+            .where(PlanRow.parent_id == cur)
+            .order_by(PlanRow.created_at.desc())
+        ).first()
+        if not child or child in seen:  # защита от циклов в битых данных
+            return cur
+        seen.add(child)
+        cur = child
 
 
 @router.put("/current-plan")
@@ -457,7 +479,10 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
         conversation_id=conv.id,
         title=result["title"],
         week_label=row.week_label,
-        status="draft",
+        # Правка ПРИНЯТОГО плана остаётся принятой (иначе план выпадал из «Принятых»
+        # и из истории для разнообразия); правка черновика — черновик.
+        status="accepted" if row.status == "accepted" else "draft",
+        decided_at=row.decided_at if row.status == "accepted" else None,
         provider=result.get("provider") or row.provider,
         parent_id=row.id,
         dishes=result["dishes"],
@@ -468,6 +493,9 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
     row.status = "rejected"
     row.decided_at = datetime.now(timezone.utc)
     session.add(row)
+    # Если исходная версия была «текущим» планом покупок/готовки — текущим становится новая.
+    if appstate.get_current_plan() == row.id:
+        appstate.set_current_plan(new_plan.id)
     # Крестик — без реплики: сообщение несёт только новую версию плана (пустой текст),
     # чтобы карточка отрисовалась при перезагрузке чата.
     edit_msg_id = uuid4().hex
