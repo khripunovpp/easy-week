@@ -1,7 +1,8 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, inject, linkedSignal, signal } from '@angular/core';
 import { ChatMessage, DiscussTarget, WeekPlan } from '../models/plan.model';
 import { EasyWeekApi } from './api';
-import { ALL_MODELS, Preferences, RecipeModel } from './preferences';
+import { ModelSettings } from './model-settings';
+import { ALL_MODELS, RecipeModel } from './preferences';
 
 // Действие, инициированное кнопкой карточки, — «висит» бейджем в композере до отправки.
 // discuss — режим «Обсуждение: <что>» (кнопка «💬 Обсудить в чате» на странице рецепта /
@@ -40,7 +41,7 @@ const PROVIDER_TO_MODEL: Record<string, RecipeModel> = {
 @Injectable({ providedIn: 'root' })
 export class ChatStore {
   private readonly api = inject(EasyWeekApi);
-  private readonly prefs = inject(Preferences);
+  private readonly modelSettings = inject(ModelSettings);
 
   readonly messages = signal<ChatMessage[]>([INTRO]);
   readonly draft = signal('');
@@ -50,9 +51,9 @@ export class ChatStore {
   // Тик для прокрутки ленты вниз (к новой карточке плана после правки).
   readonly scrollBump = signal(0);
   readonly dishCount = signal(5);
-  // Модель рецептов этого чата (override). Инициализируется дефолтом из профиля,
-  // но переключение здесь НЕ меняет глобальный выбор в профиле.
-  readonly recipeModel = signal<RecipeModel>(this.prefs.recipeModel());
+  // Модель этого чата (override). Стартует с настройки «Чат и план» (сервер, общая для семьи)
+  // и следует за ней, пока в чате не выбрали свою; переключение здесь настройки НЕ меняет.
+  readonly recipeModel = linkedSignal<RecipeModel>(() => this.modelSettings.models().chat);
   // Действие с карточки, ждущее отправки (бейдж в композере): замена блюда или добавление.
   readonly pending = signal<PendingAction | null>(null);
 
@@ -63,20 +64,20 @@ export class ChatStore {
     this.dishCount.set(n);
   }
 
-  // Переключение модели в чате — только в рамках этого чата, профиль не трогаем.
+  // Переключение модели в чате — только в рамках этого чата, настройки не трогаем.
   setModel(m: RecipeModel): void {
     this.recipeModel.set(m);
   }
 
   // Начать новый чат (сбрасываем переписку, но сохраняем выбор количества).
-  // Модель чата пере-сеиваем из актуального дефолта профиля.
+  // Модель чата пере-сеиваем из актуальной настройки «Чат и план».
   newChat(): void {
     this.messages.set([INTRO]);
     this.conversationId = null;
     this.draft.set('');
     this.loading.set(false);
     this.pending.set(null); // бейдж прошлого чата (замена/обсуждение) в новый не переносим
-    this.recipeModel.set(this.prefs.recipeModel());
+    this.recipeModel.set(this.modelSettings.models().chat);
   }
 
   // Войти в режим «Обсуждение»: открыть беседу плана и поставить бейдж в композер.
@@ -106,13 +107,13 @@ export class ChatStore {
     this.conversationId = conversationId;
     this.draft.set('');
     this.loading.set(true);
-    this.recipeModel.set(this.prefs.recipeModel());
+    this.recipeModel.set(this.modelSettings.models().chat);
     this.api.conversationMessages(conversationId).subscribe({
       next: (msgs) => {
         // У загруженных сообщений id = серверный → сразу доступны для оценки.
         this.messages.set(msgs.length ? msgs.map((m) => this.fromServer(m)) : [INTRO]);
         // Модель чата — по последнему плану диалога: правки/рецепты идут той же моделью,
-        // что собрала план, а не глобальным дефолтом профиля (выставленным выше как фолбэк).
+        // что собрала план, а не дефолтом из настроек (выставленным выше как фолбэк).
         // Явно переданная модель (обсуждение открытого варианта) важнее.
         if (model) this.recipeModel.set(model);
         else this.syncModelToLastPlan(msgs);

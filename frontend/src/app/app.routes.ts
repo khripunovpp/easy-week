@@ -58,6 +58,12 @@ const appRoutes: Routes = [
     loadComponent: () => import('./features/profile/profile').then((m) => m.ProfilePage),
   },
   {
+    // Под-экран профиля: модели по умолчанию по задачам (общие, на сервере).
+    path: 'settings/models',
+    loadComponent: () =>
+      import('./features/settings-models/settings-models').then((m) => m.SettingsModelsPage),
+  },
+  {
     // Пищевые предпочтения: аллергии, любит / не любит, БЖУ (ссылка — из профиля)
     path: 'preferences',
     loadComponent: () =>

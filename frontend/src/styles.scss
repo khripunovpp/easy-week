@@ -285,6 +285,116 @@ ul {
   box-shadow: var(--shadow-soft);
 }
 
+/* ===== Экраны настроек (GUIDEBOOK → «Экраны настроек»): Профиль и его под-экраны ===== */
+/* Контейнер настроек — flex-ритм между карточками. Живёт ВНУТРИ .page__inner
+   (тот — чистый блок-скроллер, iOS-safe): gap на самом .page__inner инертен (block). */
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 100%;
+}
+
+.setting {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 16px;
+}
+
+.setting__label {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.setting__hint {
+  font-size: 13px;
+  color: var(--ink-2);
+  margin-bottom: 6px;
+}
+
+.setting__limit {
+  margin: 10px 0 0;
+}
+.setting__limit b {
+  color: var(--ink);
+  font-weight: 650;
+}
+
+/* Строка выбора (модели по умолчанию): подпись слева, выпадашка .msel справа */
+.setting__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.setting__row:first-of-type {
+  border-top: none;
+  padding-top: 4px;
+}
+.setting__row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.setting__row-name {
+  font-size: 15px;
+  font-weight: 600;
+}
+.setting__row-sub {
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+/* Триггер в строке — на «утопленной» пилюле (лежит внутри белой карточки) */
+.setting__row .msel {
+  flex-shrink: 0;
+}
+.setting__row .msel__btn {
+  background: var(--surface-sunk);
+  box-shadow: none;
+}
+
+/* Строка-ссылка на отдельный экран (Предпочтения →) — вся карточка кликабельна */
+.setting-link {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  color: var(--ink);
+  text-decoration: none;
+  transition: transform 0.12s ease;
+}
+.setting-link:active {
+  transform: scale(0.98);
+}
+.setting-link__badge {
+  flex-shrink: 0;
+}
+.setting-link__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.setting-link__title {
+  font-size: 16px;
+  font-weight: 700;
+}
+.setting-link__sub {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.setting-link__chev {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  color: var(--ink-3);
+}
+
 /* Чип-редактор (GUIDEBOOK → «Чип-редактор»): чипы с ✕ + поле добавления в одной обёртке */
 .chip-editor {
   display: flex;
@@ -470,6 +580,14 @@ ul {
   border-radius: 0;
   margin-top: 2px;
   text-decoration: none;
+}
+/* Пояснение внизу меню (напр. «сработает по ↻») — мелко, под разделителем */
+.msel__hint {
+  margin: 2px 0 0;
+  padding: 8px 10px 4px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--ink-3);
 }
 .msel__spin {
   flex-shrink: 0;

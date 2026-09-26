@@ -8,6 +8,40 @@
     </div>
     @if (!loading() && !empty()) {
       <div class="page__actions">
+        <!-- Модель пересборки списка (↻): дефолт — из настроек, выбор здесь — только для страницы -->
+        <div class="msel">
+          <button
+            type="button"
+            class="msel__btn"
+            [class.msel__btn--open]="modelMenuOpen()"
+            aria-label="Модель списка покупок"
+            (click)="toggleModelMenu()">
+            <span class="msel__ic">🤖</span>
+            <span class="msel__name">{{ modelLabel(shopModel()) }}</span>
+            <svg class="msel__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
+
+          @if (modelMenuOpen()) {
+            <div class="msel__backdrop" (click)="modelMenuOpen.set(false)"></div>
+            <div class="msel__menu">
+              @for (m of allModels; track m) {
+                <button
+                  type="button"
+                  class="msel__opt"
+                  [class.msel__opt--active]="m === shopModel()"
+                  [disabled]="regenerating()"
+                  (click)="pickModel(m)">
+                  <span class="msel__mark msel__mark--ok">{{ m === shopModel() ? '✓' : '' }}</span>
+                  <span class="msel__opt-name">{{ modelLabel(m) }}</span>
+                  @if (m === defaultShopModel()) { <span class="msel__tag">по умолчанию</span> }
+                </button>
+              }
+              <p class="msel__hint">Сработает по «↻ Перегенерировать»</p>
+            </div>
+          }
+        </div>
         <span class="shop__progress">{{ doneCount() }}/{{ total() }}</span>
       </div>
     }

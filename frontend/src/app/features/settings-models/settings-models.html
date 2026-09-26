@@ -1,0 +1,71 @@
+<div class="page page--header-fixed">
+  <header class="page__header page__header--fixed fade-top">
+    <a class="icon-btn page__back" routerLink="/profile" aria-label="Назад">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M15 6l-6 6 6 6" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </a>
+    <div class="page__heading">
+      <h1 class="page__title">Модели</h1>
+      <p class="page__subtitle">По умолчанию, для всей семьи</p>
+    </div>
+  </header>
+
+  <div class="page__inner">
+    <div class="settings">
+      <!-- Строки выбора: подпись + глобальная выпадашка .msel (GUIDEBOOK → «Экраны настроек») -->
+      <section class="card setting">
+        <h2 class="setting__label">Модели по умолчанию</h2>
+        <p class="setting__hint">Общие для всех устройств. В чате, рецепте, готовке и покупках можно выбрать другую — только для этой страницы</p>
+
+        @for (t of taskRows; track t.task) {
+          <div class="setting__row">
+            <div class="setting__row-text">
+              <span class="setting__row-name">{{ t.label }}</span>
+              <span class="setting__row-sub">{{ t.hint }}</span>
+            </div>
+
+            <div class="msel">
+              <button
+                type="button"
+                class="msel__btn"
+                [class.msel__btn--open]="openTask() === t.task"
+                [attr.aria-label]="'Модель: ' + t.label"
+                (click)="toggleTask(t.task)">
+                <span class="msel__name">{{ modelLabel(models.models()[t.task]) }}</span>
+                <svg class="msel__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </button>
+
+              @if (openTask() === t.task) {
+                <div class="msel__backdrop" (click)="openTask.set(null)"></div>
+                <div class="msel__menu">
+                  @for (m of allModels; track m) {
+                    <button
+                      type="button"
+                      class="msel__opt"
+                      [class.msel__opt--active]="m === models.models()[t.task]"
+                      (click)="pickModel(t.task, m)">
+                      <span class="msel__mark msel__mark--ok">{{ m === models.models()[t.task] ? '✓' : '' }}</span>
+                      <span class="msel__opt-name">{{ modelLabel(m) }}</span>
+                      @if (m === 'cloudflare') { <span class="msel__tag">бесплатно</span> }
+                    </button>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+        }
+
+        @if (usesClaude() && limits(); as l) {
+          <p class="setting__hint setting__limit">
+            Дневной лимит Claude: планы <b>{{ l.anthropic.plans.used }}/{{ l.anthropic.plans.limit }}</b>,
+            рецепты <b>{{ l.anthropic.recipes.used }}/{{ l.anthropic.recipes.limit }}</b>
+            <span class="muted"> · сброс в полночь</span>
+          </p>
+        }
+      </section>
+    </div>
+  </div>
+</div>

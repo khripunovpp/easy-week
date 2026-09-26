@@ -1,0 +1,4 @@
+/* Каркас держит .page, карточки/строки настроек — глобальные .settings/.setting* (styles.scss) */
+:host {
+  display: contents;
+}

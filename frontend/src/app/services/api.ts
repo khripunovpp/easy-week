@@ -157,6 +157,16 @@ export interface LimitsStatus {
   anthropic: { plans: DailyLimit; recipes: DailyLimit };
 }
 
+// Общие настройки (сервер, одни на все устройства): модели по умолчанию по задачам.
+// chat — план/правки/обсуждение, recipe — рецепт блюда, shopping — нормализация покупок,
+// cooking — план готовки. initialized=false — ещё ни разу не сохраняли (встроенные дефолты).
+export type ModelTask = 'chat' | 'recipe' | 'shopping' | 'cooking';
+export type ModelDefaults = Record<ModelTask, RecipeModel>;
+export interface AppSettings {
+  models: ModelDefaults;
+  initialized: boolean;
+}
+
 export interface PlanSummary {
   id: string;
   title: string;
@@ -320,6 +330,13 @@ export class EasyWeekApi {
     return this.http.put<FoodPreferences>(`${API_BASE}/preferences`, prefs);
   }
 
+  getSettings(): Observable<AppSettings> {
+    return this.http.get<AppSettings>(`${API_BASE}/settings`);
+  }
+  putSettings(models: ModelDefaults): Observable<AppSettings> {
+    return this.http.put<AppSettings>(`${API_BASE}/settings`, { models });
+  }
+
   listPlans(): Observable<PlanSummary[]> {
     return this.http.get<PlanSummary[]>(`${API_BASE}/plans`);
   }
@@ -337,7 +354,8 @@ export class EasyWeekApi {
   }
 
   // Полный план со всеми шагами (догенерирует недостающие) — для экспорта в PDF.
-  fullPlan(planId: string, recipeModel: RecipeModel): Observable<WeekPlan> {
+  // recipeModel пусто → бэк берёт модель «Рецепты» по умолчанию из настроек.
+  fullPlan(planId: string, recipeModel: RecipeModel | '' = ''): Observable<WeekPlan> {
     return this.http.post<WeekPlan>(`${API_BASE}/plans/${planId}/full`, { recipeModel });
   }
 

@@ -1,7 +1,9 @@
-import { Component, computed, effect, inject, input, signal } from '@angular/core';
+import { Component, computed, effect, inject, input, linkedSignal, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { EasyWeekApi, PlanSummary, ShoppingGroup, ShoppingListItem } from '../../services/api';
 import { ChatStore } from '../../services/chat-store';
+import { ModelSettings } from '../../services/model-settings';
+import { ALL_MODELS, MODEL_LABELS, RecipeModel } from '../../services/preferences';
 import { CookingLoader } from '../../shared/cooking-loader';
 import { PlanPicker } from '../../shared/plan-picker';
 
@@ -26,6 +28,7 @@ export class Shopping {
   private readonly api = inject(EasyWeekApi);
   private readonly store = inject(ChatStore);
   private readonly router = inject(Router);
+  private readonly modelSettings = inject(ModelSettings);
 
   // /shopping/:planId — конкретный план; /shopping — выбранный «текущий» (или принятый/первый).
   readonly planId = input<string>('');
@@ -45,6 +48,13 @@ export class Shopping {
   readonly busy = computed(() => this.regenerating() || this.opening() || this.loading());
   // Футер действий — когда список есть.
   readonly hasFooter = computed(() => !this.empty() && this.items().length > 0);
+
+  // Модель нормализации для «↻ Перегенерировать»: стартует с настройки «Список покупок»
+  // (общая, на сервере), выпадашка в шапке меняет её только для этой страницы.
+  readonly shopModel = linkedSignal<RecipeModel>(() => this.modelSettings.models().shopping);
+  readonly defaultShopModel = computed(() => this.modelSettings.models().shopping);
+  readonly modelMenuOpen = signal(false);
+  readonly allModels = ALL_MODELS;
 
   private readonly checked = signal<Set<string>>(new Set());
   private activePlanId = '';
@@ -81,6 +91,7 @@ export class Shopping {
   );
 
   constructor() {
+    this.modelSettings.ensureLoaded();
     effect(() => {
       const pid = this.planId();
       this.load(pid);
@@ -168,7 +179,8 @@ export class Shopping {
     if (!pid || this.busy()) return;
     this.regenerating.set(true);
     this.regenError.set('');
-    this.api.regenerateShopping(pid, this.store.recipeModel()).subscribe({
+    this.modelMenuOpen.set(false);
+    this.api.regenerateShopping(pid, this.shopModel()).subscribe({
       next: (groups) => {
         const items = groups.flatMap((g) => g.items);
         const checkedNames = new Set(
@@ -191,6 +203,21 @@ export class Shopping {
         this.regenerating.set(false);
       },
     });
+  }
+
+  modelLabel(key: string): string {
+    return MODEL_LABELS[key as RecipeModel] ?? key;
+  }
+
+  toggleModelMenu(): void {
+    this.modelMenuOpen.update((v) => !v);
+  }
+
+  // Выбор модели нормализации — только для этой страницы (настройки не меняем).
+  // Сам список не пересобираем: новая модель сработает по «↻ Перегенерировать».
+  pickModel(m: RecipeModel): void {
+    this.shopModel.set(m);
+    this.modelMenuOpen.set(false);
   }
 
   // «💬 Обсудить в чате»: беседа плана + бейдж «Обсуждение: список покупок».

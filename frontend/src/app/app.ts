@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { filter, map } from 'rxjs';
@@ -17,13 +17,19 @@ export class App {
   // Авто-обновление PWA: подхватывает новую версию без ручного сброса кэша.
   private readonly pwa = inject(PwaUpdate);
 
-  // На экране входа таб-бар скрыт: вкладки всё равно увели бы обратно на /login.
   private readonly router = inject(Router);
-  readonly isLogin = toSignal(
+  // Текущий URL после редиректов — для таб-бара.
+  private readonly url = toSignal(
     this.router.events.pipe(
       filter((e): e is NavigationEnd => e instanceof NavigationEnd),
-      map((e) => e.urlAfterRedirects.startsWith('/login')),
+      map((e) => e.urlAfterRedirects),
     ),
-    { initialValue: false },
+    { initialValue: '' },
+  );
+  // На экране входа таб-бар скрыт: вкладки всё равно увели бы обратно на /login.
+  readonly isLogin = computed(() => this.url().startsWith('/login'));
+  // Вкладка «Профиль» подсвечена и на его под-экранах (модели по умолчанию, предпочтения).
+  readonly profileActive = computed(() =>
+    ['/profile', '/settings', '/preferences'].some((p) => this.url().startsWith(p)),
   );
 }

@@ -3,8 +3,8 @@
   display: contents;
 }
 
+/* Прогресс рядом с выпадашкой модели — по центру ряда .page__actions (без сдвига вниз) */
 .shop__progress {
-  margin-top: 6px;
   flex-shrink: 0;
   font-size: 13px;
   font-weight: 600;

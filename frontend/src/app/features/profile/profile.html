@@ -40,69 +40,28 @@
       </div>
     </section>
 
-    <section class="card setting">
-      <h2 class="setting__label">Модель рецептов</h2>
-      <p class="setting__hint">Кто придумывает блюда и рецепты. В чате можно выбрать другую — не меняя этот дефолт</p>
-      <div class="seg" role="group" aria-label="Модель рецептов">
-        @for (o of recipeModelOptions; track o.value) {
-          <button
-            class="seg__opt"
-            type="button"
-            [class.seg__opt--on]="prefs.recipeModel() === o.value"
-            (click)="prefs.setRecipeModel(o.value)">
-            {{ o.label }}
-          </button>
-        }
-      </div>
-      @if (prefs.recipeModel() === 'anthropic' && limits(); as l) {
-        <p class="setting__hint setting__limit">
-          Дневной лимит Claude: планы <b>{{ l.anthropic.plans.used }}/{{ l.anthropic.plans.limit }}</b>,
-          рецепты <b>{{ l.anthropic.recipes.used }}/{{ l.anthropic.recipes.limit }}</b>
-          <span class="muted"> · сброс в полночь</span>
-        </p>
-      }
-    </section>
+    <!-- Под-экраны профиля — строки-ссылки (GUIDEBOOK → «Экраны настроек») -->
+    <a class="card setting-link" routerLink="/settings/models">
+      <span class="emoji-badge pastel-3 setting-link__badge" aria-hidden="true">🤖</span>
+      <span class="setting-link__text">
+        <span class="setting-link__title">Модели по умолчанию</span>
+        <span class="setting-link__sub">Чат, рецепты, покупки и план готовки</span>
+      </span>
+      <svg class="setting-link__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path d="M9 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </a>
 
-    <section class="card setting">
-      <h2 class="setting__label">Предпочтения в еде</h2>
-      <p class="setting__hint">Учитываются во всех планах и рецептах. Можно просто написать в чате — «не люблю чечевицу».</p>
-
-      <div class="pref">
-        <span class="pref__cap">Не люблю</span>
-        <div class="pref__chips">
-          <input
-            class="pref__add"
-            #d
-            type="text"
-            placeholder="добавить…"
-            aria-label="Добавить нелюбимое"
-            (keyup.enter)="addPref('dislikes', d.value); d.value = ''" />
-          @for (x of foodPrefs().dislikes; track x) {
-            <button class="pref__chip pref__chip--no" type="button" (click)="removePref('dislikes', x)">
-              {{ x }} <span aria-hidden="true">×</span>
-            </button>
-          }
-        </div>
-      </div>
-
-      <div class="pref">
-        <span class="pref__cap">Люблю</span>
-        <div class="pref__chips">
-          <input
-            class="pref__add"
-            #l
-            type="text"
-            placeholder="добавить…"
-            aria-label="Добавить любимое"
-            (keyup.enter)="addPref('likes', l.value); l.value = ''" />
-          @for (x of foodPrefs().likes; track x) {
-            <button class="pref__chip pref__chip--yes" type="button" (click)="removePref('likes', x)">
-              {{ x }} <span aria-hidden="true">×</span>
-            </button>
-          }
-        </div>
-      </div>
-    </section>
+    <a class="card setting-link" routerLink="/preferences">
+      <span class="emoji-badge pastel-1 setting-link__badge" aria-hidden="true">🥗</span>
+      <span class="setting-link__text">
+        <span class="setting-link__title">Предпочтения</span>
+        <span class="setting-link__sub">Аллергии, любимое и нелюбимое, БЖУ</span>
+      </span>
+      <svg class="setting-link__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path d="M9 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </a>
 
     @if (auth.status()?.required) {
       <button class="btn-ghost profile__logout" type="button" (click)="logout()">Выйти</button>

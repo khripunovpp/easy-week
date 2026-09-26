@@ -60,10 +60,11 @@ export class DishPage {
       const did = this.dishId();
       if (!pid || !did) return;
       // Если пришли с ?model= (напр. из готовки — модель плана) — открываем именно её вариант
-      // (сгенерится, если ещё нет); иначе — активный/дефолтный вариант.
+      // (сгенерится, если ещё нет); иначе — активный вариант, а если рецепта ещё нет —
+      // модель пустая: бэк возьмёт настройку «Рецепты» (общая, на сервере).
       const m = this.model();
       if (m) this.load(pid, did, m, 'select');
-      else this.load(pid, did, this.store.recipeModel(), 'open');
+      else this.load(pid, did, '', 'open');
     });
   }
 
@@ -120,7 +121,7 @@ export class DishPage {
     this.regenerating.set(true);
     this.regenError.set('');
     this.modelMenuOpen.set(false);
-    const model = d.activeModel || this.store.recipeModel();
+    const model = d.activeModel ?? ''; // пусто → бэк возьмёт настройку «Рецепты»
     this.api.dishDetails(this.planId(), this.dishId(), model, 'regenerate').subscribe({
       next: (nd) => {
         this.dish.set(nd);

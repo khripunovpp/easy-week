@@ -217,7 +217,8 @@ export class CookingPlanPage {
     this.currentPlanId.set(planId);
     this.loading.set(true);
     this.failed.set(false);
-    this.api.cookingPlan(planId, model ?? this.store.recipeModel(), action).subscribe({
+    // Без явной модели — пусто: первый вариант соберёт настройка «План готовки» (на сервере).
+    this.api.cookingPlan(planId, model ?? '', action).subscribe({
       next: (cp) => {
         this.plan.set(cp);
         this.loading.set(false);
@@ -269,7 +270,8 @@ export class CookingPlanPage {
     this.regenerating.set(true);
     this.regenError.set('');
     this.modelMenuOpen.set(false);
-    this.api.cookingPlan(pid, cp.activeModel || this.store.recipeModel(), 'regenerate').subscribe({
+    // Пусто (варианта ещё нет) → бэк возьмёт настройку «План готовки».
+    this.api.cookingPlan(pid, cp.activeModel ?? '', 'regenerate').subscribe({
       next: (np) => {
         this.plan.set(np);
         this.regenerating.set(false);

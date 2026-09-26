@@ -4,6 +4,7 @@ import { Router, RouterLink } from '@angular/router';
 import { DiscussRef } from '../../models/plan.model';
 import { EasyWeekApi, MessageSearchHit } from '../../services/api';
 import { ChatStore } from '../../services/chat-store';
+import { ModelSettings } from '../../services/model-settings';
 import { providerToModel, RecipeModel } from '../../services/preferences';
 import { CookingLoader } from '../../shared/cooking-loader';
 import { dishColorClass } from '../../shared/dish-color';
@@ -20,6 +21,8 @@ export class Chat {
   readonly store = inject(ChatStore);
   private readonly router = inject(Router);
   private readonly api = inject(EasyWeekApi);
+  // Дефолт модели чата — из общих настроек; подтянуть, если стор стартовал до входа.
+  private readonly modelSettings = inject(ModelSettings);
 
   // Поиск по сообщениям всех бесед. searchOpen — режим поиска (лента скрыта).
   // fromSearch — текущая беседа открыта из результатов (показываем «назад»).
@@ -86,6 +89,7 @@ export class Chat {
   readonly composerMulti = signal(false);
 
   constructor() {
+    this.modelSettings.ensureLoaded();
     // Автовысота поля: на каждое изменение черновика (ввод, очистка после отправки,
     // смена чата) пересчитываем высоту. Потолок в 3 строки — max-height в chat.scss.
     effect(() => {
