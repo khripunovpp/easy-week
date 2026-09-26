@@ -3,7 +3,7 @@ import { RouterLink } from '@angular/router';
 import { EasyWeekApi, ModelPrice } from '../../services/api';
 import { MODEL_LABELS, RecipeModel } from '../../services/preferences';
 
-type PriceField = 'input' | 'cachedInput' | 'cacheWrite' | 'output' | 'per1kNeurons';
+type PriceField = 'input' | 'cachedInput' | 'cacheWrite' | 'output' | 'per1KNeurons';
 
 // Экран «Цены моделей» (/settings/prices): USD за 1M токенов по каждой модели. Цены у
 // провайдеров меняются — правим тут; стоимость вызова считается бэком В МОМЕНТ вызова по

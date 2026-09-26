@@ -140,7 +140,7 @@ export interface ModelPrice {
   cachedInput: number;
   cacheWrite: number;
   output: number;
-  per1kNeurons?: number | null;
+  per1KNeurons?: number | null;
 }
 
 export interface FoodPrefs {

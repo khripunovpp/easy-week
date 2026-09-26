@@ -53,7 +53,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(easyweek_ai_tokens_total[24h]))"
+          "expr": "sum(increase(easyweek_ai_tokens_total{kind=~\"prompt|completion\"}[24h]))"
         }
       ]
     },
@@ -221,7 +221,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "60 * sum by (kind) (rate(easyweek_ai_tokens_total[5m]))",
+          "expr": "60 * sum by (kind) (rate(easyweek_ai_tokens_total{kind!=\"neurons\"}[5m]))",
           "legendFormat": "{{kind}}"
         }
       ]
