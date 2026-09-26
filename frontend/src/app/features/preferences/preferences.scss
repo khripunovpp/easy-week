@@ -1,0 +1,99 @@
+/* Каркас держит .page (styles.scss); host прозрачен */
+:host {
+  display: contents;
+}
+
+/* Состояния загрузки/ошибки — по центру */
+.prefs__state {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  padding: var(--space-5) 0;
+  text-align: center;
+}
+
+/* Стек карточек — flex-ритм ВНУТРИ .page__inner (сам он — блок-скроллер) */
+.prefs {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.prefs__error {
+  padding: 0 4px;
+}
+
+.prefs__card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 16px;
+}
+
+/* подсказки из чата — на акцентной подложке, чтобы заметили */
+.prefs__card--suggest {
+  background: var(--accent-soft);
+}
+
+.prefs__label {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.prefs__hint {
+  font-size: 13px;
+  color: var(--ink-2);
+  margin-bottom: 6px;
+}
+
+/* Подсказка = чип «+ X» (принять) и отдельный ✕ (отклонить) */
+.prefs__sugg {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.prefs__card--suggest .chip--suggest {
+  background: var(--surface);
+}
+.prefs__sugg-x {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.prefs__sugg-x:active {
+  transform: scale(0.94);
+}
+
+/* БЖУ: подпись слева, сегмент справа */
+.prefs__macro {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.prefs__macro + .prefs__macro {
+  margin-top: 6px;
+}
+.prefs__macro-cap {
+  flex: none;
+  width: 76px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.prefs__macro .seg {
+  flex: 1;
+}
+.prefs__macro .seg__opt {
+  padding: 8px 4px;
+  font-size: 13px;
+}
+
+.prefs__foot {
+  text-align: center;
+  font-size: 12.5px;
+  padding: 4px 0;
+}

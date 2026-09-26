@@ -428,7 +428,8 @@ def build_cook_plan_messages(
             "\nПЕРЕСБОРКА плана готовки: есть пожелания из обсуждения — примени их; нет — "
             "пересобери заново, поищи порядок и параллели эффективнее прежних."
         )
-    content += as_hint(constraints_only=True)
+    # план готовки: аллергии/ограничения — да (соусы, заправки), БЖУ — не при чём
+    content += as_hint(constraints_only=True, macros=False)
     return [
         {"role": "system", "content": COOKPLAN_SYSTEM},
         {"role": "user", "content": content},
@@ -969,6 +970,10 @@ def build_discuss_messages(
     приклеиваем первую реплику, если она пользовательская (роли должны чередоваться)."""
     system = DISCUSS_SYSTEM + (DISCUSS_TOOLS_RULE if tools else DISCUSS_JSON_RULE)
     head = f"{context}\n\n(Обсуждаем {_DISCUSS_TITLES.get(target, target)}.)"
+    if target != "shopping":
+        # аллергии/ограничения — в советах по рецепту и готовке тоже (в покупках не нужны);
+        # БЖУ — только к рецепту. Кладём в контекст (первое user-сообщение), system стабилен.
+        head += as_hint(constraints_only=True, macros=target == "recipe")
     msgs: list[dict[str, str]] = [
         {"role": "system", "content": system},
         {"role": "user", "content": head},
