@@ -61,6 +61,7 @@ class DeepSeekGate(ModelGate):
         max_tokens: int = 3000,
         model: str | None = None,
         label: str = "",
+        temperature: float | None = None,
     ) -> AsyncIterator[str]:
         """Стриминг DeepSeek: отдаёт дельты контента по мере генерации (для SSE)."""
         if not self.configured:
@@ -75,7 +76,8 @@ class DeepSeekGate(ModelGate):
             "messages": messages,
             "response_format": {"type": "json_object"},
             "max_tokens": max_tokens,
-            "temperature": 0.7,
+            # План шлёт 1.0 (разнообразие), остальное — прежний дефолт 0.7.
+            "temperature": 0.7 if temperature is None else temperature,
             "stream": True,
             "stream_options": {"include_usage": True},  # финальный чанк с usage (в т.ч. кэш)
         }

@@ -24,7 +24,18 @@ logger = logging.getLogger("easy_week.ai.gate")
 
 
 class AIError(RuntimeError):
-    """Единая ошибка любого гейта модели."""
+    """Единая ошибка любого гейта модели.
+
+    details — доп. поля для JSONL-лога неудачной попытки (напр. stop_reason, raw-сниппет)."""
+
+    def __init__(self, msg: str = "", details: dict | None = None) -> None:
+        super().__init__(msg)
+        self.details = details or {}
+
+
+class AINonRetryable(AIError):
+    """Ошибка, которую бессмысленно ретраить тем же входом (гейт уже сделал свою
+    корректирующую попытку, либо ответ обрезан по max_tokens) — базовый ретрай пропускаем."""
 
 
 class ModelGate(ABC):
@@ -85,11 +96,14 @@ class ModelGate(ABC):
                     "%s attempt %d failed: %s", self.provider, attempt + 1, str(exc)[:150]
                 )
                 log_ai_error(
-                    self.provider, log_model, label, messages, str(exc), attempt + 1, dur
+                    self.provider, log_model, label, messages, str(exc), attempt + 1, dur,
+                    extra=getattr(exc, "details", None),
                 )
+                if isinstance(exc, AINonRetryable):
+                    break  # тот же вход повторять бесполезно
                 if attempt < retries:
                     await asyncio.sleep(0.4 * (attempt + 1))
-        raise AIError(f"{self.provider} не ответил после {retries + 1} попыток: {last}")
+        raise AIError(f"{self.provider} не ответил после {attempt + 1} попыток: {last}")
 
     @abstractmethod
     async def _request_json(
@@ -109,8 +123,10 @@ class ModelGate(ABC):
         max_tokens: int = 3000,
         model: str | None = None,
         label: str = "",
+        temperature: float | None = None,
     ) -> AsyncIterator[str]:
-        """Стрим дельт JSON-контента. По умолчанию не поддерживается."""
+        """Стрим дельт JSON-контента. По умолчанию не поддерживается.
+        temperature=None — дефолт провайдера (план шлёт 1.0 ради разнообразия)."""
         raise NotImplementedError(f"{self.provider} не поддерживает стриминг")
         yield  # pragma: no cover — делает функцию асинхронным генератором
 

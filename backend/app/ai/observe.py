@@ -19,7 +19,8 @@ logger = logging.getLogger("easy_week.ai")
 # Контекст запроса для корреляции AI-логов (conversation_id/plan_id/dish_id/endpoint/action).
 # Роутер выставляет его раз на запрос — подмешивается в каждую AI-запись без протаскивания
 # через сигнатуры гейтов. contextvars изолирован по задаче-запросу, между запросами не течёт.
-_CTX_KEYS = ("conversation_id", "plan_id", "dish_id", "endpoint", "action")
+# variety — серверное «зерно разнообразия» плана (кухня/способы/белки), для анализа повторов.
+_CTX_KEYS = ("conversation_id", "plan_id", "dish_id", "endpoint", "action", "variety")
 _ctx: contextvars.ContextVar[dict] = contextvars.ContextVar("ai_ctx", default={})
 
 
@@ -157,6 +158,7 @@ def log_ai_error(
     error: str,
     attempt: int,
     duration_ms: int | None = None,
+    extra: dict | None = None,
 ) -> None:
     """Лог неудачной попытки вызова (в JSONL, для анализа флаки-паттернов).
 
@@ -175,4 +177,6 @@ def log_ai_error(
             "messages": messages,
         }
     )
+    if extra:  # напр. stop_reason + сырой сниппет ответа при битом JSON
+        rec.update(extra)
     _write_file_record(rec)
