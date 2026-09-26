@@ -6,6 +6,10 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_DIR"
 
+# Бэкап перед обновлением — на случай неудачной миграции/деплоя.
+echo "→ backup"
+bash "$REPO_DIR/deploy/backup.sh" || echo "⚠️ бэкап не удался, продолжаем"
+
 echo "→ git pull"
 git pull --ff-only
 
