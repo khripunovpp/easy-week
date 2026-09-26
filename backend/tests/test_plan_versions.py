@@ -52,3 +52,26 @@ def test_list_hides_superseded_versions(session):
     _seed(session)
     ids = [p.id for p in asyncio.run(plans_router.list_plans(session))]
     assert ids == ["other", "v3"]
+
+
+def test_shopping_by_dish_groups_per_dish(session):
+    """«По рецептам»: у каждого блюда свои позиции, одинаковые формы продукта слиты."""
+    session.add(Conversation(id="c2"))
+    ing = lambda n, q, u, c: {"name": n, "qty": q, "unit": u, "category": c}  # noqa: E731
+    st = {"method": "vacuum", "shelf_life_days": 60, "note": ""}
+    dish = lambda i, name, ings: {  # noqa: E731
+        "id": i, "name": name, "emoji": "🍲", "servings": 4, "prep_min": 10, "cook_min": 20,
+        "storage": st, "ingredients": ings, "steps": ["шаг"],
+    }
+    session.add(PlanRow(
+        id="p", conversation_id="c2", title="t", week_label="w", dishes=[
+            dish("d1", "Суп", [ing("Лук", 100, "г", "Овощи"), ing("лук", 50, "г", "Овощи")]),
+            dish("d2", "Рагу", [ing("Говядина", 1, "кг", "Мясо и птица")]),
+        ],
+    ))
+    session.commit()
+    got = asyncio.run(plans_router.shopping_by_dish("p", session))
+    assert [(d.dish_id, [(i.name, i.qty, i.unit) for i in d.items]) for d in got] == [
+        ("d1", [("Лук", 150, "г")]),
+        ("d2", [("Говядина", 1, "кг")]),
+    ]

@@ -1,6 +1,7 @@
+import { NgTemplateOutlet } from '@angular/common';
 import { Component, computed, effect, inject, input, linkedSignal, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { EasyWeekApi, PlanSummary, ShoppingGroup, ShoppingListItem } from '../../services/api';
+import { DishShopping, EasyWeekApi, PlanSummary, ShoppingGroup, ShoppingListItem } from '../../services/api';
 import { ChatStore } from '../../services/chat-store';
 import { ModelSettings } from '../../services/model-settings';
 import { ALL_MODELS, MODEL_LABELS, RecipeModel } from '../../services/preferences';
@@ -22,7 +23,7 @@ const CATEGORY_ORDER = [
 
 @Component({
   selector: 'ew-shopping',
-  imports: [CookingLoader, PlanPicker, Vote],
+  imports: [NgTemplateOutlet, CookingLoader, PlanPicker, Vote],
   templateUrl: './shopping.html',
   styleUrl: './shopping.scss',
 })
@@ -71,12 +72,70 @@ export class Shopping {
   private readonly checked = signal<Set<string>>(new Set());
   private activePlanId = '';
 
-  // Живая группировка по категориям. Отмеченные (купленные) уезжают в конец
-  // своей категории, невыбранные — сверху; внутри — по алфавиту.
-  readonly groups = computed<ShoppingGroup[]>(() => {
+  // ---- Режим группировки: «Общий» (по категориям) / «По рецептам» (блюдо → категории) ----
+  readonly mode = signal<'all' | 'dish'>(this.loadMode());
+  /** Покупки по блюдам (грузим лениво при первом переключении на «По рецептам»). */
+  readonly byDish = signal<DishShopping[]>([]);
+  readonly byDishLoading = signal(false);
+  readonly byDishError = signal(false);
+  private byDishPlanId = '';
+
+  setMode(m: 'all' | 'dish'): void {
+    this.mode.set(m);
+    try {
+      localStorage.setItem('ew-shopping-mode', m);
+    } catch {
+      /* приватный режим — просто не запоминаем */
+    }
+    if (m === 'dish') this.ensureByDish();
+  }
+
+  private loadMode(): 'all' | 'dish' {
+    try {
+      return localStorage.getItem('ew-shopping-mode') === 'dish' ? 'dish' : 'all';
+    } catch {
+      return 'all';
+    }
+  }
+
+  /** Догрузить покупки по блюдам для текущего плана (один раз на план). */
+  private ensureByDish(force = false): void {
+    const pid = this.currentPlanId();
+    if (!pid || (!force && this.byDishPlanId === pid && this.byDish().length)) return;
+    this.byDishPlanId = pid;
+    this.byDishLoading.set(true);
+    this.byDishError.set(false);
+    this.api.shoppingByDish(pid).subscribe({
+      next: (list) => {
+        if (this.byDishPlanId !== pid) return;
+        this.byDish.set(list);
+        this.byDishLoading.set(false);
+      },
+      error: () => {
+        this.byDishLoading.set(false);
+        this.byDishError.set(true);
+      },
+    });
+  }
+
+  /** Секции режима «По рецептам»: блюдо → группы по категориям (отметки — свои для блюда). */
+  readonly dishSections = computed(() =>
+    this.byDish().map((d) => ({
+      ...d,
+      prefix: `${d.dishId}::`,
+      groups: this.groupByCategory(d.items, `${d.dishId}::`),
+    })),
+  );
+
+  // Живая группировка по категориям (режим «Общий»).
+  readonly groups = computed<ShoppingGroup[]>(() => this.groupByCategory(this.items(), ''));
+
+  // Отмеченные (купленные) уезжают в конец своей категории, невыбранные — сверху;
+  // внутри — по алфавиту. prefix — пространство отметок («» — общий список, «dishId::» — блюдо).
+  private groupByCategory(list: ShoppingListItem[], prefix: string): ShoppingGroup[] {
     const checked = this.checked();
     const byCat = new Map<string, ShoppingListItem[]>();
-    for (const it of this.items()) {
+    for (const it of list) {
       const cat = it.category || 'Прочее';
       (byCat.get(cat) ?? byCat.set(cat, []).get(cat)!).push(it);
     }
@@ -87,16 +146,26 @@ export class Shopping {
     return order.map((category) => ({
       category,
       items: [...byCat.get(category)!].sort((a, b) => {
-        const da = checked.has(this.key(a)) ? 1 : 0;
-        const db = checked.has(this.key(b)) ? 1 : 0;
+        const da = checked.has(prefix + this.key(a)) ? 1 : 0;
+        const db = checked.has(prefix + this.key(b)) ? 1 : 0;
         if (da !== db) return da - db; // невыбранные сверху, отмеченные — вниз
         return a.name.localeCompare(b.name, 'ru');
       }),
     }));
-  });
+  }
 
-  readonly total = computed(() => this.items().length);
-  readonly doneCount = computed(() => this.checked().size);
+  // Прогресс в шапке — по текущему режиму (отметки режимов независимы).
+  readonly total = computed(() =>
+    this.mode() === 'dish'
+      ? this.byDish().reduce((n, d) => n + d.items.length, 0)
+      : this.items().length,
+  );
+  readonly doneCount = computed(() => {
+    const keys = [...this.checked()];
+    return this.mode() === 'dish'
+      ? keys.filter((k) => k.includes('::')).length
+      : keys.filter((k) => !k.includes('::')).length;
+  });
   // Даты текущего плана — в подзаголовок шапки.
   readonly currentWeekLabel = computed(
     () => this.plans().find((p) => p.id === this.selectedId())?.weekLabel ?? '',
@@ -165,6 +234,9 @@ export class Shopping {
     this.checked.set(this.loadChecked(planId));
     this.shoppingAt.set(null);
     this.shoppingModelKey.set('');
+    this.byDish.set([]);
+    this.byDishPlanId = '';
+    if (this.mode() === 'dish') queueMicrotask(() => this.ensureByDish());
 
     // Мгновенно показываем закэшированный список (в т.ч. офлайн), затем обновляем с сервера.
     const cached = this.loadItems(planId);
@@ -274,12 +346,12 @@ export class Shopping {
     return `${item.name.toLowerCase()}__${item.unit}`;
   }
 
-  isChecked(item: { name: string; unit: string }): boolean {
-    return this.checked().has(this.key(item));
+  isChecked(item: { name: string; unit: string }, prefix = ''): boolean {
+    return this.checked().has(prefix + this.key(item));
   }
 
-  toggle(item: { name: string; unit: string }): void {
-    const k = this.key(item);
+  toggle(item: { name: string; unit: string }, prefix = ''): void {
+    const k = prefix + this.key(item);
     this.checked.update((set) => {
       const next = new Set(set);
       next.has(k) ? next.delete(k) : next.add(k);
@@ -289,21 +361,21 @@ export class Shopping {
   }
 
   // Состояние группы: все отмечены / часть / ничего — для чекбокса группы.
-  groupState(group: ShoppingGroup): 'all' | 'some' | 'none' {
+  groupState(group: ShoppingGroup, prefix = ''): 'all' | 'some' | 'none' {
     const items = group.items;
     if (!items.length) return 'none';
     let on = 0;
-    for (const it of items) if (this.checked().has(this.key(it))) on++;
+    for (const it of items) if (this.checked().has(prefix + this.key(it))) on++;
     return on === 0 ? 'none' : on === items.length ? 'all' : 'some';
   }
 
   // Клик по группе: если всё отмечено — снять всё, иначе отметить всё.
-  toggleGroup(group: ShoppingGroup): void {
-    const turnOff = this.groupState(group) === 'all';
+  toggleGroup(group: ShoppingGroup, prefix = ''): void {
+    const turnOff = this.groupState(group, prefix) === 'all';
     this.checked.update((set) => {
       const next = new Set(set);
       for (const it of group.items) {
-        const k = this.key(it);
+        const k = prefix + this.key(it);
         if (turnOff) next.delete(k);
         else next.add(k);
       }

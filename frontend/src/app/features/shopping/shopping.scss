@@ -138,3 +138,23 @@
 .shop__rate + .shop__gen {
   margin-top: -8px;
 }
+
+/* Переключатель группировки «Общий / По рецептам» */
+.shop__mode {
+  margin: 0 0 14px;
+}
+/* Секция блюда в режиме «По рецептам» */
+.dish-sec {
+  margin: 0 0 22px;
+}
+.dish-sec__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 700;
+}
+.dish-sec__emoji {
+  font-size: 20px;
+}

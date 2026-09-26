@@ -17,6 +17,7 @@ from ..schemas import (
     CookingPlanVariant,
     DetailRequest,
     Dish,
+    DishShopping,
     DishVariant,
     PlanSummary,
     RenameRequest,
@@ -138,6 +139,20 @@ async def shopping_list(plan_id: str, session: SessionDep) -> list[ShoppingGroup
     session.add(row)
     session.commit()
     return group_items(items)
+
+
+@router.get("/{plan_id}/shopping-list/by-dish")
+async def shopping_by_dish(plan_id: str, session: SessionDep) -> list[DishShopping]:
+    """Покупки по рецептам: для каждого блюда — его ингредиенты (слиты формы одного продукта,
+    единицы приведены), без вызова модели. Группировку по категориям внутри блюда делает фронт."""
+    set_ai_context(plan_id=plan_id, endpoint="shopping_list")
+    row = _get_plan(session, plan_id)
+    await backfill_all(session, row)  # ингредиенты лениво — догрузить (модель рецептов)
+    out: list[DishShopping] = []
+    for dish in to_week_plan(row).dishes:
+        items = [it for g in group_items(aggregate_ingredients([dish])) for it in g.items]
+        out.append(DishShopping(dish_id=dish.id, name=dish.name, emoji=dish.emoji, items=items))
+    return out
 
 
 @router.post("/{plan_id}/shopping-list/regenerate")

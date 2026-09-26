@@ -126,6 +126,14 @@ export interface ShoppingListItem {
   category: string;
 }
 
+// Покупки одного блюда (режим «По рецептам»).
+export interface DishShopping {
+  dishId: string;
+  name: string;
+  emoji: string;
+  items: ShoppingListItem[];
+}
+
 export interface FoodPrefs {
   dislikes: string[];
   likes: string[];
@@ -374,6 +382,11 @@ export class EasyWeekApi {
 
   deletePlan(planId: string): Observable<void> {
     return this.http.delete<void>(`${API_BASE}/plans/${planId}`);
+  }
+
+  // Покупки по рецептам: ингредиенты каждого блюда отдельно (без нормализации моделью).
+  shoppingByDish(planId: string): Observable<DishShopping[]> {
+    return this.http.get<DishShopping[]>(`${API_BASE}/plans/${planId}/shopping-list/by-dish`);
   }
 
   shoppingList(planId: string): Observable<ShoppingGroup[]> {

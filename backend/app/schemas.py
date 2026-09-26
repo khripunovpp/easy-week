@@ -170,6 +170,14 @@ class ShoppingGroup(CamelModel):
     items: list[ShoppingItem]
 
 
+class DishShopping(CamelModel):
+    # Покупки одного блюда (режим «По рецептам»): детерминированно из его ингредиентов.
+    dish_id: str
+    name: str
+    emoji: str = ""
+    items: list[ShoppingItem]
+
+
 # --- запрос/ответ чата ---
 
 
