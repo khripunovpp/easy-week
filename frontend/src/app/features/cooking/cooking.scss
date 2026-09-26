@@ -47,8 +47,40 @@
   color: var(--ink-3);
   font-size: 12px;
 }
-.ck-recipe:active {
+/* Внутри чипа: кнопка-фильтр (эмодзи + название) и иконка-ссылка на рецепт */
+.ck-recipe {
+  padding-right: 4px;
+}
+.ck-recipe__pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: inherit;
+  font: inherit;
+}
+.ck-recipe__pick:active {
   transform: scale(0.97);
+}
+.ck-recipe__open {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-left: 2px;
+  border-radius: 50%;
+  color: var(--ink-2);
+  background: color-mix(in srgb, var(--dish, var(--accent)) 14%, transparent);
+}
+.ck-recipe__open svg {
+  width: 14px;
+  height: 14px;
+}
+.ck-recipe__open:active {
+  opacity: 0.7;
+}
+/* Дата генерации прямо под строкой оценки, с отступом до итога/рецептов */
+.ck-rate + .gen-at {
+  margin: -10px 0 16px;
 }
 /* Выбран как фильтр — насыщеннее фон + цветное кольцо блюда */
 .ck-recipe--on {

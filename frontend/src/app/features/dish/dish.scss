@@ -219,3 +219,8 @@
   text-decoration: none;
 }
 
+
+/* Дата генерации прямо под строкой «Рецепт от …» */
+.d__rate + .gen-at {
+  margin: -8px 0 12px;
+}

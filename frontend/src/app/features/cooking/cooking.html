@@ -108,15 +108,24 @@
       @if (dishes().length) {
         <div class="ck-recipes">
           @for (d of dishes(); track d.id; let i = $index) {
-            <button
-              type="button"
+            <!-- Тап по названию — фильтр шагов; стрелка справа — открыть сам рецепт -->
+            <div
               class="ck-recipe"
               [class]="dishColorClass(i)"
-              [class.ck-recipe--on]="isDishSelected(d.id)"
-              (click)="toggleDish(d.id)">
-              <span class="ck-recipe__emoji">{{ d.emoji }}</span>
-              <span class="ck-recipe__name">{{ d.name }}</span>
-            </button>
+              [class.ck-recipe--on]="isDishSelected(d.id)">
+              <button type="button" class="ck-recipe__pick" (click)="toggleDish(d.id)">
+                <span class="ck-recipe__emoji">{{ d.emoji }}</span>
+                <span class="ck-recipe__name">{{ d.name }}</span>
+              </button>
+              <a
+                class="ck-recipe__open"
+                [routerLink]="['/plan', currentPlanId(), 'dish', d.id]"
+                [attr.aria-label]="'Открыть рецепт: ' + d.name">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </a>
+            </div>
           }
         </div>
       }
