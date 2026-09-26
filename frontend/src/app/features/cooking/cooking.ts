@@ -1,5 +1,5 @@
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { CookingPlan, CookingStep, EasyWeekApi, PlanSummary } from '../../services/api';
 import { Dish, WeekPlan } from '../../models/plan.model';
 import { ChatStore } from '../../services/chat-store';
@@ -20,6 +20,7 @@ import { Vote } from '../../shared/vote';
 export class CookingPlanPage {
   private readonly api = inject(EasyWeekApi);
   private readonly store = inject(ChatStore);
+  private readonly router = inject(Router);
 
   // /cooking/:planId — конкретный план; /cooking — выбранный «текущий» (или принятый/первый).
   readonly planId = input<string>('');
@@ -36,6 +37,14 @@ export class CookingPlanPage {
   readonly currentPlanId = signal('');
   readonly modelMenuOpen = signal(false);
   readonly generatingModel = signal<string | null>(null); // модель, чей вариант сейчас собирается
+  // «↻ Перегенерировать»: пересборка идёт (старый план на экране) / ошибка последней попытки.
+  readonly regenerating = signal(false);
+  readonly regenError = signal('');
+  readonly busy = computed(() => this.regenerating() || this.loading());
+  // Футер действий — только когда есть собранный план готовки.
+  readonly hasFooter = computed(
+    () => !this.loading() && !this.empty() && !this.failed() && !!this.plan()?.steps?.length,
+  );
 
   // Модели, для которых варианта плана готовки ещё нет (для ⟳). Пусто → ⟳ прячем.
   readonly remainingModels = computed<RecipeModel[]>(() => {
@@ -240,7 +249,7 @@ export class CookingPlanPage {
       this.modelMenuOpen.set(false);
       return;
     }
-    if (this.loading()) return;
+    if (this.loading() || this.regenerating()) return;
     const isNew = !(p.variantModels ?? []).includes(model);
     if (isNew) this.generatingModel.set(model);
     else this.modelMenuOpen.set(false);
@@ -249,5 +258,40 @@ export class CookingPlanPage {
 
   totalTime(step: CookingStep): number {
     return step.activeMin + step.passiveMin;
+  }
+
+  // «↻ Перегенерировать»: принудительно пересобрать план готовки текущей моделью с учётом
+  // обсуждения плана в чате. При ошибке старый план остаётся — показываем ошибку в футере.
+  regenerate(): void {
+    const cp = this.plan();
+    const pid = this.currentPlanId();
+    if (!cp || !pid || this.busy()) return;
+    this.regenerating.set(true);
+    this.regenError.set('');
+    this.modelMenuOpen.set(false);
+    this.api.cookingPlan(pid, cp.activeModel || this.store.recipeModel(), 'regenerate').subscribe({
+      next: (np) => {
+        this.plan.set(np);
+        this.regenerating.set(false);
+      },
+      error: (err) => {
+        this.regenError.set(err?.error?.detail ?? 'Не удалось пересобрать план готовки.');
+        this.regenerating.set(false);
+      },
+    });
+  }
+
+  // «💬 Обсудить в чате»: беседа плана + бейдж «Обсуждение: план готовки».
+  discuss(): void {
+    const wp = this.weekPlan();
+    if (!wp?.conversationId || this.busy()) return;
+    this.store.startDiscuss({
+      conversationId: wp.conversationId,
+      target: 'cooking',
+      planId: wp.id,
+      name: 'план готовки',
+      model: this.plan()?.activeModel,
+    });
+    this.router.navigate(['/chat']);
   }
 }

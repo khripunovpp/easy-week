@@ -1,12 +1,25 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { ChatMessage, WeekPlan } from '../models/plan.model';
+import { ChatMessage, DiscussTarget, WeekPlan } from '../models/plan.model';
 import { EasyWeekApi } from './api';
-import { Preferences, RecipeModel } from './preferences';
+import { ALL_MODELS, Preferences, RecipeModel } from './preferences';
 
 // Действие, инициированное кнопкой карточки, — «висит» бейджем в композере до отправки.
+// discuss — режим «Обсуждение: <что>» (кнопка «💬 Обсудить в чате» на странице рецепта /
+// готовки / покупок): липкий — не снимается после отправки, только крестиком.
 export type PendingAction =
   | { kind: 'replace'; id: string; name: string }
-  | { kind: 'add' };
+  | { kind: 'add' }
+  | { kind: 'discuss'; target: DiscussTarget; planId: string; dishId?: string; name: string };
+
+// Параметры входа в режим обсуждения со страницы.
+export interface DiscussStart {
+  conversationId: string;
+  target: DiscussTarget;
+  planId: string;
+  dishId?: string;
+  name: string;
+  model?: string; // модель открытого варианта — её же ставим в чат (обсуждаем то, что видим)
+}
 
 const INTRO: ChatMessage = {
   id: 'intro',
@@ -62,11 +75,34 @@ export class ChatStore {
     this.conversationId = null;
     this.draft.set('');
     this.loading.set(false);
+    this.pending.set(null); // бейдж прошлого чата (замена/обсуждение) в новый не переносим
     this.recipeModel.set(this.prefs.recipeModel());
   }
 
+  // Войти в режим «Обсуждение»: открыть беседу плана и поставить бейдж в композер.
+  // Если эта беседа уже открыта — не перезагружаем ленту (сохраняем прокрутку/стрим).
+  startDiscuss(opts: DiscussStart): void {
+    const model = ALL_MODELS.includes(opts.model as RecipeModel)
+      ? (opts.model as RecipeModel)
+      : undefined;
+    if (this.conversationId !== opts.conversationId || this.messages().length <= 1) {
+      this.loadConversation(opts.conversationId, model);
+    } else if (model) {
+      this.recipeModel.set(model);
+    }
+    this.draft.set('');
+    this.pending.set({
+      kind: 'discuss',
+      target: opts.target,
+      planId: opts.planId,
+      dishId: opts.dishId,
+      name: opts.name,
+    });
+  }
+
   // Загрузить существующий диалог плана (для «Продолжить обсуждение»).
-  loadConversation(conversationId: string): void {
+  // model — явная модель чата (обсуждение варианта конкретной модели); иначе — модель плана.
+  loadConversation(conversationId: string, model?: RecipeModel): void {
     this.conversationId = conversationId;
     this.draft.set('');
     this.loading.set(true);
@@ -74,10 +110,12 @@ export class ChatStore {
     this.api.conversationMessages(conversationId).subscribe({
       next: (msgs) => {
         // У загруженных сообщений id = серверный → сразу доступны для оценки.
-        this.messages.set(msgs.length ? msgs.map((m) => ({ ...m, serverId: m.id })) : [INTRO]);
+        this.messages.set(msgs.length ? msgs.map((m) => this.fromServer(m)) : [INTRO]);
         // Модель чата — по последнему плану диалога: правки/рецепты идут той же моделью,
         // что собрала план, а не глобальным дефолтом профиля (выставленным выше как фолбэк).
-        this.syncModelToLastPlan(msgs);
+        // Явно переданная модель (обсуждение открытого варианта) важнее.
+        if (model) this.recipeModel.set(model);
+        else this.syncModelToLastPlan(msgs);
         this.loading.set(false);
       },
       error: () => {
@@ -85,6 +123,19 @@ export class ChatStore {
         this.loading.set(false);
       },
     });
+  }
+
+  // Сообщение с сервера → ленточное: серверный id (для оценки) + привязка реплики обсуждения.
+  private fromServer(m: ChatMessage): ChatMessage {
+    const out: ChatMessage = { ...m, serverId: m.id };
+    if (m.discussTarget && m.role === 'assistant' && m.discussPlanId) {
+      out.discuss = {
+        target: m.discussTarget,
+        planId: m.discussPlanId,
+        dishId: m.dishId ?? undefined,
+      };
+    }
+    return out;
   }
 
   // Подстроить модель чата под провайдера последнего плана диалога (если распознан).
@@ -110,6 +161,12 @@ export class ChatStore {
     const pending = this.pending();
     const text = this.draft().trim();
     if ((!text && !pending) || this.loading()) return;
+
+    // Режим «Обсуждение» — ДО ветки правки плана: версий плана не создаём, бейдж остаётся.
+    if (pending?.kind === 'discuss') {
+      if (text) this.sendDiscuss(pending, text);
+      return;
+    }
 
     const userText = this.pendingLabel(pending, text);
     this.messages.update((list) => [
@@ -197,6 +254,68 @@ export class ChatStore {
         this.loading.set(false);
       },
     });
+  }
+
+  // Реплика в режиме обсуждения: ответ бота + ссылка на цель; «замени блюдо» → кнопка замены.
+  private sendDiscuss(pending: Extract<PendingAction, { kind: 'discuss' }>, text: string): void {
+    this.messages.update((list) => [...list, { id: `u-${this.seq++}`, role: 'user', text }]);
+    this.draft.set('');
+    this.loading.set(true);
+    this.api
+      .discuss({
+        conversationId: this.conversationId,
+        planId: pending.planId,
+        target: pending.target,
+        dishId: pending.dishId,
+        message: text,
+        recipeModel: this.recipeModel(),
+      })
+      .subscribe({
+        next: (res) => {
+          this.conversationId = res.conversationId;
+          this.messages.update((list) => [
+            ...list,
+            {
+              id: `a-${this.seq++}`,
+              role: 'assistant',
+              text: res.reply,
+              serverId: res.messageId,
+              model: res.model,
+              discuss: {
+                target: res.target,
+                planId: res.planId,
+                dishId: res.dishId ?? undefined,
+              },
+              suggestReplace:
+                res.suggestReplace && res.dishId
+                  ? { dishId: res.dishId, name: pending.name, query: res.replaceQuery }
+                  : undefined,
+            },
+          ]);
+          this.loading.set(false);
+          this.scrollBump.update((n) => n + 1);
+        },
+        error: (err) => {
+          const detail = err?.error?.detail as string | undefined;
+          this.messages.update((list) => [
+            ...list,
+            {
+              id: `e-${this.seq++}`,
+              role: 'assistant',
+              text:
+                detail ||
+                'Обсуждение недоступно этой моделью. Переключите модель выше или попробуйте ещё раз.',
+            },
+          ]);
+          this.loading.set(false);
+        },
+      });
+  }
+
+  // «Заменить блюдо» под ответом обсуждения: бейдж → режим замены, пожелание — в черновик.
+  acceptReplaceSuggestion(s: { dishId: string; name: string; query: string }): void {
+    this.requestReplace(s.dishId, s.name);
+    this.draft.set(s.query);
   }
 
   // Лейбл действия для ленты («Замена «X»», «Добавить блюдо») + дописанный пользователем текст.

@@ -163,6 +163,21 @@
   }
 }
 /* Открытый тултип — поверх бэкдропа (клик мимо закрывает) */
+/* Под ответом обсуждения: ссылка «Открыть …» и компактная кнопка «Заменить блюдо» */
+.msg-discuss {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: -2px 0 2px 4px;
+}
+.msg-discuss__replace {
+  width: auto;
+  padding: 9px 16px;
+  font-size: 14px;
+}
+
 .msg-wrap--tip {
   z-index: 50;
 }

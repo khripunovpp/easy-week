@@ -1,7 +1,14 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
-import { ChatMessage, Dish, Ingredient, PlanStatus, WeekPlan } from '../models/plan.model';
+import {
+  ChatMessage,
+  DiscussTarget,
+  Dish,
+  Ingredient,
+  PlanStatus,
+  WeekPlan,
+} from '../models/plan.model';
 
 export interface DishVariant {
   model: string;
@@ -48,6 +55,30 @@ export interface ChatResponse {
   messageId?: string;
   model?: string;
 }
+
+// Ответ режима «Обсуждение» (POST /chat/discuss). op — что применено по явной просьбе:
+// edit — рецепт обновлён (dish), regenerate — пересобраны готовка/покупки, replace —
+// модель предлагает заменить блюдо (suggestReplace + replaceQuery), none — просто ответ.
+export interface DiscussResponse {
+  conversationId: string;
+  reply: string;
+  messageId: string;
+  model: string;
+  target: DiscussTarget;
+  planId: string;
+  dishId: string | null;
+  op: 'none' | 'edit' | 'replace' | 'regenerate';
+  dish: Dish | null;
+  cooking: CookingPlan | null;
+  shopping: ShoppingGroup[] | null;
+  suggestReplace: boolean;
+  replaceQuery: string;
+  applyError: string;
+}
+
+// Действие над рецептом/планом готовки: open — активный вариант; select — сделать модель
+// активной; regenerate — «↻ Перегенерировать» (всегда новый вариант с учётом обсуждения).
+export type VariantAction = 'open' | 'select' | 'regenerate';
 
 export interface MessageSearchHit {
   id: string;
@@ -301,6 +332,29 @@ export class EasyWeekApi {
     return this.http.get<ShoppingGroup[]>(`${API_BASE}/plans/${planId}/shopping-list`);
   }
 
+  // «↻ Перегенерировать» список покупок: нормализация мимо кэша с учётом обсуждения.
+  regenerateShopping(planId: string, recipeModel: RecipeModel | string): Observable<ShoppingGroup[]> {
+    return this.http.post<ShoppingGroup[]>(
+      `${API_BASE}/plans/${planId}/shopping-list/regenerate`,
+      { recipeModel },
+    );
+  }
+
+  // Реплика в режиме «Обсуждение» (рецепт / план готовки / покупки). Версий плана не создаёт.
+  discuss(body: {
+    conversationId: string | null;
+    planId: string;
+    target: DiscussTarget;
+    dishId?: string;
+    message: string;
+    recipeModel: RecipeModel;
+  }): Observable<DiscussResponse> {
+    return this.http.post<DiscussResponse>(`${API_BASE}/chat/discuss`, {
+      ...body,
+      gender: this.prefs.gender(),
+    });
+  }
+
   // Все сгенерированные варианты рецепта блюда (по моделям) — для сравнения.
   dishVariants(planId: string, dishId: string): Observable<DishVariant[]> {
     return this.http.get<DishVariant[]>(
@@ -312,7 +366,7 @@ export class EasyWeekApi {
   cookingPlan(
     planId: string,
     recipeModel: RecipeModel | string,
-    action: 'open' | 'select' = 'open',
+    action: VariantAction = 'open',
   ): Observable<CookingPlan> {
     return this.http.post<CookingPlan>(`${API_BASE}/plans/${planId}/cooking`, {
       recipeModel,
@@ -331,7 +385,7 @@ export class EasyWeekApi {
     planId: string,
     dishId: string,
     recipeModel: RecipeModel | string,
-    action: 'open' | 'select' = 'open',
+    action: VariantAction = 'open',
   ): Observable<Dish> {
     return this.http.post<Dish>(
       `${API_BASE}/plans/${planId}/dishes/${dishId}/details`,

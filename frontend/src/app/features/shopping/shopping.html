@@ -1,4 +1,4 @@
-<div class="page page--header-fixed">
+<div class="page page--header-fixed" [class.page--footer-fixed]="hasFooter()">
   <header class="page__header page__header--fixed fade-top">
     <div class="page__heading">
       <h1 class="page__title">Покупки</h1>
@@ -74,4 +74,22 @@
       }
     }
   </div>
+
+  <!-- Футер действий (GUIDEBOOK «Футер действий страницы»): статус + ↻ / 💬 -->
+  @if (hasFooter()) {
+    <footer class="page__footer page__footer--fixed fade-bottom">
+      @if (regenerating()) {
+        <div class="page__footer-status"><ew-cooking /></div>
+      } @else if (regenError()) {
+        <div class="page__footer-status">
+          <span class="page__footer-error">{{ regenError() }}</span>
+          <button class="link-btn" type="button" (click)="regenerate()">Повторить</button>
+        </div>
+      }
+      <div class="page__footer-row">
+        <button class="btn-ghost" type="button" [disabled]="busy()" (click)="regenerate()">↻ Перегенерировать</button>
+        <button class="btn-primary" type="button" [disabled]="busy()" (click)="discuss()">💬 Обсудить в чате</button>
+      </div>
+    </footer>
+  }
 </div>

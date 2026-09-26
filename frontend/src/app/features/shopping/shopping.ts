@@ -1,5 +1,7 @@
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { EasyWeekApi, PlanSummary, ShoppingGroup, ShoppingListItem } from '../../services/api';
+import { ChatStore } from '../../services/chat-store';
 import { CookingLoader } from '../../shared/cooking-loader';
 import { PlanPicker } from '../../shared/plan-picker';
 
@@ -22,6 +24,8 @@ const CATEGORY_ORDER = [
 })
 export class Shopping {
   private readonly api = inject(EasyWeekApi);
+  private readonly store = inject(ChatStore);
+  private readonly router = inject(Router);
 
   // /shopping/:planId — конкретный план; /shopping — выбранный «текущий» (или принятый/первый).
   readonly planId = input<string>('');
@@ -33,6 +37,14 @@ export class Shopping {
   readonly empty = signal(false);
   readonly title = signal('');
   readonly currentPlanId = signal('');
+
+  // «↻ Перегенерировать»: пересборка идёт (старый список на экране) / ошибка последней попытки.
+  readonly regenerating = signal(false);
+  readonly regenError = signal('');
+  private readonly opening = signal(false); // «💬 Обсудить»: ждём conversationId плана
+  readonly busy = computed(() => this.regenerating() || this.opening() || this.loading());
+  // Футер действий — когда список есть.
+  readonly hasFooter = computed(() => !this.empty() && this.items().length > 0);
 
   private readonly checked = signal<Set<string>>(new Set());
   private activePlanId = '';
@@ -144,6 +156,63 @@ export class Shopping {
         // Офлайн/ошибка — остаёмся на кэше, если он есть.
         this.loading.set(false);
         this.empty.set(this.items().length === 0);
+      },
+    });
+  }
+
+  // «↻ Перегенерировать»: нормализация списка мимо кэша с учётом обсуждения покупок в чате.
+  // Отметки «куплено» переносим на новые позиции, если название совпало (единица могла
+  // смениться); остальные отметки отпадают. При ошибке старый список остаётся.
+  regenerate(): void {
+    const pid = this.currentPlanId();
+    if (!pid || this.busy()) return;
+    this.regenerating.set(true);
+    this.regenError.set('');
+    this.api.regenerateShopping(pid, this.store.recipeModel()).subscribe({
+      next: (groups) => {
+        const items = groups.flatMap((g) => g.items);
+        const checkedNames = new Set(
+          this.items()
+            .filter((it) => this.checked().has(this.key(it)))
+            .map((it) => it.name.toLowerCase()),
+        );
+        this.items.set(items);
+        this.saveItems(pid, items);
+        this.checked.set(
+          new Set(
+            items.filter((it) => checkedNames.has(it.name.toLowerCase())).map((it) => this.key(it)),
+          ),
+        );
+        this.saveChecked();
+        this.regenerating.set(false);
+      },
+      error: (err) => {
+        this.regenError.set(err?.error?.detail ?? 'Не удалось пересобрать список покупок.');
+        this.regenerating.set(false);
+      },
+    });
+  }
+
+  // «💬 Обсудить в чате»: беседа плана + бейдж «Обсуждение: список покупок».
+  discuss(): void {
+    const pid = this.currentPlanId();
+    if (!pid || this.busy()) return;
+    this.opening.set(true);
+    this.api.getPlan(pid).subscribe({
+      next: (p) => {
+        this.opening.set(false);
+        if (!p.conversationId) return;
+        this.store.startDiscuss({
+          conversationId: p.conversationId,
+          target: 'shopping',
+          planId: p.id,
+          name: 'список покупок',
+        });
+        this.router.navigate(['/chat']);
+      },
+      error: () => {
+        this.opening.set(false);
+        this.regenError.set('Не удалось открыть чат плана.');
       },
     });
   }

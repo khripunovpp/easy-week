@@ -1,6 +1,7 @@
 import { afterNextRender, Component, ElementRef, effect, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { DiscussRef } from '../../models/plan.model';
 import { EasyWeekApi, MessageSearchHit } from '../../services/api';
 import { ChatStore } from '../../services/chat-store';
 import { providerToModel, RecipeModel } from '../../services/preferences';
@@ -182,10 +183,11 @@ export class Chat {
     this.store.setPlanStatus(msgId, planId, 'rejected');
   }
 
-  // Лейбл бейджа действия в композере (замена конкретного блюда / добавление).
+  // Лейбл бейджа действия в композере (замена блюда / добавление / обсуждение цели).
   pendingLabel(): string {
     const p = this.store.pending();
     if (!p) return '';
+    if (p.kind === 'discuss') return `Обсуждение: ${p.name}`;
     return p.kind === 'replace' ? `Замена: ${p.name}` : 'Добавить блюдо';
   }
 
@@ -193,7 +195,23 @@ export class Chat {
     const p = this.store.pending();
     if (p?.kind === 'replace') return 'Пожелания к замене (необязательно)…';
     if (p?.kind === 'add') return 'Какое блюдо добавить?…';
+    if (p?.kind === 'discuss') {
+      if (p.target === 'cooking') return 'Спросите про план готовки…';
+      if (p.target === 'shopping') return 'Спросите про список покупок…';
+      return 'Спросите про рецепт…';
+    }
     return 'Опишите, что приготовить…';
+  }
+
+  // Ссылка под ответом обсуждения — обратно на обсуждаемую цель.
+  discussLink(ref: DiscussRef): unknown[] {
+    if (ref.target === 'recipe' && ref.dishId) return ['/plan', ref.planId, 'dish', ref.dishId];
+    return [ref.target === 'cooking' ? '/cooking' : '/shopping', ref.planId];
+  }
+  discussLinkLabel(ref: DiscussRef): string {
+    if (ref.target === 'cooking') return 'Открыть план готовки →';
+    if (ref.target === 'shopping') return 'Открыть покупки →';
+    return 'Открыть рецепт →';
   }
 
   pastel(i: number): string {

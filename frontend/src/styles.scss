@@ -759,6 +759,74 @@ ul {
   z-index: 10;
 }
 
+/* Футер действий: 2 кнопки в ряд поровну (см. GUIDEBOOK «Футер действий страницы»).
+   Текст в одну строку, боковой паддинг меньше — две кнопки влезают на 390px. */
+.page__footer-row {
+  display: flex;
+  gap: 10px;
+}
+.page__footer-row > .btn-primary,
+.page__footer-row > .btn-ghost {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  white-space: nowrap;
+  padding-left: 12px;
+  padding-right: 12px;
+  font-size: 15px;
+}
+/* Вторичная кнопка поверх фона страницы (не в карточке) — белая пилюля, иначе сливается с фоном */
+.page__footer-row > .btn-ghost {
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+.page__footer-row > .btn-ghost:active {
+  background: var(--surface-sunk);
+}
+
+/* Строка статуса над кнопками футера: лоадер ew-cooking или ошибка + «Повторить».
+   Своя подложка — строка лежит в прозрачной части фейда, поверх контента. */
+.page__footer-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-bottom: 10px;
+  padding: 9px 14px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+  font-size: 13px;
+  line-height: 1.35;
+  text-align: center;
+}
+.page__footer-error {
+  color: var(--no);
+}
+
+/* Текстовая кнопка-ссылка (повторить, открыть рецепт …) */
+.link-btn {
+  padding: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.link-btn:active {
+  opacity: 0.7;
+}
+
+/* Неактивные кнопки (идёт операция) — приглушены, без эффекта нажатия */
+.btn-primary:disabled,
+.btn-ghost:disabled {
+  opacity: 0.55;
+  transform: none;
+  cursor: default;
+}
+
 /* Иконка-кнопка для шапок (назад, экспорт, новый чат …) — единая высота --ctl-h */
 .icon-btn {
   flex-shrink: 0;
