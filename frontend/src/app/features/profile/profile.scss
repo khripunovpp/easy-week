@@ -126,6 +126,13 @@
   color: var(--ink-3);
 }
 
+/* Выход — вторичная кнопка, прижата к низу вместе с подвалом */
+.profile__logout {
+  margin-top: auto;
+  padding: 13px 22px;
+  font-size: 15px;
+}
+
 .profile__foot {
   text-align: center;
   font-size: 12.5px;

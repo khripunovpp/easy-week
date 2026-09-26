@@ -57,6 +57,19 @@ class Settings(BaseSettings):
     db_path: str = "data/easy_week.db"
     cors_origins: str = "http://localhost:4200,http://127.0.0.1:4200"
 
+    # Доступ по общему паролю (один на все устройства). Только из .env — в репо не коммитим.
+    # APP_PASSWORD пустой → авторизация выключена (удобно в деве), на старте — warning в лог.
+    app_password: str = ""
+    # Ключ подписи сессионной куки. Пусто → выводится из APP_PASSWORD. Пароль подмешивается
+    # в ключ всегда, так что смена пароля разлогинивает все устройства.
+    app_secret: str = ""
+    # Флаг Secure у куки: auto (по https / X-Forwarded-Proto) | true | false.
+    auth_cookie_secure: str = "auto"
+
+    @property
+    def auth_enabled(self) -> bool:
+        return bool(self.app_password)
+
     @property
     def ai_log_dir(self) -> str:
         # рядом с БД (persist): data/ai-logs (native) или /data/ai-logs (Docker)

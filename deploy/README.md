@@ -35,6 +35,31 @@ cp .env.example .env
 nano .env
 ```
 
+### Пароль на вход (обязательно для доступа извне)
+
+Приложение закрыто одним общим паролем (на всех устройствах один). При первом заходе
+устройство спрашивает пароль, дальше помнит его ~год (HttpOnly-кука `ew_session`).
+Пароль **не коммитим** — только в `backend/.env` на Пае:
+
+```bash
+# backend/.env
+APP_PASSWORD=придумай-пароль
+# необязательно: отдельный ключ подписи сессий (иначе выводится из пароля).
+# Сгенерировать: python3 -c 'import secrets; print(secrets.token_hex(32))'
+APP_SECRET=...
+# необязательно: флаг Secure у куки — auto (по https/X-Forwarded-Proto, дефолт) | true | false
+# AUTH_COOKIE_SECURE=auto
+```
+
+- Пустой `APP_PASSWORD` → вход **выключен** (удобно в деве), в логе при старте warning.
+- Смена `APP_PASSWORD` (или `APP_SECRET`) → все устройства разлогинятся и спросят пароль заново.
+- После правки `.env`: `sudo systemctl restart easy-week-backend`.
+- Закрыты все `/api/*`, кроме `/api/auth/*` и `/api/health`. Неверный пароль — не больше
+  5 попыток в минуту с одного IP (IP берётся из `X-Forwarded-For`, его ставит nginx).
+- `/metrics` паролем не закрыт: Prometheus скрапит `127.0.0.1:8010` напрямую, а в nginx
+  `/metrics` открыт только для localhost / `192.168.0.0/16` / tailnet `100.64.0.0/10`
+  (запросы через Funnel/туннель — 403).
+
 ## 3. Собрать бэк и фронт (первый раз)
 
 ```bash
@@ -140,6 +165,9 @@ cd /home/pashtitto/easy-week
 bash deploy/update.sh
 ```
 (git pull → пересборка бэка и фронта → рестарт сервиса + reload nginx)
+
+⚠️ `update.sh` не копирует конфиг nginx. Если менялся `deploy/nginx-easy-week.conf` —
+повтори шаг 5 (`sudo cp … && sudo nginx -t && sudo systemctl reload nginx`).
 
 ## Полезное
 

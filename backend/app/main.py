@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
 
+from . import auth
 from .config import settings
 from .db import init_db
 from .routers import chat, plans, ratings
@@ -20,10 +21,15 @@ logging.getLogger("easy_week").setLevel(logging.INFO)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    auth.log_startup_state()
     yield
 
 
 app = FastAPI(title="Easy Week API", lifespan=lifespan)
+
+# Вход по общему паролю: закрывает /api/* (кроме /api/auth/*, /api/health).
+# Добавляем ДО CORS — тогда CORS внешний и 401 тоже получает CORS-заголовки.
+app.add_middleware(auth.AuthMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -32,6 +38,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router)
 app.include_router(chat.router)
 app.include_router(plans.router)
 app.include_router(ratings.router)

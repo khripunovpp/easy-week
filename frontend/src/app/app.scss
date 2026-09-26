@@ -20,6 +20,11 @@
   padding-bottom: calc(76px + var(--safe-bottom));
 }
 
+/* Экран без таб-бара (вход) — место под него не держим */
+.app__main--bare {
+  padding-bottom: var(--safe-bottom);
+}
+
 /* Нижний таб-бар */
 .tabbar {
   position: fixed;

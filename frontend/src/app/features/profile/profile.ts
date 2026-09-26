@@ -1,5 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { EasyWeekApi, FoodPrefs, LimitsStatus } from '../../services/api';
+import { AuthService } from '../../services/auth';
 import { Gender, Preferences, RecipeModel, ThemeMode } from '../../services/preferences';
 
 type PrefKind = 'dislikes' | 'likes';
@@ -12,6 +13,8 @@ type PrefKind = 'dislikes' | 'likes';
 export class ProfilePage {
   readonly prefs = inject(Preferences);
   private readonly api = inject(EasyWeekApi);
+  // Выход показываем, только если вход по паролю включён на сервере.
+  readonly auth = inject(AuthService);
 
   // Остаток дневного лимита Claude (планы/рецепты) — грузим при открытии профиля.
   readonly limits = signal<LimitsStatus | null>(null);
@@ -21,6 +24,10 @@ export class ProfilePage {
   constructor() {
     this.api.limits().subscribe({ next: (l) => this.limits.set(l) });
     this.api.getPreferences().subscribe({ next: (p) => this.foodPrefs.set(p) });
+  }
+
+  logout(): void {
+    void this.auth.logout();
   }
 
   private savePrefs(next: FoodPrefs): void {

@@ -1,0 +1,35 @@
+/* Каркас держит .page (styles.scss); host прозрачен */
+:host {
+  display: contents;
+}
+
+/* Карточка входа по центру экрана (скролл остаётся у .page__inner — для маленьких экранов
+   и выезжающей клавиатуры). */
+.login__inner {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.auth-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-3);
+  text-align: center;
+}
+
+.auth-card__badge {
+  align-self: center;
+  margin-bottom: var(--space-1);
+}
+
+.auth-card__hint {
+  font-size: 13px;
+  margin: 0 0 var(--space-1);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+}

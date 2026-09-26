@@ -1,6 +1,8 @@
 import { Routes } from '@angular/router';
+import { authGuard, loginGuard } from './services/auth-guard';
 
-export const routes: Routes = [
+// Все экраны — под authGuard (вход по общему паролю). /login — снаружи.
+const appRoutes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'home' },
   {
     path: 'home',
@@ -56,4 +58,14 @@ export const routes: Routes = [
     loadComponent: () => import('./features/profile/profile').then((m) => m.ProfilePage),
   },
   { path: '**', redirectTo: 'home' },
+];
+
+export const routes: Routes = [
+  {
+    path: 'login',
+    canActivate: [loginGuard],
+    loadComponent: () => import('./features/login/login').then((m) => m.LoginPage),
+  },
+  // Бескомпонентный родитель: гард срабатывает на каждую навигацию внутри (статус кэширован).
+  { path: '', canActivateChild: [authGuard], children: appRoutes },
 ];

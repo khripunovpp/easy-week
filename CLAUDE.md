@@ -54,7 +54,7 @@
   **Новый AI-вызов логируется сам, если идёт через хелперы deepseek/cloudflare.** Не дублировать.
 - **Обычные логи приложения:** `logging.getLogger("easy_week.<модуль>")` (INFO) → stdout → journald
   (`journalctl -u easy-week-backend`). Свой логгер не изобретать.
-- **Метрики:** `/metrics` (prometheus-fastapi-instrumentator). На Пае проброшен nginx: `:8080/metrics`.
+- **Метрики:** `/metrics` (prometheus-fastapi-instrumentator). На Пае проброшен nginx: `:8080/metrics` (только LAN/tailnet/localhost).
 - **Стек мониторинга — в `monitoring/`** (Prometheus + Loki + Promtail + Grafana). Локально —
   через Docker из `docker/` (см. ниже), на Пае native (`monitoring/install-pi.sh`).
   Grafana на Пае: `http://192.168.1.230:3002`. Логи смотреть в Grafana → Explore → Loki:
@@ -94,5 +94,6 @@ ssh pi5 'cd ~/easy-week && bash deploy/update.sh'
 - Полное описание (первичная настройка, Tailscale/Cloudflare) — `deploy/README.md`.
 
 ## Прочее
+- **Вход по общему паролю:** `APP_PASSWORD` (+ опц. `APP_SECRET`) в `backend/.env`, не в репо; пусто — вход выключен. Бэк — `backend/app/auth.py` (middleware на `/api/*`), фронт — `/login` + `services/auth*.ts`. Подробно — `deploy/README.md`.
 - Бэклог и хотелки — в `ROADMAP.md`. Мониторинг — в `monitoring/README.md`. Docker — в `docker/README.md`.
 - Единицы ингредиентов задаём у источника: только `г` / `мл`, `шт` — редко (штучное).
