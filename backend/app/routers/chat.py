@@ -32,6 +32,7 @@ from ..schemas import (
     PreferencesBody,
 )
 from ..services import appstate
+from ..services.history import conversation_rejected, variety_avoid
 from ..services.mapping import to_week_plan
 
 import logging
@@ -41,17 +42,6 @@ router = APIRouter(prefix="/api", tags=["chat"])
 logger = logging.getLogger("easy_week.chat")
 
 SessionDep = Annotated[Session, Depends(get_session)]
-
-
-def _accepted_dish_names(session: Session, limit: int = 12) -> list[str]:
-    rows = session.exec(select(PlanRow).where(PlanRow.status == "accepted")).all()
-    names: list[str] = []
-    for row in rows:
-        for dish in row.dishes or []:
-            name = dish.get("name")
-            if name:
-                names.append(name)
-    return names[:limit]
 
 
 @router.get("/limits")
@@ -168,7 +158,8 @@ async def chat_stream(
     session.commit()
 
     prefs.learn_async(req.message)  # фоново запоминаем предпочтения из сообщения (CF, бесплатно)
-    avoid = _accepted_dish_names(session)
+    # «Недавно ели или отвергли» — свежие принятые, заменённые/удалённые, 👎, черновики.
+    avoid = variety_avoid(session, exclude_conversation=conv.id)
     plan_id = uuid4().hex
     set_ai_context(conversation_id=conv.id, plan_id=plan_id, endpoint="chat_stream")
 
@@ -263,7 +254,7 @@ async def chat(req: ChatRequest, session: SessionDep) -> ChatResponse:
     session.commit()
 
     prefs.learn_async(req.message)  # фоново запоминаем предпочтения из сообщения (CF, бесплатно)
-    avoid = _accepted_dish_names(session)
+    avoid = variety_avoid(session, exclude_conversation=conv.id)
     set_ai_context(conversation_id=conv.id, endpoint="chat")
 
     try:
@@ -382,12 +373,17 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
         session.commit()
 
     context = _edit_context(session, conv.id, req.message)
-    # Вкусы извлекаем ТОЛЬКО из свободного текста пользователя. Правки по кнопкам без текста
-    # (replace/remove/add с пустым сообщением) вкусов не несут — CF не дёргаем. Текстовые правки
+    button = bool(req.remove_dish_id or req.replace_dish_id or req.add_dish)
+    # Вкусы извлекаем ТОЛЬКО из свободного текста правки в чате. Действия по кнопкам
+    # (replace/remove/add — даже с пожеланием «без рыбы») — разовые, не устойчивые вкусы:
+    # CF не дёргаем (раньше так в dislikes навсегда попадала «рыба»). Текстовые правки
     # («без свинины») разбираем: экстрактору даём структурный хинт + контекст, чтобы «замени на
     # не-суп»/«где суп» не улетали в предпочтения (см. prefs._EXTRACT_SYSTEM).
-    if req.message.strip():
+    if req.message.strip() and not button:
         prefs.learn_async(req.message, "Это правка уже составленного плана.\n" + context)
+    # Память беседы для add/replace/create: что уже отвергнуто здесь + общая история.
+    rejected = conversation_rejected(session, conv.id) if not req.remove_dish_id else []
+    avoid = variety_avoid(session, exclude_conversation=conv.id) if not req.remove_dish_id else []
     try:
         if req.remove_dish_id:
             # Крестик — детерминированное удаление, вообще без модели.
@@ -397,15 +393,18 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
             result = await replace_dish_by_id(
                 row.dishes or [], row.title, req.replace_dish_id, req.message,
                 req.gender, req.recipe_model,
+                context=context, rejected=rejected, avoid=avoid,
             )
         elif req.add_dish:
             # Добавление по кнопке — минуя тул-коллинг.
             result = await add_dish_direct(
-                row.dishes or [], row.title, req.message, req.gender, req.recipe_model
+                row.dishes or [], row.title, req.message, req.gender, req.recipe_model,
+                context=context, rejected=rejected, avoid=avoid,
             )
         else:
             result = await edit_plan(
-                row.dishes or [], row.title, req.message, req.gender, req.recipe_model, context
+                row.dishes or [], row.title, req.message, req.gender, req.recipe_model, context,
+                avoid=avoid, rejected=rejected,
             )
     except LimitError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc

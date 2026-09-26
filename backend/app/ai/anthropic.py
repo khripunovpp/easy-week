@@ -7,7 +7,7 @@ from typing import Any
 import httpx
 
 from ..config import settings
-from .base import AIError, ModelGate
+from .base import AIError, AINonRetryable, ModelGate
 from .observe import log_ai_call
 
 logger = logging.getLogger("easy_week.anthropic")
@@ -15,6 +15,27 @@ logger = logging.getLogger("easy_week.anthropic")
 _API_VERSION = "2023-06-01"
 # Claude не имеет JSON-режима как OpenAI — просим строгий JSON в промпте.
 _JSON_ONLY = "\n\nВыводи ТОЛЬКО валидный JSON-объект: без пояснений и без markdown-ограждений (```)."
+
+# Модели, которые ОТВЕРГАЮТ assistant-prefill (400): семейство 4.6+ и новее.
+# Haiku 4.5 / Sonnet 4.5 / Opus 4.5 и старше prefill принимают.
+_NO_PREFILL = (
+    "opus-4-6", "opus-4-7", "opus-4-8", "sonnet-4-6", "opus-5", "sonnet-5", "fable", "mythos",
+)
+
+# Prefill «{»: модель продолжает уже начатый JSON-объект и не пишет прозу перед ним.
+_PREFILL = "{"
+
+# Корректирующая попытка: не повторяем тот же вход, а показываем модели её ответ
+# и просим вернуть только JSON.
+_FIX_JSON = (
+    "Твой ответ выше — не валидный JSON. Верни ТОЛЬКО этот ответ как один валидный "
+    "JSON-объект по заданной схеме: без пояснений, без текста до и после, без ```."
+)
+
+
+def _supports_prefill(model: str) -> bool:
+    m = (model or "").lower()
+    return not any(tag in m for tag in _NO_PREFILL)
 
 
 def _to_system_and_messages(messages: list[dict[str, Any]]) -> tuple[str, list[dict]]:
@@ -35,6 +56,13 @@ def _to_system_and_messages(messages: list[dict[str, Any]]) -> tuple[str, list[d
             conv.append({"role": "assistant" if role == "assistant" else "user", "content": content})
     system = "\n\n".join(system_parts)
     return (system + _JSON_ONLY if system else _JSON_ONLY.strip()), conv
+
+
+def _with_prefill(conv: list[dict], model: str) -> tuple[list[dict], str]:
+    """Добавляет assistant-prefill «{», если модель его поддерживает → (conv, prefill)."""
+    if not _supports_prefill(model) or (conv and conv[-1]["role"] == "assistant"):
+        return conv, ""
+    return conv + [{"role": "assistant", "content": _PREFILL}], _PREFILL
 
 
 def _extract_text(body: dict) -> str:
@@ -73,12 +101,25 @@ def _norm_usage(u: dict | None) -> dict[str, Any]:
     }
 
 
+def _parse_details(text: str, stop_reason: str) -> dict:
+    """Поля для JSONL-лога битого ответа: причина остановки + начало/конец сырого текста."""
+    return {
+        "stop_reason": stop_reason or "",
+        "raw_head": text[:300],
+        "raw_tail": text[-200:] if len(text) > 300 else "",
+    }
+
+
 class AnthropicGate(ModelGate):
     """Anthropic Claude через REST (/v1/messages). План и деталь рецепта, стриминг.
 
     Правки идут через structured-actions (см. planner), поэтому tools здесь не нужны.
     Температуру не шлём: Opus 4.8/4.7 её отвергают (400). Thinking по умолчанию выключен
     на Opus 4.8 (не шлём параметр) — рецептному JSON рассуждения не нужны.
+
+    Строгий JSON: где модель позволяет — assistant-prefill «{» (дописываем его обратно при
+    разборе); при битом JSON — ОДНА корректирующая попытка («верни только JSON»), а не
+    повтор того же входа базовым ретраем.
     """
 
     key = "anthropic"
@@ -97,6 +138,14 @@ class AnthropicGate(ModelGate):
     def _headers(self) -> dict[str, str]:
         return {"x-api-key": settings.anthropic_api_key, "anthropic-version": _API_VERSION}
 
+    async def _post(self, payload: dict[str, Any]) -> dict:
+        url = f"{settings.anthropic_base_url}/v1/messages"
+        async with httpx.AsyncClient(timeout=90.0) as client:
+            resp = await client.post(url, json=payload, headers=self._headers())
+        if resp.status_code != 200:
+            raise AIError(f"Claude {resp.status_code}: {resp.text[:300]}")
+        return resp.json()
+
     async def _request_json(
         self,
         messages: list[dict[str, Any]],
@@ -106,16 +155,42 @@ class AnthropicGate(ModelGate):
         temperature: float,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         system, conv = _to_system_and_messages(messages)
+        conv, prefill = _with_prefill(conv, model)
         payload: dict[str, Any] = {"model": model, "max_tokens": max_tokens, "messages": conv}
         if system:
             payload["system"] = system
-        url = f"{settings.anthropic_base_url}/v1/messages"
-        async with httpx.AsyncClient(timeout=90.0) as client:
-            resp = await client.post(url, json=payload, headers=self._headers())
-        if resp.status_code != 200:
-            raise AIError(f"Claude {resp.status_code}: {resp.text[:300]}")
-        body = resp.json()
-        return _loads_lenient(_extract_text(body)), _norm_usage(body.get("usage"))
+        body = await self._post(payload)
+        text = prefill + _extract_text(body)
+        stop = body.get("stop_reason") or ""
+        try:
+            return _loads_lenient(text), _norm_usage(body.get("usage"))
+        except json.JSONDecodeError as exc:
+            details = _parse_details(text, stop)
+            logger.warning("Claude: не JSON (stop_reason=%s): %r", stop, text[:200])
+            if stop == "max_tokens":
+                # Обрезан по лимиту — повтор тем же входом снова обрежется.
+                raise AINonRetryable(f"Claude: ответ обрезан по max_tokens: {exc}", details) from exc
+
+        # Одна корректирующая попытка: показываем модели её ответ и просим только JSON.
+        fix_conv = [
+            *(conv[:-1] if prefill else conv),  # без prefill-сообщения первой попытки
+            {"role": "assistant", "content": text.strip() or "(пусто)"},
+            {"role": "user", "content": _FIX_JSON},
+        ]
+        fix_conv, prefill2 = _with_prefill(fix_conv, model)
+        body2 = await self._post({**payload, "messages": fix_conv})
+        text2 = prefill2 + _extract_text(body2)
+        try:
+            parsed = _loads_lenient(text2)
+        except json.JSONDecodeError as exc:
+            raise AINonRetryable(
+                f"Claude: не JSON и после корректирующей попытки: {exc}",
+                _parse_details(text2, body2.get("stop_reason") or ""),
+            ) from exc
+        # usage суммируем по обеим попыткам — чтобы метрики токенов были честными.
+        u1, u2 = _norm_usage(body.get("usage")), _norm_usage(body2.get("usage"))
+        usage = {k: ((u1.get(k) or 0) + (u2.get(k) or 0)) or None for k in u1}
+        return parsed, usage
 
     async def stream_json(
         self,
@@ -124,8 +199,12 @@ class AnthropicGate(ModelGate):
         max_tokens: int = 3000,
         model: str | None = None,
         label: str = "",
+        temperature: float | None = None,
     ) -> AsyncIterator[str]:
-        """Стрим Claude (SSE): отдаёт дельты текста по мере генерации."""
+        """Стрим Claude (SSE): отдаёт дельты текста по мере генерации.
+
+        temperature игнорируется (Opus 4.7+ её отвергают). Prefill «{» — если модель
+        поддерживает: отдаём его первой дельтой, чтобы парсер видел цельный JSON."""
         if not self.configured:
             raise AIError("Claude не настроен: нет ANTHROPIC_API_KEY")
 
@@ -133,6 +212,7 @@ class AnthropicGate(ModelGate):
         logger.info("AI → Claude · %s · %s (stream)", model, label or "?")
         t0 = time.monotonic()
         system, conv = _to_system_and_messages(messages)
+        conv, prefill = _with_prefill(conv, model)
         payload: dict[str, Any] = {
             "model": model,
             "max_tokens": max_tokens,
@@ -144,7 +224,11 @@ class AnthropicGate(ModelGate):
         url = f"{settings.anthropic_base_url}/v1/messages"
 
         full: list[str] = []
-        usage: dict = {}
+        raw_usage: dict = {}  # сырой usage Claude: input из message_start, output — из message_delta
+        stop_reason = ""
+        if prefill:
+            full.append(prefill)
+            yield prefill
         async with httpx.AsyncClient(timeout=120.0) as client:
             async with client.stream("POST", url, json=payload, headers=self._headers()) as resp:
                 if resp.status_code != 200:
@@ -166,13 +250,17 @@ class AnthropicGate(ModelGate):
                                 full.append(txt)
                                 yield txt
                     elif kind == "message_start":
-                        usage = _norm_usage((obj.get("message") or {}).get("usage"))
+                        raw_usage = dict((obj.get("message") or {}).get("usage") or {})
                     elif kind == "message_delta":
-                        out = (obj.get("usage") or {}).get("output_tokens")
-                        if out is not None:
-                            usage["completion_tokens"] = out
+                        # output_tokens в message_delta — накопительный итог; total считаем в конце.
+                        raw_usage.update({
+                            k: v for k, v in (obj.get("usage") or {}).items() if v is not None
+                        })
+                        stop_reason = (obj.get("delta") or {}).get("stop_reason") or stop_reason
 
+        if stop_reason and stop_reason != "end_turn":
+            logger.warning("Claude stream: stop_reason=%s (%s)", stop_reason, label or "?")
         log_ai_call(
-            "Claude", model, label, messages, "".join(full), usage,
+            "Claude", model, label, messages, "".join(full), _norm_usage(raw_usage),
             int((time.monotonic() - t0) * 1000),
         )

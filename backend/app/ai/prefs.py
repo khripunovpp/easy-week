@@ -107,7 +107,11 @@ def set_lists(dislikes: list[str], likes: list[str]) -> dict:
 
 
 def merge(new_dislikes: list[str], new_likes: list[str]) -> dict:
-    """Слить извлечённое из чата с накопленным. Конфликт — новее выигрывает."""
+    """Слить извлечённое из чата с накопленным.
+
+    Новый dislike убирает такой же like. Обратное НЕ делаем: лайк из чата никогда не снимает
+    dislike/аллергию автоматически (экстрактор ошибается, а цена ошибки — аллерген в рецепте).
+    Снять ограничение можно только вручную в профиле (set_lists)."""
     data = load()
     dis, lik = data["dislikes"], data["likes"]
     for d in new_dislikes or []:
@@ -121,9 +125,10 @@ def merge(new_dislikes: list[str], new_likes: list[str]) -> dict:
         l = l.strip()
         if not l:
             continue
+        if any(_norm(l) == _norm(x) for x in dis):
+            continue  # конфликт с ограничением — ограничение важнее, лайк не пишем
         if not any(_norm(l) == _norm(x) for x in lik):
             lik.append(l)
-        dis = [x for x in dis if _norm(x) != _norm(l)]
     out = {"dislikes": dis[:_MAX], "likes": lik[:_MAX]}
     _save(out)
     return out
@@ -137,18 +142,20 @@ def as_hint(constraints_only: bool = False) -> str:
     блюда стилевые likes подмешивать нельзя (иначе «борщ с рыбным соусом»): для генерации
     рецепта/детали вызывай с constraints_only=True — тогда отдаём только dislikes."""
     data = load()
-    parts = []
+    out = ""
     if data["dislikes"]:
-        parts.append("НЕ используй и избегай: " + ", ".join(data["dislikes"]))
+        # Ограничения — жёстко, везде.
+        out += (
+            "\nОграничения пользователя (во ВСЕХ блюдах) — НЕ используй: "
+            + ", ".join(data["dislikes"]) + "."
+        )
     if data["likes"] and not constraints_only:
-        parts.append("по возможности предпочитай: " + ", ".join(data["likes"]))
-    if not parts:
-        return ""
-    return (
-        "\nПредпочтения пользователя (учитывай во ВСЕХ блюдах и ингредиентах): "
-        + "; ".join(parts)
-        + "."
-    )
+        # Любимое — мягко: иначе один лайк («азиатская курица») тянет за собой всё меню.
+        out += (
+            "\nЛюбимое (учти в 1 блюде плана, не в каждом; явный запрос важнее): "
+            + ", ".join(data["likes"]) + "."
+        )
+    return out
 
 
 async def extract_and_merge(message: str, context: str = "") -> None:

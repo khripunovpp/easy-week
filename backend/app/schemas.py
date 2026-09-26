@@ -29,6 +29,8 @@ class Dish(CamelModel):
     prep_min: int
     cook_min: int
     tags: list[str] = []
+    # Гарнир к основному блюду из плана (коротко; пусто — не нужен или старые планы).
+    garnish: str = ""
     storage: Storage
     tips: list[str] = []
     steps: list[str] = []

@@ -119,6 +119,7 @@ class GeminiGate(ModelGate):
         max_tokens: int = 3000,
         model: str | None = None,
         label: str = "",
+        temperature: float | None = None,
     ) -> AsyncIterator[str]:
         """Стрим Gemini (SSE): отдаёт дельты текста по мере генерации."""
         if not self.configured:
@@ -131,7 +132,7 @@ class GeminiGate(ModelGate):
         url = f"{settings.gemini_base_url}/models/{model}:streamGenerateContent?alt=sse"
         payload: dict[str, Any] = {
             "contents": contents,
-            "generationConfig": _gen_config(0.7, max_tokens),
+            "generationConfig": _gen_config(0.7 if temperature is None else temperature, max_tokens),
         }
         if system:
             payload["systemInstruction"] = system
