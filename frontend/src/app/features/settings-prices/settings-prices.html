@@ -1,0 +1,67 @@
+<div class="page page--header-fixed">
+  <header class="page__header page__header--fixed fade-top">
+    <a class="icon-btn page__back" routerLink="/profile" aria-label="Назад">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M15 6l-6 6 6 6" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </a>
+    <div class="page__heading">
+      <h1 class="page__title">Цены</h1>
+      <p class="page__subtitle">
+        @switch (status()) {
+          @case ('saving') { Сохраняю… }
+          @case ('saved') { Сохранено ✓ }
+          @case ('error') { Не удалось сохранить }
+          @default { USD за 1M токенов }
+        }
+      </p>
+    </div>
+  </header>
+
+  <div class="page__inner">
+    <div class="settings">
+      <p class="setting__hint prices__intro">
+        Цены у провайдеров меняются — поправь тут. Новая цена действует на следующие вызовы,
+        уже накопленные затраты в Grafana не пересчитываются.
+      </p>
+
+      @if (prices(); as p) {
+        @for (m of models; track m) {
+          <section class="card setting">
+            <h2 class="setting__label">{{ label(m) }}</h2>
+            <div class="prices__grid">
+              @for (f of fields; track f.key) {
+                <label class="prices__cell">
+                  <span class="setting__row-sub">{{ f.label }}</span>
+                  <input
+                    class="text-field prices__input"
+                    type="number"
+                    inputmode="decimal"
+                    min="0"
+                    step="0.001"
+                    [value]="value(m, f.key)"
+                    (input)="set(m, f.key, $any($event.target).value)" />
+                </label>
+              }
+              @if (m === 'cloudflare') {
+                <label class="prices__cell prices__cell--wide">
+                  <span class="setting__row-sub">За 1000 нейронов — основная (Cloudflare сам считает нейроны)</span>
+                  <input
+                    class="text-field prices__input"
+                    type="number"
+                    inputmode="decimal"
+                    min="0"
+                    step="0.001"
+                    [value]="value(m, 'per1kNeurons')"
+                    (input)="set(m, 'per1kNeurons', $any($event.target).value)" />
+                </label>
+              }
+            </div>
+          </section>
+        }
+      } @else if (status() === 'error') {
+        <p class="muted">Не удалось загрузить цены.</p>
+      }
+    </div>
+  </div>
+</div>

@@ -98,6 +98,8 @@ def _norm_usage(u: dict | None) -> dict[str, Any]:
         "completion_tokens": completion,
         "total_tokens": (prompt + (completion or 0)) or None,
         "prompt_cache_hit_tokens": cache_read or None,
+        # Запись в кэш (1.25x цены input) — отдельно, для учёта затрат.
+        "prompt_cache_write_tokens": u.get("cache_creation_input_tokens") or None,
     }
 
 

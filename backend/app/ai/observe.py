@@ -13,6 +13,7 @@ from pathlib import Path
 from prometheus_client import Counter
 
 from ..config import settings
+from ..services import prices
 
 logger = logging.getLogger("easy_week.ai")
 
@@ -41,6 +42,23 @@ def clear_ai_context() -> None:
 _calls = Counter("easyweek_ai_calls_total", "AI-вызовы", ["provider", "model", "category"])
 _tokens = Counter("easyweek_ai_tokens_total", "AI-токены", ["provider", "model", "kind"])
 _errors = Counter("easyweek_ai_errors_total", "Ошибки AI-вызовов", ["provider", "model", "category"])
+# Затраты в USD по текущей цене на момент вызова (таблица цен — services/prices.py).
+_cost = Counter("easyweek_ai_cost_usd_total", "Затраты на AI-вызовы, USD", ["provider", "model", "category"])
+
+# Метка провайдера в логах → ключ модели в таблице цен (без импорта gates — цикл импортов).
+_PROVIDER_KEY = {"deepseek": "deepseek", "claude": "anthropic", "gemini": "gemini", "cloudflare": "cloudflare"}
+
+
+def _norm_cache(usage: dict) -> dict:
+    """Кэш у провайдеров называется по-разному — приводим к prompt_cache_hit_tokens.
+    DeepSeek/Claude/Gemini уже нормализованы в своих гейтах; Cloudflare (OpenAI-формат)
+    отдаёт prompt_tokens_details.cached_tokens."""
+    u = dict(usage or {})
+    if u.get("prompt_cache_hit_tokens") is None:
+        cached = (u.get("prompt_tokens_details") or {}).get("cached_tokens")
+        if cached:
+            u["prompt_cache_hit_tokens"] = cached
+    return u
 
 # Бизнес-счётчики: из них в Grafana считаем токены/чат, токены/план, планы/чат.
 _plans = Counter("easyweek_plans_total", "Созданные планы", ["source"])  # create | edit
@@ -68,18 +86,29 @@ def _category(label: str) -> str:
     return (label or "?").split(":")[0].strip() or "?"
 
 
-def _record_metrics(provider: str, model: str, label: str, usage: dict) -> None:
+def _record_metrics(provider: str, model: str, label: str, usage: dict) -> float:
+    """Счётчики вызова/токенов/затрат. Возвращает стоимость вызова (USD) — для JSONL."""
     _calls.labels(provider, model, _category(label)).inc()
-    u = usage or {}
+    u = _norm_cache(usage)
     for kind, key in (
         ("prompt", "prompt_tokens"),
         ("completion", "completion_tokens"),
         ("cache_hit", "prompt_cache_hit_tokens"),
         ("cache_miss", "prompt_cache_miss_tokens"),
+        ("cache_write", "prompt_cache_write_tokens"),
+        ("neurons", "neurons"),
     ):
         val = u.get(key)
         if val:
             _tokens.labels(provider, model, kind).inc(val)
+    try:
+        cost = prices.cost_usd(_PROVIDER_KEY.get((provider or "").lower(), ""), u)
+    except Exception as exc:  # noqa: BLE001 — учёт затрат не должен ронять запрос
+        logger.warning("не посчитали стоимость вызова: %s", str(exc)[:150])
+        cost = 0.0
+    if cost:
+        _cost.labels(provider, model, _category(label)).inc(cost)
+    return cost
 
 
 def _write_file_record(record: dict) -> None:
@@ -132,7 +161,7 @@ def log_ai_call(
     logger.info("  prompt: %s", json.dumps(messages, ensure_ascii=False))
     logger.info("  response: %s", resp)
 
-    _record_metrics(provider, model, label, usage or {})
+    cost = _record_metrics(provider, model, label, usage or {})
 
     rec = _base_record()
     rec.update(
@@ -143,6 +172,7 @@ def log_ai_call(
             "ok": True,
             "duration_ms": duration_ms,
             "usage": usage or {},
+            "cost_usd": round(cost, 6),
             "messages": messages,
             "response": response,
         }

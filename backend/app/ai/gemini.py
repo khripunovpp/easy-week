@@ -41,6 +41,8 @@ def _norm_usage(meta: dict | None) -> dict[str, Any]:
         "prompt_tokens": u.get("promptTokenCount"),
         "completion_tokens": u.get("candidatesTokenCount"),
         "total_tokens": u.get("totalTokenCount"),
+        # Неявный кэш Gemini: сколько токенов промпта отдано из кэша (входят в promptTokenCount).
+        "prompt_cache_hit_tokens": u.get("cachedContentTokenCount"),
     }
 
 

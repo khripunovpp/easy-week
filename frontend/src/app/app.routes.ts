@@ -64,6 +64,12 @@ const appRoutes: Routes = [
       import('./features/settings-models/settings-models').then((m) => m.SettingsModelsPage),
   },
   {
+    // Под-экран профиля: цены моделей для учёта затрат (Grafana → «Затраты»).
+    path: 'settings/prices',
+    loadComponent: () =>
+      import('./features/settings-prices/settings-prices').then((m) => m.SettingsPricesPage),
+  },
+  {
     // Пищевые предпочтения: аллергии, любит / не любит, БЖУ (ссылка — из профиля)
     path: 'preferences',
     loadComponent: () =>

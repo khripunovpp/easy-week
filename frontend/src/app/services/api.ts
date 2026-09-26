@@ -134,6 +134,15 @@ export interface DishShopping {
   items: ShoppingListItem[];
 }
 
+// Цена модели (USD за 1M токенов; Cloudflare — ещё и за 1000 нейронов).
+export interface ModelPrice {
+  input: number;
+  cachedInput: number;
+  cacheWrite: number;
+  output: number;
+  per1kNeurons?: number | null;
+}
+
 export interface FoodPrefs {
   dislikes: string[];
   likes: string[];
@@ -328,6 +337,14 @@ export class EasyWeekApi {
     } catch {
       return null;
     }
+  }
+
+  // Цены моделей для учёта затрат (USD за 1M токенов) — общие, на сервере.
+  getPrices(): Observable<{ prices: Record<string, ModelPrice> }> {
+    return this.http.get<{ prices: Record<string, ModelPrice> }>(`${API_BASE}/settings/prices`);
+  }
+  putPrices(prices: Record<string, ModelPrice>): Observable<{ prices: Record<string, ModelPrice> }> {
+    return this.http.put<{ prices: Record<string, ModelPrice> }>(`${API_BASE}/settings/prices`, { prices });
   }
 
   limits(): Observable<LimitsStatus> {

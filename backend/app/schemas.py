@@ -158,6 +158,20 @@ class MessageSearchHit(CamelModel):
     plan_emoji: str | None = None
 
 
+class ModelPrice(CamelModel):
+    # Цена модели, USD за 1M токенов (Cloudflare — ещё и за 1000 нейронов).
+    input: float = Field(ge=0, le=1000)
+    cached_input: float = Field(ge=0, le=1000)
+    cache_write: float = Field(ge=0, le=1000)
+    output: float = Field(ge=0, le=1000)
+    per_1k_neurons: float | None = Field(default=None, ge=0, le=100)
+
+
+class PricesBody(CamelModel):
+    # Цены по ключам моделей (deepseek/gemini/anthropic/cloudflare); неизвестные ключи — 422.
+    prices: dict[Literal["deepseek", "gemini", "anthropic", "cloudflare"], ModelPrice]
+
+
 class ShoppingItem(CamelModel):
     name: str
     qty: float

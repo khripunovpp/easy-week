@@ -1,0 +1,22 @@
+/* Экран цен: карточка на модель, внутри — сетка 2×2 полей (GUIDEBOOK → «Экраны настроек») */
+.prices__intro {
+  margin: 0 4px 4px;
+}
+.prices__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+  margin-top: 8px;
+}
+.prices__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.prices__cell--wide {
+  grid-column: 1 / -1;
+}
+.prices__input {
+  padding: 10px 14px;
+}

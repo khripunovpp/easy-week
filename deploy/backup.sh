@@ -25,7 +25,7 @@ dst.close(); src.close()
 PY
 
 # JSON-состояние (предпочтения, текущий план, лимиты, настройки моделей) — рядом с базой.
-for f in preferences.json app_state.json usage-limits.json settings.json; do
+for f in preferences.json app_state.json usage-limits.json settings.json prices.json; do
   [ -f "$DATA_DIR/$f" ] && cp "$DATA_DIR/$f" "$TMP/"
 done
 
