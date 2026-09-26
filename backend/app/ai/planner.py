@@ -463,8 +463,9 @@ async def generate_dish_detail(
     с тем, что обещано в плане. discussion/current/regenerate — «↻ Перегенерировать» и правка
     из обсуждения: реплики обсуждения рецепта, выжимка текущего варианта, правило перегенерации.
 
-    Генерит текущая выбранная модель. Без фолбэков — падение пробрасывается наверх."""
-    gate = gate_for(model)
+    Генерит выбранная модель; пусто → модель рецептов по умолчанию из настроек.
+    Без фолбэков — падение пробрасывается наверх."""
+    gate = gate_for(model, "recipe")
     enforce_daily(gate, "recipe")  # дневной лимит на Claude (no-op для остальных)
     label = (
         f"деталь блюда: {name}" + (" [перегенерация]" if regenerate else "")
@@ -530,8 +531,9 @@ async def generate_cooking_plan(
     """Единый оптимизированный план готовки по ВСЕМ блюдам недели — лениво, кэш в плане.
     discussion/regenerate — «↻ Перегенерировать»: учесть обсуждение плана готовки в чате.
 
-    Генерит выбранная модель (как рецепты). Без фолбэков — падение пробрасывается наверх."""
-    gate = gate_for(model)
+    Генерит выбранная модель; пусто → модель плана готовки по умолчанию из настроек.
+    Без фолбэков — падение пробрасывается наверх."""
+    gate = gate_for(model, "cooking")
     enforce_daily(gate, "recipe")  # дневной лимит на Claude (no-op для остальных)
     label = f"план готовки: {len(dishes)} блюд" + (" [перегенерация]" if regenerate else "")
     messages = build_cook_plan_messages(dishes, discussion=discussion, regenerate=regenerate)
@@ -902,21 +904,29 @@ def _shop_chunks(items: list[dict]) -> list[list[dict]]:
     return [c for c in chunks if c]
 
 
-async def normalize_shopping(items: list[dict], discussion: str = "") -> list[dict]:
-    """Доводит детерминированную базу списка покупок моделью (Cloudflare mistral).
+async def normalize_shopping(
+    items: list[dict], discussion: str = "", model: str = ""
+) -> list[dict]:
+    """Доводит детерминированную базу списка покупок выбранной моделью.
 
-    Список покупок — вспомогательная задача, всегда на Cloudflare (не участвует в выборе).
-    Падение/пустой ответ — пробрасываем AIError: роутер вернёт базу и НЕ закэширует её
-    под подписью (чтобы следующий заход попробовал нормализовать снова).
+    model — ключ модели; пусто → модель списка покупок по умолчанию из настроек (изначально
+    Cloudflare mistral). Cloudflare — со строгой json_schema и mistral-24b, остальные
+    (DeepSeek/Gemini/Claude) — JSON-режим, форма ответа описана в SHOP_SYSTEM.
+    Падение/пустой ответ — пробрасываем AIError: GET вернёт базу и НЕ закэширует её
+    под подписью (чтобы следующий заход попробовал нормализовать снова), перегенерация — 502.
     discussion — «↻ Перегенерировать»: пожелания из обсуждения списка покупок в чате."""
     if not items:
         return []
+    gate = gate_for(model, "shopping")
+    # У Cloudflare — отдельная модель (mistral) и схема; у остальных — дефолтная модель гейта.
+    cf_kw = (
+        {"schema": SHOP_SCHEMA, "model": settings.cf_model_judge} if gate is cloudflare else {}
+    )
     chunks = _shop_chunks(items)
     results = await asyncio.gather(*(
-        cloudflare.complete_json(
+        gate.complete_json(
             build_shop_normalize_messages(chunk, discussion),
-            schema=SHOP_SCHEMA,
-            model=settings.cf_model_judge,
+            **cf_kw,
             max_tokens=_shop_max_tokens(len(chunk)),
             label="список покупок (нормализация)"
             + (" [перегенерация]" if discussion else "")
@@ -928,7 +938,7 @@ async def normalize_shopping(items: list[dict], discussion: str = "") -> list[di
     for parsed, _ in results:
         got = parsed.get("items") or []
         if not got:
-            raise AIError("Cloudflare вернул пустой список покупок")
+            raise AIError(f"{gate.provider} вернул пустой список покупок")
         out.extend(got)
     return out
 

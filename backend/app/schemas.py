@@ -1,6 +1,8 @@
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
+from .services.settings import ModelKey
+
 
 class CamelModel(BaseModel):
     # Внутри — snake_case; наружу (в API) — camelCase, как в моделях фронта.
@@ -242,3 +244,28 @@ class DiscussResponse(CamelModel):
     replace_query: str = ""
     # Ответ получен, но применить изменение не удалось (модель упала) — текст ошибки.
     apply_error: str = ""
+
+
+# --- общие настройки (модели по умолчанию по задачам) ---
+
+
+class ModelDefaults(CamelModel):
+    # Модель по умолчанию для каждой задачи. Ключи — как в реестре GATES (ai/gates.py);
+    # неизвестный ключ → 422. chat — план/правки/обсуждение, recipe — рецепт блюда
+    # (и догенерация для PDF/покупок), shopping — нормализация покупок, cooking — план готовки.
+    chat: ModelKey
+    recipe: ModelKey
+    shopping: ModelKey
+    cooking: ModelKey
+
+
+class SettingsBody(CamelModel):
+    # PUT /api/settings — полный набор моделей по умолчанию.
+    models: ModelDefaults
+
+
+class SettingsOut(CamelModel):
+    models: ModelDefaults
+    # False — настройки ещё ни разу не сохраняли (отдаём встроенные дефолты); фронт по нему
+    # разово переносит старый выбор модели из localStorage (ew.recipeModel).
+    initialized: bool = False

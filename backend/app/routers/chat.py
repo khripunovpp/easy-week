@@ -9,6 +9,7 @@ from sqlmodel import Session, select
 
 from ..ai import prefs
 from ..ai.base import AIError
+from ..ai.gates import resolve_key
 from ..ai.limits import LimitError, status as limits_status
 from ..ai.observe import record_conversation, record_plan, set_ai_context
 from ..ai.planner import (
@@ -153,6 +154,8 @@ async def chat_stream(
 ) -> AsyncIterable[ServerSentEvent]:
     """Потоковый чат: события meta → dish (по одному) → done. То же, что /chat,
     но блюда прилетают по мере генерации (SSE). Токенов не больше — один вызов модели."""
+    # Пусто → модель «Чат и план» по умолчанию; дальше везде (и в сообщениях) — реальный ключ.
+    req.recipe_model = resolve_key(req.recipe_model, "chat")
     conv = session.get(Conversation, req.conversation_id) if req.conversation_id else None
     if conv is None:
         conv = Conversation(id=uuid4().hex)
@@ -248,6 +251,7 @@ async def chat_stream(
 
 @router.post("/chat")
 async def chat(req: ChatRequest, session: SessionDep) -> ChatResponse:
+    req.recipe_model = resolve_key(req.recipe_model, "chat")  # пусто → дефолт «Чат и план»
     conv = session.get(Conversation, req.conversation_id) if req.conversation_id else None
     if conv is None:
         conv = Conversation(id=uuid4().hex)
@@ -349,6 +353,7 @@ def _edit_context(session: Session, conversation_id: str, current_text: str, max
 async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
     """Правка текущего плана диалога через function calling (добавить/убрать/заменить блюдо
     или пересобрать меню). Обновляет существующий план на месте, а не создаёт новый."""
+    req.recipe_model = resolve_key(req.recipe_model, "chat")  # пусто → дефолт «Чат и план»
     conv = session.get(Conversation, req.conversation_id) if req.conversation_id else None
     if conv is None:
         raise HTTPException(status_code=404, detail="Диалог не найден")

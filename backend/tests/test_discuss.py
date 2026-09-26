@@ -51,8 +51,10 @@ class FakeGate:
 
 def _use(monkeypatch, gate):
     """Все точки выбора гейта → заглушка (планер, сервис перегенерации, роутеры)."""
-    for mod in (planner, regenerate, plans_router, discuss_router):
-        monkeypatch.setattr(mod, "gate_for", lambda m, g=gate: g)
+    for mod in (planner, regenerate, plans_router):
+        monkeypatch.setattr(mod, "gate_for", lambda m, task="chat", g=gate: g)
+    # Роутер обсуждения сам гейт не берёт — только резолвит ключ модели реплики.
+    monkeypatch.setattr(discuss_router, "resolve_key", lambda m, task="chat", g=gate: g.key)
 
 
 def _seed(session, *, variants=True):
@@ -185,7 +187,7 @@ def test_edit_dish_in_chat_writes_variants(monkeypatch):
                "active_model": "deepseek", "steps": ["старый"]}]
     gate = FakeGate([DETAIL], tools=[{"name": "edit_dish",
                                       "args": {"name": "Гуляш", "change": "без перца"}}])
-    monkeypatch.setattr(planner, "gate_for", lambda m: gate)
+    monkeypatch.setattr(planner, "gate_for", lambda m, task="chat": gate)
     res = asyncio.run(planner.edit_plan(dishes, "План", "Гуляш без перца"))
     d = res["dishes"][0]
     assert d["active_model"] == "fake" and d["variants"]["fake"]["steps"] == ["Нарежь", "Туши"]

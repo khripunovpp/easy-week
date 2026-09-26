@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 
 from ..ai.base import AIError
-from ..ai.gates import gate_for
+from ..ai.gates import resolve_key
 from ..ai.limits import LimitError
 from ..ai.observe import set_ai_context
 from ..ai.planner import discuss_reply
@@ -103,9 +103,13 @@ async def chat_discuss(req: DiscussRequest, session: SessionDep) -> DiscussRespo
     ))
     session.commit()
 
+    # Реплику пишет модель чата (пусто → дефолт «Чат и план»). Применение правки/пересборки —
+    # той же явно выбранной моделью, а если модель не передана — дефолтом задачи цели
+    # (рецепт / план готовки / список покупок), см. regenerate_* и gate_for(model, task).
+    reply_model = resolve_key(req.recipe_model, "chat")
     try:
         res = await discuss_reply(
-            target, context, turns, req.message, req.gender, req.recipe_model
+            target, context, turns, req.message, req.gender, reply_model
         )
     except LimitError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
@@ -114,11 +118,11 @@ async def chat_discuss(req: DiscussRequest, session: SessionDep) -> DiscussRespo
 
     op = res["op"]
     out = DiscussResponse(
-        conversation_id=conv_id, reply="", model=req.recipe_model, target=target,
+        conversation_id=conv_id, reply="", model=reply_model, target=target,
         plan_id=row.id, dish_id=dish_id,
     )
     reply = res["reply"]
-    model = gate_for(req.recipe_model).key
+    model = req.recipe_model  # пусто → regenerate_* возьмут дефолт своей задачи
     # Явная просьба изменить → применяем. Сбой применения не роняет ответ: реплика уже есть,
     # ошибку показываем в ней же (и полем apply_error).
     try:
@@ -150,7 +154,7 @@ async def chat_discuss(req: DiscussRequest, session: SessionDep) -> DiscussRespo
     msg_id = uuid4().hex
     session.add(MessageRow(
         id=msg_id, conversation_id=conv_id, role="assistant", text=reply,
-        model=req.recipe_model, discuss_target=target, dish_id=dish_id,
+        model=reply_model, discuss_target=target, dish_id=dish_id,
     ))
     session.commit()
     out.message_id = msg_id

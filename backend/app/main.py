@@ -9,6 +9,7 @@ from . import auth
 from .config import settings
 from .db import init_db
 from .routers import chat, discuss, plans, ratings
+from .routers import settings as settings_router
 
 # Логи приложения (plan via DeepSeek, валидатор, ошибки провайдеров) видны в контейнере.
 logging.basicConfig(
@@ -43,6 +44,7 @@ app.include_router(chat.router)
 app.include_router(discuss.router)
 app.include_router(plans.router)
 app.include_router(ratings.router)
+app.include_router(settings_router.router)
 
 # Prometheus: HTTP-метрики (кол-во/задержка/статусы) + свои счётчики токенов (observe.py).
 # /metrics слушается только локально (Prometheus на том же хосте скрапит 127.0.0.1:8010).

@@ -120,7 +120,7 @@ async def shopping_list(plan_id: str, session: SessionDep) -> list[ShoppingGroup
         return group_items(row.shopping_cache)
 
     try:
-        items = await normalize_shopping(base)
+        items = await normalize_shopping(base)  # модель — дефолт «Список покупок» из настроек
     except Exception as exc:  # noqa: BLE001 — нормализация не критична: отдаём базу
         # Базу под этой подписью НЕ кэшируем — иначе сбой нормализации «застывал» навсегда
         # (кэш совпадает по sig, повторной попытки не было бы).
@@ -140,7 +140,8 @@ async def shopping_regenerate(
     plan_id: str, req: DetailRequest, session: SessionDep
 ) -> list[ShoppingGroup]:
     """«↻ Перегенерировать» список покупок: нормализация мимо кэша по подписи, с учётом
-    обсуждения списка в чате. В отличие от GET, сбой нормализации — честная ошибка (502):
+    обсуждения списка в чате. recipe_model — нормализатор (выпадашка на странице покупок;
+    пусто → модель списка покупок по умолчанию). В отличие от GET, сбой нормализации — честная ошибка (502):
     пользователь явно просил пересобрать, тихо отдавать базу нельзя."""
     set_ai_context(plan_id=plan_id, endpoint="shopping_list", action="regenerate")
     row = _get_plan(session, plan_id)
@@ -224,7 +225,8 @@ async def dish_details(
     Параллельные одинаковые запросы склеиваются (single-flight)."""
     action = (req.action or "open").lower()
     set_ai_context(plan_id=plan_id, dish_id=dish_id, endpoint="dish_details", action=action)
-    key = (plan_id, dish_id, action, gate_for(req.recipe_model).key)
+    # Пусто → модель рецептов по умолчанию из настроек (ключ склейки — реальная модель).
+    key = (plan_id, dish_id, action, gate_for(req.recipe_model, "recipe").key)
     return await _single_flight(
         key, lambda: _resolve_dish_detail(plan_id, dish_id, req, action, session)
     )
@@ -241,7 +243,7 @@ async def _resolve_dish_detail(
 
     dish = dishes[idx]
     variants = variants_of(dish)
-    resolved = gate_for(req.recipe_model).key  # реальный ключ модели (учёт дефолта)
+    resolved = gate_for(req.recipe_model, "recipe").key  # реальный ключ (учёт дефолта рецептов)
 
     if action == "regenerate":
         try:
@@ -303,7 +305,7 @@ async def cooking_plan(
     не генерим. Параллельные одинаковые запросы склеиваются (single-flight)."""
     action = (req.action or "open").lower()
     set_ai_context(plan_id=plan_id, endpoint="cooking", action=action)
-    target = gate_for(req.recipe_model).key
+    target = gate_for(req.recipe_model, "cooking").key  # пусто → дефолт плана готовки
     key = (plan_id, "cooking", action, target)
     return await _single_flight(
         key, lambda: _resolve_cooking_plan(plan_id, req, action, target, session)
@@ -324,9 +326,10 @@ async def _resolve_cooking_plan(
                 status_code=502, detail=f"Не удалось пересобрать план готовки: {exc}"
             ) from exc
         return to_cook_plan(row)
-    # План готовки строится по РАЗВЁРНУТЫМ рецептам — догенерим шаги всем блюдам.
+    # План готовки строится по РАЗВЁРНУТЫМ рецептам — догенерим шаги всем блюдам
+    # моделью рецептов по умолчанию (модель готовки выбирает только сам план готовки).
     try:
-        await backfill_all(session, row, need_steps=True, model=req.recipe_model)
+        await backfill_all(session, row, need_steps=True)
     except AIError as exc:
         raise HTTPException(status_code=502, detail=f"Не удалось собрать рецепты: {exc}") from exc
 

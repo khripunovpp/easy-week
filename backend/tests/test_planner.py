@@ -47,7 +47,7 @@ def test_replace_takes_exactly_one_even_if_model_returns_five(monkeypatch):
     many = [_dish(n) for n in ("Суп с фрикадельками", "Рыба запечённая", "Котлеты",
                                "Лосось в сливках", "Щи")]
     gate = FakeGate({"reply": "ок", "dishes": many})
-    monkeypatch.setattr(planner, "gate_for", lambda m: gate)
+    monkeypatch.setattr(planner, "gate_for", lambda m, task="chat": gate)
     res = asyncio.run(planner.replace_dish_by_id(PLAN, "План", "b", "что-нибудь из рыбы"))
     assert len(res["dishes"]) == len(PLAN)  # никаких «5 блюд вместо одного»
     names = [d["name"] for d in res["dishes"]]
@@ -58,7 +58,7 @@ def test_replace_takes_exactly_one_even_if_model_returns_five(monkeypatch):
 
 def test_replace_single_dish_object_and_context_in_prompt(monkeypatch):
     gate = FakeGate({"reply": "ок", "dish": _dish("Треска по-польски", ["рыба"])})
-    monkeypatch.setattr(planner, "gate_for", lambda m: gate)
+    monkeypatch.setattr(planner, "gate_for", lambda m, task="chat": gate)
     res = asyncio.run(planner.replace_dish_by_id(
         PLAN, "План", "b", "", context="Исходный запрос: русская кухня",
         rejected=["Том ям"], avoid=["Солянка"],
@@ -74,7 +74,7 @@ def test_replace_single_dish_object_and_context_in_prompt(monkeypatch):
 
 def test_add_direct_appends_one(monkeypatch):
     gate = FakeGate({"reply": "ок", "dish": [_dish("Сырники"), _dish("Омлет")]})
-    monkeypatch.setattr(planner, "gate_for", lambda m: gate)
+    monkeypatch.setattr(planner, "gate_for", lambda m, task="chat": gate)
     res = asyncio.run(planner.add_dish_direct(PLAN, "План", ""))
     assert len(res["dishes"]) == len(PLAN) + 1
     assert res["dishes"][-1]["name"] == "Сырники"  # без пожелания — первое

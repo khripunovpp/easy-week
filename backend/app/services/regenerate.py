@@ -47,8 +47,8 @@ async def backfill_all(
     session: Session, row: PlanRow, need_steps: bool = False, model: str = ""
 ) -> list[dict]:
     """Догенерить детали для блюд, у которых их нет, параллельно. Кэш в row.dishes.
-    need_steps=False (покупки: нужны только ингредиенты), True (PDF: нужны и шаги).
-    model — выбранная модель рецептов (пусто → дефолт из настроек)."""
+    need_steps=False (покупки: нужны только ингредиенты), True (PDF/готовка: нужны и шаги).
+    model — выбранная модель рецептов (пусто → модель рецептов по умолчанию из настроек)."""
     dishes = list(row.dishes or [])
     missing = [
         (i, d)
@@ -115,7 +115,7 @@ async def regenerate_dish(
     if idx is None:
         raise DishNotFound(dish_id)
     dish = dishes[idx]
-    key = gate_for(model).key
+    key = gate_for(model, "recipe").key
     name = str(dish.get("name", ""))
     request = original_request(session, row.conversation_id)
     discussion = discussion_text(
@@ -143,9 +143,11 @@ async def regenerate_cooking(
     session: Session, row: PlanRow, model: str = "", *, regenerate: bool = True
 ) -> None:
     """Принудительно пересобрать план готовки моделью model с учётом обсуждения плана готовки.
-    Вариант модели заменяется и становится активным — только после успеха."""
-    await backfill_all(session, row, need_steps=True, model=model)
-    key = gate_for(model).key
+    model пусто → модель плана готовки по умолчанию. Недостающие рецепты догенерит модель
+    рецептов по умолчанию (не модель готовки). Вариант модели заменяется и становится
+    активным — только после успеха."""
+    await backfill_all(session, row, need_steps=True)
+    key = gate_for(model, "cooking").key
     request = original_request(session, row.conversation_id)
     discussion = discussion_text(
         session, row.conversation_id, "cooking", skip_first_user=request
@@ -170,20 +172,24 @@ async def regenerate_cooking(
 
 async def regenerate_shopping(session: Session, row: PlanRow, model: str = "") -> list[dict]:
     """Принудительная нормализация списка покупок мимо кэша по подписи — с учётом обсуждения
-    списка в чате. Нормализатор — всегда Cloudflare (вспомогательная задача, CLAUDE.md);
-    model нужен только для догенерации недостающих ингредиентов. Кэш — только после успеха."""
-    await backfill_all(session, row, model=model)
+    списка в чате. model — нормализатор (пусто → модель списка покупок по умолчанию из
+    настроек); недостающие ингредиенты догенерит модель рецептов по умолчанию.
+    Кэш — только после успеха."""
+    await backfill_all(session, row)
     base, sig = shopping_base(row)
     request = original_request(session, row.conversation_id)
     discussion = discussion_text(
         session, row.conversation_id, "shopping", skip_first_user=request
     )
-    items = await normalize_shopping(base, discussion)
+    items = await normalize_shopping(base, discussion, model)
     if not items:
         return base
     row.shopping_cache = items
     row.shopping_sig = sig
     session.add(row)
     session.commit()
-    logger.info("shopping regenerated: plan=%s items=%d", row.id, len(items))
+    logger.info(
+        "shopping regenerated: plan=%s model=%s items=%d",
+        row.id, gate_for(model, "shopping").key, len(items),
+    )
     return items

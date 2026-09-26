@@ -180,7 +180,7 @@ bash deploy/backup.sh                       # бэкап вручную (БД + 
 ### Бэкапы
 
 `deploy/backup.sh` делает консистентную копию SQLite (online-backup API, не `cp` живой базы)
-+ `preferences.json`/`app_state.json`/`usage-limits.json` в `~/easy-week-backups/easy-week-<дата>.tar.gz`,
++ `preferences.json`/`app_state.json`/`usage-limits.json`/`settings.json` в `~/easy-week-backups/easy-week-<дата>.tar.gz`,
 хранит 14 последних (`EW_BACKUP_KEEP`, каталог — `EW_BACKUP_DIR`). Запускается:
 - ночью из cron: `crontab -e` → `15 4 * * * bash ~/easy-week/deploy/backup.sh >> ~/easy-week-backups/backup.log 2>&1`;
 - автоматически в начале `deploy/update.sh`.
