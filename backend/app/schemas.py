@@ -103,6 +103,7 @@ class WeekPlan(CamelModel):
     # Когда создан план и когда собран закэшированный список покупок (для подписей на страницах).
     created_at: datetime | None = None
     shopping_generated_at: datetime | None = None
+    shopping_model: str = ""  # ключ модели, собравшей список покупок (для оценки)
 
 
 class ChatMessageOut(CamelModel):
@@ -120,7 +121,7 @@ class ChatMessageOut(CamelModel):
 
 class RatingBody(CamelModel):
     # Голос 👍/👎 за ответ модели. vote: 1 | -1. Апсерт по (target_type, target_id, model).
-    target_type: str  # recipe | plan | cooking | message
+    target_type: str  # recipe | plan | cooking | shopping | message
     target_id: str
     model: str = ""
     vote: int

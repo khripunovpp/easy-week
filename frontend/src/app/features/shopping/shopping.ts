@@ -7,6 +7,7 @@ import { ALL_MODELS, MODEL_LABELS, RecipeModel } from '../../services/preference
 import { CookingLoader } from '../../shared/cooking-loader';
 import { PlanPicker } from '../../shared/plan-picker';
 import { formatGeneratedAt } from '../../shared/format';
+import { Vote } from '../../shared/vote';
 
 // Порядок категорий в списке (как на бэке). Незнакомые — в конце.
 const CATEGORY_ORDER = [
@@ -21,13 +22,15 @@ const CATEGORY_ORDER = [
 
 @Component({
   selector: 'ew-shopping',
-  imports: [CookingLoader, PlanPicker],
+  imports: [CookingLoader, PlanPicker, Vote],
   templateUrl: './shopping.html',
   styleUrl: './shopping.scss',
 })
 export class Shopping {
   /** Когда собран список покупок на сервере (из плана) — для подписи «собран …». */
   readonly shoppingAt = signal<string | null>(null);
+  /** Модель, собравшая текущий список (ключ) — оценка 👍/👎 привязана к ней. */
+  readonly shoppingModelKey = signal('');
 
   /** Подпись даты генерации: «сегодня, 14:05» / «26 сен, 14:05»; пусто — не показываем. */
   genAt(iso: string | null | undefined): string {
@@ -161,6 +164,7 @@ export class Shopping {
     this.currentPlanId.set(planId);
     this.checked.set(this.loadChecked(planId));
     this.shoppingAt.set(null);
+    this.shoppingModelKey.set('');
 
     // Мгновенно показываем закэшированный список (в т.ч. офлайн), затем обновляем с сервера.
     const cached = this.loadItems(planId);
@@ -176,7 +180,11 @@ export class Shopping {
         this.empty.set(items.length === 0);
         // Время сборки хранится в плане — подтягиваем для подписи «собран …».
         this.api.getPlan(planId).subscribe({
-          next: (p) => this.activePlanId === planId && this.shoppingAt.set(p.shoppingGeneratedAt ?? null),
+          next: (p) => {
+            if (this.activePlanId !== planId) return;
+            this.shoppingAt.set(p.shoppingGeneratedAt ?? null);
+            this.shoppingModelKey.set(p.shoppingModel ?? '');
+          },
         });
       },
       error: () => {
@@ -213,6 +221,7 @@ export class Shopping {
         );
         this.saveChecked();
         this.shoppingAt.set(new Date().toISOString()); // только что пересобран
+        this.shoppingModelKey.set(this.shopModel());
         this.regenerating.set(false);
       },
       error: (err) => {

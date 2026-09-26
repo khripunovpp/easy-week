@@ -54,6 +54,7 @@ export interface WeekPlan {
   dishes: Dish[];
   createdAt?: string | null; // когда создан план (ISO)
   shoppingGeneratedAt?: string | null; // когда собран закэшированный список покупок (ISO)
+  shoppingModel?: string; // ключ модели, собравшей список покупок (для оценки 👍/👎)
 }
 
 export type ChatRole = 'user' | 'assistant';

@@ -92,7 +92,7 @@ export interface MessageSearchHit {
   planEmoji: string | null;
 }
 
-export type RatingTarget = 'recipe' | 'plan' | 'cooking' | 'message';
+export type RatingTarget = 'recipe' | 'plan' | 'cooking' | 'shopping' | 'message';
 export interface RatingBody {
   targetType: RatingTarget;
   targetId: string;

@@ -51,6 +51,17 @@
     @if (plans().length) {
       <ew-plan-picker [plans]="plans()" [selectedId]="selectedId()" (pick)="onPickPlan($event)" />
     }
+    @if (!empty() && shoppingModelKey()) {
+      <!-- Оценка списка покупок модели, которая его собрала (как у рецепта/готовки) -->
+      <div class="shop__rate">
+        <span class="shop__rate-label">Список от {{ modelLabel(shoppingModelKey()) }}:</span>
+        <ew-vote
+          targetType="shopping"
+          [targetId]="currentPlanId()"
+          [model]="shoppingModelKey()"
+          [planId]="currentPlanId()" />
+      </div>
+    }
     @if (!empty() && genAt(shoppingAt())) {
       <p class="gen-at shop__gen">Список собран {{ genAt(shoppingAt()) }}</p>
     }

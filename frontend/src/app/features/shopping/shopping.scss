@@ -123,3 +123,18 @@
 .shop__gen {
   margin: 0 0 12px;
 }
+
+/* Оценка списка покупок (как .ck-rate / .d__rate) */
+.shop__rate {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.shop__rate-label {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.shop__rate + .shop__gen {
+  margin-top: -8px;
+}

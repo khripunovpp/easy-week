@@ -31,6 +31,7 @@ def to_week_plan(row: PlanRow) -> WeekPlan:
         dishes=dishes,
         created_at=_utc(row.created_at),
         shopping_generated_at=_utc(row.shopping_at),
+        shopping_model=row.shopping_model or "",
     )
 
 

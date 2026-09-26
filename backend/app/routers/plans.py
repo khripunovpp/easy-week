@@ -134,6 +134,7 @@ async def shopping_list(plan_id: str, session: SessionDep) -> list[ShoppingGroup
     row.shopping_cache = items
     row.shopping_sig = sig
     row.shopping_at = datetime.now(timezone.utc)
+    row.shopping_model = gate_for("", "shopping").key  # GET нормализует дефолтом из настроек
     session.add(row)
     session.commit()
     return group_items(items)

@@ -31,6 +31,8 @@ class PlanRow(SQLModel, table=True):
     shopping_sig: str = ""
     # Когда собран закэшированный список покупок (для подписи «собран …» на странице).
     shopping_at: datetime | None = None
+    # Какая модель нормализовала закэшированный список (ключ) — для оценки 👍/👎 покупок.
+    shopping_model: str = ""
     # Кэш единого плана готовки: {"variants": {model: {steps, note, provider}},
     # "active_model": str, "sig": str}. Варианты по моделям — для сравнения.
     cooking_plan: dict = Field(default_factory=dict, sa_column=Column(JSON))

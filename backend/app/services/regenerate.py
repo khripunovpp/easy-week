@@ -190,6 +190,7 @@ async def regenerate_shopping(session: Session, row: PlanRow, model: str = "") -
     row.shopping_cache = items
     row.shopping_sig = sig
     row.shopping_at = datetime.now(timezone.utc)
+    row.shopping_model = gate_for(model, "shopping").key
     session.add(row)
     session.commit()
     logger.info(
