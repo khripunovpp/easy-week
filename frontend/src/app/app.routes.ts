@@ -57,6 +57,12 @@ const appRoutes: Routes = [
     path: 'profile',
     loadComponent: () => import('./features/profile/profile').then((m) => m.ProfilePage),
   },
+  {
+    // Пищевые предпочтения: аллергии, любит / не любит, БЖУ (ссылка — из профиля)
+    path: 'preferences',
+    loadComponent: () =>
+      import('./features/preferences/preferences').then((m) => m.PreferencesPage),
+  },
   { path: '**', redirectTo: 'home' },
 ];
 

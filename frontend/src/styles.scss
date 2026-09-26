@@ -262,6 +262,102 @@ ul {
   color: var(--no);
 }
 
+/* Сегмент-контрол (GUIDEBOOK → «Сегмент-контрол»): пилюля, активный сегмент — белый с акцентом */
+.seg {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--r-pill);
+  background: var(--surface-sunk);
+}
+.seg__opt {
+  flex: 1;
+  padding: 9px 8px;
+  border-radius: var(--r-pill);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-2);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.seg__opt--on {
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: var(--shadow-soft);
+}
+
+/* Чип-редактор (GUIDEBOOK → «Чип-редактор»): чипы с ✕ + поле добавления в одной обёртке */
+.chip-editor {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 6px 12px;
+  border-radius: var(--r-pill);
+  font-size: 14px;
+  font-weight: 600;
+  background: var(--surface-sunk);
+  color: var(--ink);
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+.chip:active {
+  transform: scale(0.96);
+}
+.chip__x {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1;
+}
+.chip--no {
+  background: var(--no-soft);
+  color: var(--no);
+}
+.chip--yes {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.chip--no .chip__x,
+.chip--yes .chip__x {
+  color: currentColor;
+  opacity: 0.6;
+}
+/* подсказка «добавить?» — пунктир, без заливки */
+.chip--suggest {
+  background: transparent;
+  border: 1.5px dashed var(--dash);
+  color: var(--ink);
+}
+.chip--suggest::before {
+  content: '+';
+  color: var(--accent);
+  font-weight: 700;
+}
+/* поле добавления — пилюля, 16px (iOS не зумит), тянется на остаток строки */
+.chip-add {
+  flex: 1 1 120px;
+  min-width: 0;
+  min-height: 34px;
+  padding: 6px 14px;
+  border: 1.5px solid transparent;
+  border-radius: var(--r-pill);
+  background: var(--surface-sunk);
+  color: var(--ink);
+  font-size: 16px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.chip-add::placeholder {
+  color: var(--ink-3);
+}
+.chip-add:focus {
+  border-color: var(--accent);
+}
+
 /* Выбор модели (рецепт/готовка) — выпадашка в шапке. ✓ готово, ↓ соберётся по тапу. */
 .msel {
   position: relative;

@@ -128,6 +128,26 @@ export interface FoodPrefs {
   likes: string[];
 }
 
+/** Акцент БЖУ: меньше / норма / больше. */
+export type MacroLevel = 'low' | 'normal' | 'high';
+export interface Macros {
+  protein: MacroLevel;
+  fat: MacroLevel;
+  carbs: MacroLevel;
+}
+
+/** Полные предпочтения (экран /preferences). Аллергии — жёсткое ограничение, правятся только
+ *  вручную; suggestedAllergies — подозрения из чата («Добавить в аллергии?»). */
+export interface FoodPreferences extends FoodPrefs {
+  allergies: string[];
+  suggestedAllergies: string[];
+  macros: Macros;
+  dietNote: string;
+}
+
+/** PUT /preferences — частичный: сервер меняет только переданные поля. */
+export type FoodPrefsPatch = Partial<Omit<FoodPreferences, 'macros'>> & { macros?: Partial<Macros> };
+
 export interface DailyLimit {
   used: number;
   limit: number;
@@ -292,11 +312,12 @@ export class EasyWeekApi {
     return this.http.get<LimitsStatus>(`${API_BASE}/limits`);
   }
 
-  getPreferences(): Observable<FoodPrefs> {
-    return this.http.get<FoodPrefs>(`${API_BASE}/preferences`);
+  getPreferences(): Observable<FoodPreferences> {
+    return this.http.get<FoodPreferences>(`${API_BASE}/preferences`);
   }
-  setPreferences(prefs: FoodPrefs): Observable<FoodPrefs> {
-    return this.http.put<FoodPrefs>(`${API_BASE}/preferences`, prefs);
+  /** Частичная правка: не переданные поля сервер оставляет как есть. */
+  setPreferences(prefs: FoodPrefsPatch): Observable<FoodPreferences> {
+    return this.http.put<FoodPreferences>(`${API_BASE}/preferences`, prefs);
   }
 
   listPlans(): Observable<PlanSummary[]> {

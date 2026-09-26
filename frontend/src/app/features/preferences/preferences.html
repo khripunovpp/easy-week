@@ -1,0 +1,136 @@
+<div class="page page--header-fixed">
+  <header class="page__header page__header--fixed fade-top">
+    <a class="icon-btn page__back" routerLink="/profile" aria-label="Назад">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M15 6l-6 6 6 6" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </a>
+    <div class="page__heading">
+      <h1 class="page__title">Предпочтения</h1>
+      <!-- сабтайтл = статус автосохранения (фикс-высота шапки — не прыгает) -->
+      <p class="page__subtitle" aria-live="polite">
+        @switch (saveState()) {
+          @case ('saving') { Сохраняю… }
+          @case ('saved') { Сохранено ✓ }
+          @default { Учитываются во всех планах и рецептах }
+        }
+      </p>
+    </div>
+  </header>
+
+  <div class="page__inner">
+    @if (loading()) {
+      <div class="prefs__state"><ew-cooking /></div>
+    } @else if (loadFailed()) {
+      <div class="prefs__state">
+        <p class="field-error">Не удалось загрузить предпочтения</p>
+        <button class="link-btn" type="button" (click)="load()">Повторить</button>
+      </div>
+    } @else {
+      <div class="prefs">
+        @if (error(); as e) {
+          <p class="field-error prefs__error" role="alert">{{ e }}</p>
+        }
+
+        <!-- Подсказки из чата: экстрактор аллергии сам не пишет, только предлагает -->
+        @if (prefs().suggestedAllergies.length) {
+          <section class="card prefs__card prefs__card--suggest">
+            <h2 class="prefs__label">Добавить в аллергии?</h2>
+            <p class="prefs__hint">Похоже на аллергию из ваших сообщений. Тап — добавить, ✕ — не аллергия</p>
+            <div class="chip-editor">
+              @for (x of prefs().suggestedAllergies; track x) {
+                <span class="prefs__sugg">
+                  <button class="chip chip--suggest" type="button" (click)="acceptSuggestion(x)">
+                    {{ x }}
+                  </button>
+                  <button
+                    class="prefs__sugg-x"
+                    type="button"
+                    [attr.aria-label]="'Не аллергия: ' + x"
+                    (click)="dismissSuggestion(x)">
+                    ✕
+                  </button>
+                </span>
+              }
+            </div>
+          </section>
+        }
+
+        <section class="card prefs__card">
+          <h2 class="prefs__label">⚠️ Аллергии</h2>
+          <p class="prefs__hint">Исключаем строго — вместе со следами, соусами и заправками</p>
+          <ew-chip-editor
+            tone="no"
+            [items]="prefs().allergies"
+            placeholder="например, арахис"
+            label="Добавить аллерген"
+            (add)="addItem('allergies', $event)"
+            (remove)="removeItem('allergies', $event)" />
+        </section>
+
+        <section class="card prefs__card">
+          <h2 class="prefs__label">Не нравится</h2>
+          <p class="prefs__hint">Не кладём ни в одно блюдо</p>
+          <ew-chip-editor
+            [items]="prefs().dislikes"
+            placeholder="например, кинза"
+            label="Добавить нелюбимое"
+            (add)="addItem('dislikes', $event)"
+            (remove)="removeItem('dislikes', $event)" />
+        </section>
+
+        <section class="card prefs__card">
+          <h2 class="prefs__label">Нравится</h2>
+          <p class="prefs__hint">Мягко: появится в одном-двух блюдах плана, не в каждом</p>
+          <ew-chip-editor
+            tone="yes"
+            [items]="prefs().likes"
+            placeholder="например, острое"
+            label="Добавить любимое"
+            (add)="addItem('likes', $event)"
+            (remove)="removeItem('likes', $event)" />
+        </section>
+
+        <section class="card prefs__card">
+          <h2 class="prefs__label">БЖУ</h2>
+          <p class="prefs__hint">Куда сместить блюда и гарниры. «Норма» — без акцента</p>
+          @for (row of macroRows; track row.key) {
+            <div class="prefs__macro">
+              <span class="prefs__macro-cap">{{ row.label }}</span>
+              <div class="seg" role="group" [attr.aria-label]="row.label">
+                @for (o of macroOptions; track o.value) {
+                  <button
+                    class="seg__opt"
+                    type="button"
+                    [class.seg__opt--on]="prefs().macros[row.key] === o.value"
+                    [attr.aria-pressed]="prefs().macros[row.key] === o.value"
+                    (click)="setMacro(row.key, o.value)">
+                    {{ o.label }}
+                  </button>
+                }
+              </div>
+            </div>
+          }
+        </section>
+
+        <section class="card prefs__card">
+          <h2 class="prefs__label">Заметка о питании</h2>
+          <p class="prefs__hint">Необязательно: «без жарки», «поменьше соли»…</p>
+          <input
+            #note
+            class="text-field"
+            type="text"
+            maxlength="200"
+            enterkeyhint="done"
+            placeholder="пусто"
+            aria-label="Заметка о питании"
+            [value]="prefs().dietNote"
+            (keydown.enter)="note.blur()"
+            (blur)="setNote(note.value)" />
+        </section>
+
+        <p class="prefs__foot muted">Можно просто написать в чате — «не люблю чечевицу»</p>
+      </div>
+    }
+  </div>
+</div>

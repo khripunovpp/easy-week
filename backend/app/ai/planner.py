@@ -143,7 +143,7 @@ def _variety_hint(
     dislikes — нелюбимое пользователя (такие продукты не предлагаем вовсе)."""
     rng = rng or random.Random()
     if dislikes is None:
-        dislikes = _prefs.load().get("dislikes") or []
+        dislikes = _prefs.avoid_all()  # аллергии + подозрения + нелюбимое
     counts = _protein_counts(history)
     banned = _disliked_proteins(dislikes)
     pool = [p for p in _PROTEINS if p not in banned]
@@ -537,13 +537,16 @@ async def generate_cooking_plan(
     enforce_daily(gate, "recipe")  # дневной лимит на Claude (no-op для остальных)
     label = f"план готовки: {len(dishes)} блюд" + (" [перегенерация]" if regenerate else "")
     messages = build_cook_plan_messages(dishes, discussion=discussion, regenerate=regenerate)
+    # План по всем блюдам длинный: 3000 токенов на 4 блюда обрезало JSON (Claude/DeepSeek).
+    # Даём ~1500 на блюдо сверху базы, потолок 8000 (максимум вывода deepseek-chat — 8192).
+    max_tokens = min(8000, 2000 + 1500 * len(dishes))
     if gate is cloudflare:
         parsed, _ = await gate.complete_json(
             messages, schema=COOKPLAN_SCHEMA, model=settings.cf_model_judge,
-            max_tokens=3000, label=label,
+            max_tokens=max_tokens, label=label,
         )
     else:
-        parsed, _ = await gate.complete_json(messages, max_tokens=3000, label=label)
+        parsed, _ = await gate.complete_json(messages, max_tokens=max_tokens, label=label)
     return {
         "steps": _clean_cook_steps(parsed.get("steps") or []),
         "note": (parsed.get("note") or "").strip(),

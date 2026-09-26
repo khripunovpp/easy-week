@@ -1,4 +1,6 @@
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Annotated, Literal
+
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from pydantic.alias_generators import to_camel
 
 from .services.settings import ModelKey
@@ -209,10 +211,46 @@ class CurrentPlanBody(CamelModel):
     plan_id: str | None = None
 
 
+# Пункт предпочтений: непустой, ≤40 символов; списки ≤30 (иначе 422). Лимиты — как в ai/prefs.
+PrefItem = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=40)]
+PrefList = Annotated[list[PrefItem], Field(max_length=30)]
+MacroLevel = Literal["low", "normal", "high"]
+
+
+class Macros(CamelModel):
+    # Акцент БЖУ: меньше / норма / больше. normal везде — в промпт ничего не пишем.
+    protein: MacroLevel = "normal"
+    fat: MacroLevel = "normal"
+    carbs: MacroLevel = "normal"
+
+
+class MacrosPatch(CamelModel):
+    # Частичная правка БЖУ: не переданное остаётся как было.
+    protein: MacroLevel | None = None
+    fat: MacroLevel | None = None
+    carbs: MacroLevel | None = None
+
+
 class PreferencesBody(CamelModel):
-    # Пищевые предпочтения пользователя: что не любит / любит.
-    dislikes: list[str] = []
+    # PUT /api/preferences — ЧАСТИЧНАЯ замена: None/отсутствует → поле не трогаем
+    # (старый клиент шлёт только likes/dislikes и не должен стирать аллергии).
+    allergies: PrefList | None = None
+    likes: PrefList | None = None
+    dislikes: PrefList | None = None
+    suggested_allergies: PrefList | None = None
+    macros: MacrosPatch | None = None
+    diet_note: Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)] | None = None
+
+
+class PreferencesOut(CamelModel):
+    # Полные предпочтения (ответ GET/PUT). Аллергии — жёсткое ограничение, правятся только вручную;
+    # suggested_allergies — подозрения экстрактора из чата («Добавить в аллергии?»).
+    allergies: list[str] = []
     likes: list[str] = []
+    dislikes: list[str] = []
+    suggested_allergies: list[str] = []
+    macros: Macros = Macros()
+    diet_note: str = ""
 
 
 class DiscussRequest(CamelModel):
