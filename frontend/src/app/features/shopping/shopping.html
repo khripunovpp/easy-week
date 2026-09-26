@@ -42,7 +42,6 @@
             </div>
           }
         </div>
-        <span class="shop__progress">{{ doneCount() }}/{{ total() }}</span>
       </div>
     }
   </header>
@@ -52,11 +51,17 @@
       <ew-plan-picker [plans]="plans()" [selectedId]="selectedId()" (pick)="onPickPlan($event)" />
     }
     @if (!empty()) {
-      <div class="seg shop__mode" role="group" aria-label="Группировка списка">
-        <button class="seg__opt" type="button" [class.seg__opt--on]="mode() === 'all'"
-                [attr.aria-pressed]="mode() === 'all'" (click)="setMode('all')">Общий</button>
-        <button class="seg__opt" type="button" [class.seg__opt--on]="mode() === 'dish'"
-                [attr.aria-pressed]="mode() === 'dish'" (click)="setMode('dish')">По рецептам</button>
+      <!-- Группировка + счётчик «отмечено / всего» (по текущему режиму) -->
+      <div class="shop__bar">
+        <div class="seg shop__mode" role="group" aria-label="Группировка списка">
+          <button class="seg__opt" type="button" [class.seg__opt--on]="mode() === 'all'"
+                  [attr.aria-pressed]="mode() === 'all'" (click)="setMode('all')">Общий</button>
+          <button class="seg__opt" type="button" [class.seg__opt--on]="mode() === 'dish'"
+                  [attr.aria-pressed]="mode() === 'dish'" (click)="setMode('dish')">По рецептам</button>
+        </div>
+        <span class="shop__progress" [attr.aria-label]="'Отмечено ' + doneCount() + ' из ' + total()">
+          {{ doneCount() }}/{{ total() }}
+        </span>
       </div>
     }
     @if (!empty() && mode() === 'all' && shoppingModelKey()) {

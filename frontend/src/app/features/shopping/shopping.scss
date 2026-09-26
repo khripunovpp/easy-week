@@ -139,9 +139,16 @@
   margin-top: -8px;
 }
 
-/* Переключатель группировки «Общий / По рецептам» */
-.shop__mode {
+/* Строка «Общий / По рецептам» + счётчик отмеченных справа */
+.shop__bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin: 0 0 14px;
+}
+.shop__mode {
+  flex: 1;
+  min-width: 0;
 }
 /* Секция блюда в режиме «По рецептам» */
 .dish-sec {
