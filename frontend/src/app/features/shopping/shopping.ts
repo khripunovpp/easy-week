@@ -9,6 +9,7 @@ import { CookingLoader } from '../../shared/cooking-loader';
 import { PlanPicker } from '../../shared/plan-picker';
 import { formatGeneratedAt } from '../../shared/format';
 import { Vote } from '../../shared/vote';
+import { productKey, sameProduct } from '../../shared/product-key';
 
 // Порядок категорий в списке (как на бэке). Незнакомые — в конце.
 const CATEGORY_ORDER = [
@@ -69,6 +70,8 @@ export class Shopping {
   readonly modelMenuOpen = signal(false);
   readonly allModels = ALL_MODELS;
 
+  // Отметки «куплено» — ОДНИ на оба режима: множество ключей продуктов (productKey).
+  // Отметил лук в «Общем» — он отмечен и во всех блюдах в «По рецептам», и наоборот.
   private readonly checked = signal<Set<string>>(new Set());
   private activePlanId = '';
 
@@ -131,9 +134,8 @@ export class Shopping {
   readonly groups = computed<ShoppingGroup[]>(() => this.groupByCategory(this.items(), ''));
 
   // Отмеченные (купленные) уезжают в конец своей категории, невыбранные — сверху;
-  // внутри — по алфавиту. prefix — пространство отметок («» — общий список, «dishId::» — блюдо).
+  // внутри — по алфавиту. prefix непустой — это список блюда («По рецептам»).
   private groupByCategory(list: ShoppingListItem[], prefix: string): ShoppingGroup[] {
-    const checked = this.checked();
     const byCat = new Map<string, ShoppingListItem[]>();
     for (const it of list) {
       const cat = it.category || 'Прочее';
@@ -146,25 +148,24 @@ export class Shopping {
     return order.map((category) => ({
       category,
       items: [...byCat.get(category)!].sort((a, b) => {
-        const da = checked.has(prefix + this.key(a)) ? 1 : 0;
-        const db = checked.has(prefix + this.key(b)) ? 1 : 0;
+        const da = this.isChecked(a, prefix) ? 1 : 0;
+        const db = this.isChecked(b, prefix) ? 1 : 0;
         if (da !== db) return da - db; // невыбранные сверху, отмеченные — вниз
         return a.name.localeCompare(b.name, 'ru');
       }),
     }));
   }
 
-  // Прогресс в шапке — по текущему режиму (отметки режимов независимы).
-  readonly total = computed(() =>
+  // Счётчик «отмечено / всего» — по строкам текущего режима (отметки общие).
+  private readonly visibleItems = computed(() =>
     this.mode() === 'dish'
-      ? this.byDish().reduce((n, d) => n + d.items.length, 0)
-      : this.items().length,
+      ? this.byDish().flatMap((d) => d.items.map((it) => ({ it, dish: true })))
+      : this.items().map((it) => ({ it, dish: false })),
   );
+  readonly total = computed(() => this.visibleItems().length);
   readonly doneCount = computed(() => {
-    const keys = [...this.checked()];
-    return this.mode() === 'dish'
-      ? keys.filter((k) => k.includes('::')).length
-      : keys.filter((k) => !k.includes('::')).length;
+    this.checked(); // зависимость: пересчёт при отметке
+    return this.visibleItems().filter((v) => this.isChecked(v.it, v.dish ? 'dish' : '')).length;
   });
   // Даты текущего плана — в подзаголовок шапки.
   readonly currentWeekLabel = computed(
@@ -278,20 +279,10 @@ export class Shopping {
     this.modelMenuOpen.set(false);
     this.api.regenerateShopping(pid, this.shopModel()).subscribe({
       next: (groups) => {
+        // Отметки привязаны к продуктам (не к строкам) — переносятся сами.
         const items = groups.flatMap((g) => g.items);
-        const checkedNames = new Set(
-          this.items()
-            .filter((it) => this.checked().has(this.key(it)))
-            .map((it) => it.name.toLowerCase()),
-        );
         this.items.set(items);
         this.saveItems(pid, items);
-        this.checked.set(
-          new Set(
-            items.filter((it) => checkedNames.has(it.name.toLowerCase())).map((it) => this.key(it)),
-          ),
-        );
-        this.saveChecked();
         this.shoppingAt.set(new Date().toISOString()); // только что пересобран
         this.shoppingModelKey.set(this.shopModel());
         this.regenerating.set(false);
@@ -342,19 +333,47 @@ export class Shopping {
     });
   }
 
-  key(item: { name: string; unit: string }): string {
-    return `${item.name.toLowerCase()}__${item.unit}`;
+  /** Ключ продукта строки (единица не важна: купил лук — купил). */
+  key(item: { name: string }): string {
+    return productKey(item.name);
   }
 
-  isChecked(item: { name: string; unit: string }, prefix = ''): boolean {
-    return this.checked().has(prefix + this.key(item));
+  /** Ключи общего списка, соответствующие строке блюда: точное совпадение продукта, иначе —
+   *  «похожие» (лук ↔ лук репчатый). Нет в общем списке — собственный ключ строки. */
+  private targetKeys(item: { name: string }): string[] {
+    const k = this.key(item);
+    const general = this.items().map((it) => this.key(it));
+    if (general.includes(k)) return [k];
+    const similar = general.filter((g) => sameProduct(g, k));
+    return similar.length ? similar : [k];
   }
 
-  toggle(item: { name: string; unit: string }, prefix = ''): void {
-    const k = prefix + this.key(item);
+  /** prefix пустой — строка общего списка (точный ключ); непустой — строка блюда
+   *  (отмечена, если отмечен соответствующий продукт общего списка). */
+  isChecked(item: { name: string; unit?: string }, prefix = ''): boolean {
+    const set = this.checked();
+    const k = this.key(item);
+    if (set.has(k)) return true;
+    if (!prefix) return false;
+    return this.targetKeys(item).some((t) => set.has(t));
+  }
+
+  toggle(item: { name: string; unit?: string }, prefix = ''): void {
+    this.setChecked([item], !this.isChecked(item, prefix), prefix);
+  }
+
+  /** Отметить/снять строки: общий список — по точному ключу; блюдо — вместе с продуктом
+   *  общего списка, чтобы отметка была видна в обоих режимах. */
+  private setChecked(items: { name: string }[], on: boolean, prefix: string): void {
     this.checked.update((set) => {
       const next = new Set(set);
-      next.has(k) ? next.delete(k) : next.add(k);
+      for (const it of items) {
+        const keys = prefix ? [this.key(it), ...this.targetKeys(it)] : [this.key(it)];
+        for (const k of keys) {
+          if (!k) continue; // имя без букв/цифр — ключа нет, не храним
+          on ? next.add(k) : next.delete(k);
+        }
+      }
       return next;
     });
     this.saveChecked();
@@ -365,23 +384,14 @@ export class Shopping {
     const items = group.items;
     if (!items.length) return 'none';
     let on = 0;
-    for (const it of items) if (this.checked().has(prefix + this.key(it))) on++;
+    for (const it of items) if (this.isChecked(it, prefix)) on++;
     return on === 0 ? 'none' : on === items.length ? 'all' : 'some';
   }
 
   // Клик по группе: если всё отмечено — снять всё, иначе отметить всё.
   toggleGroup(group: ShoppingGroup, prefix = ''): void {
     const turnOff = this.groupState(group, prefix) === 'all';
-    this.checked.update((set) => {
-      const next = new Set(set);
-      for (const it of group.items) {
-        const k = prefix + this.key(it);
-        if (turnOff) next.delete(k);
-        else next.add(k);
-      }
-      return next;
-    });
-    this.saveChecked();
+    this.setChecked(group.items, !turnOff, prefix);
   }
 
   fmtQty(item: { qty: number; unit: string }): string {
@@ -415,7 +425,13 @@ export class Shopping {
   private loadChecked(planId: string): Set<string> {
     try {
       const raw = localStorage.getItem(this.storageKey(planId));
-      return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+      const keys = raw ? (JSON.parse(raw) as string[]) : [];
+      // Старый формат: «name__unit» и «dishId::name__unit» → ключ продукта.
+      return new Set(
+        keys
+          .map((k) => (k.includes('__') ? productKey(k.split('::').pop()!.split('__')[0]) : k))
+          .filter(Boolean),
+      );
     } catch {
       return new Set();
     }
