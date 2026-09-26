@@ -24,7 +24,7 @@ flowchart TD
     C["Чат · ChatStore.recipeModel<br/>override, профиль НЕ трогает"]
     P -. "инициализирует при newChat/load" .-> C
   end
-  C -- "recipeModel в теле запроса" --> API["/chat · /chat/stream · /chat/edit<br/>/plans/../dishes/../details · /full"]
+  C -- "recipeModel в теле запроса" --> API["/chat · /chat/stream · /chat/edit · /chat/discuss<br/>/plans/../dishes/../details · /cooking · /full"]
   API --> GF{{"gate_for(recipeModel)<br/>ai/gates.py"}}
   GF --> DS["DeepSeekGate<br/>stream ✓ · tools ✓"]
   GF --> GM["GeminiGate<br/>stream ✓ · tools ✗"]
@@ -74,6 +74,9 @@ classDiagram
 | **Деталь рецепта** (ингредиенты + шаги) | один JSON-запрос текущей моделью чата — одинаково для всех трёх | ← | ← |
 | **Правки плана** | function calling (tools) | structured actions | structured actions |
 | **Список покупок** | всегда Cloudflare (mistral) — вспомогательная задача, в выборе не участвует | ← | ← |
+| **Обсуждение** (`/chat/discuss`: рецепт / готовка / покупки) | function calling (`DISCUSS_TOOLS`: update_recipe · replace_dish · regenerate) | structured JSON (`DISCUSS_SCHEMA`) | structured JSON (json_schema) |
+| **↻ Перегенерировать** (рецепт / план готовки) | выбранная (открытая) модель, всегда новый вариант с учётом обсуждения | ← | ← |
+| **↻ Перегенерировать** (покупки) | нормализация Cloudflare мимо кэша, с учётом обсуждения | ← | ← |
 
 Метка провайдера сохраняется у плана (`provider`) и у детали блюда (`detail_provider`) — показывается бейджем.
 
@@ -123,6 +126,18 @@ System-промпты стабильны (общий префикс `COOK_PREAMB
   `create_plan` сохраняет исходный запрос и историю. Предпочтения из действий по кнопкам не извлекаем.
 - **Деталь рецепта**: шапка блюда из плана (теги, тайминги «уложись», гарнир), упоминание блюда в
   реплике плана, исходный запрос беседы (`plan.conversation_id`).
+- **Обсуждение** (`/chat/discuss`, `routers/discuss.py`): `DISCUSS_SYSTEM` = общий префикс + правила
+  («отвечай кратко в markdown, ничего не меняй без явной просьбы»). Первым user-сообщением — полный
+  контекст цели (рецепт: шапка + ингредиенты/шаги/советы; готовка: шаги с таймингами; покупки:
+  позиции) + другие блюда + исходный запрос; дальше — прошлые реплики этой цели мульти-тёрном
+  (`services/discussion.discuss_turns`, ≤12 / ≤2500 симв., одинаковые роли склеены). Реплики пишутся
+  в `MessageRow` с `discuss_target`/`dish_id`, версий плана не создают, предпочтения не извлекаем.
+  Явная просьба → правка рецепта на месте (`variants[модель]`) / пересборка готовки или покупок;
+  «замени блюдо» → `suggest_replace` (фронт переключает бейдж в режим замены).
+- **Перегенерация** (`action=regenerate` у `/details` и `/cooking`, `POST /shopping-list/regenerate`,
+  `services/regenerate.py`): в USER — обсуждение цели (`discussion_text`, фолбэк для рецепта —
+  реплики с названием блюда) + выжимка текущего варианта + правило «есть пожелания — примени, нет —
+  заметно другой вариант, суть сохрани». Запись в БД только после успеха (при ошибке старое цело).
 - **Claude**: где модель позволяет (Haiku 4.5 и старше) — prefill `{`; битый JSON → одна
   корректирующая попытка «верни только JSON», дальше без повторов того же входа
   (`AINonRetryable`); в лог — `stop_reason` и сырой сниппет.
@@ -142,4 +157,9 @@ backend/app/ai/
   observe.py     # log_ai_call (консоль + JSONL + Prometheus)
 backend/app/services/
   history.py     # «недавно ели или отвергли», отвергнутое в беседе, исходный запрос
+  discussion.py  # реплики обсуждения цели: контекст перегенерации и мульти-тёрн
+  regenerate.py  # (пере)генерация рецепта / плана готовки / покупок, бэкфилл деталей
+  variants.py    # варианты рецепта по моделям (variants + active_model)
+backend/app/routers/
+  discuss.py     # POST /api/chat/discuss
 ```
