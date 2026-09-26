@@ -34,6 +34,17 @@ def _to_contents(messages: list[dict[str, Any]]) -> tuple[list[dict], dict | Non
     return contents, system
 
 
+# Реальная модель за алиасом (gemini-flash-latest → gemini-…-flash): Gemini присылает её в
+# modelVersion каждого ответа. Запоминаем последнюю — показываем в выпадашках моделей.
+resolved_model: str = ""
+
+
+def _remember_version(body: dict) -> None:
+    global resolved_model
+    if body.get("modelVersion"):
+        resolved_model = str(body["modelVersion"])
+
+
 def _norm_usage(meta: dict | None) -> dict[str, Any]:
     """usageMetadata Gemini → ключи как у OpenAI, чтобы observe считал метрики без правок."""
     u = meta or {}
@@ -108,6 +119,7 @@ class GeminiGate(ModelGate):
         if resp.status_code != 200:
             raise AIError(f"Gemini {resp.status_code}: {resp.text[:300]}")
         body = resp.json()
+        _remember_version(body)
         candidates = body.get("candidates") or []
         if not candidates:
             raise AIError(f"Пустой ответ Gemini: {str(body)[:200]}")
@@ -155,6 +167,7 @@ class GeminiGate(ModelGate):
                         obj = json.loads(data)
                     except json.JSONDecodeError:
                         continue
+                    _remember_version(obj)
                     if obj.get("usageMetadata"):
                         usage = _norm_usage(obj["usageMetadata"])
                     for cand in obj.get("candidates") or []:

@@ -34,7 +34,7 @@
                     [disabled]="loading() || regenerating()"
                     (click)="chooseModel(m)">
                     <span class="msel__mark msel__mark--ok">✓</span>
-                    <span class="msel__opt-name">{{ modelLabel(m) }}</span>
+                    <span class="msel__opt-name"><ew-model-name [model]="m" /></span>
                     @if (m === d.activeModel) { <span class="msel__tag">активна</span> }
                   </button>
                 }
@@ -49,7 +49,7 @@
                     } @else {
                       <span class="msel__mark msel__mark--dl">↓</span>
                     }
-                    <span class="msel__opt-name">{{ modelLabel(m) }}</span>
+                    <span class="msel__opt-name"><ew-model-name [model]="m" /></span>
                     <span class="msel__tag">{{ generatingModel() === m ? 'генерирую…' : 'сгенерировать' }}</span>
                   </button>
                 }

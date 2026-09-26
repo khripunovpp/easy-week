@@ -185,6 +185,7 @@ export type ModelDefaults = Record<ModelTask, RecipeModel>;
 export interface AppSettings {
   models: ModelDefaults;
   initialized: boolean;
+  modelNames?: Record<string, string>; // ключ → конкретная модель (для подписей в выпадашках)
 }
 
 export interface PlanSummary {

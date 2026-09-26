@@ -10,6 +10,7 @@ import { PlanPicker } from '../../shared/plan-picker';
 import { formatGeneratedAt } from '../../shared/format';
 import { Vote } from '../../shared/vote';
 import { productKey, sameProduct } from '../../shared/product-key';
+import { ModelName } from '../../shared/model-name';
 
 // Порядок категорий в списке (как на бэке). Незнакомые — в конце.
 const CATEGORY_ORDER = [
@@ -24,7 +25,7 @@ const CATEGORY_ORDER = [
 
 @Component({
   selector: 'ew-shopping',
-  imports: [NgTemplateOutlet, CookingLoader, PlanPicker, Vote],
+  imports: [NgTemplateOutlet, CookingLoader, PlanPicker, Vote, ModelName],
   templateUrl: './shopping.html',
   styleUrl: './shopping.scss',
 })

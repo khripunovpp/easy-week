@@ -47,6 +47,11 @@
   transform: rotate(180deg);
 }
 
+/* Меню моделей шире: под названием — конкретная модель (ew-model-name) */
+.count__menu.count__menu--models {
+  min-width: 250px;
+  max-width: calc(100vw - 32px);
+}
 .count__menu {
   position: absolute;
   top: calc(100% + 8px);

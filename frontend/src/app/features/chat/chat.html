@@ -65,14 +65,14 @@
         </button>
 
         @if (modelMenuOpen()) {
-          <div class="count__menu">
+          <div class="count__menu count__menu--models">
             @for (o of modelOptions; track o.value) {
               <button
                 class="count__opt"
                 type="button"
                 [class.count__opt--active]="o.value === store.recipeModel()"
                 (click)="pickModel(o.value)">
-                {{ o.label }}
+                <ew-model-name [model]="o.value" />
               </button>
             }
           </div>

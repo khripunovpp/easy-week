@@ -10,10 +10,11 @@ import { CookingLoader } from '../../shared/cooking-loader';
 import { dishColorClass } from '../../shared/dish-color';
 import { renderMarkdown } from '../../shared/markdown';
 import { Vote } from '../../shared/vote';
+import { ModelName } from '../../shared/model-name';
 
 @Component({
   selector: 'ew-chat',
-  imports: [FormsModule, RouterLink, CookingLoader, Vote],
+  imports: [FormsModule, RouterLink, CookingLoader, Vote, ModelName],
   templateUrl: './chat.html',
   styleUrl: './chat.scss',
 })

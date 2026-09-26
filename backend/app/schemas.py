@@ -340,3 +340,6 @@ class SettingsOut(CamelModel):
     # False — настройки ещё ни разу не сохраняли (отдаём встроенные дефолты); фронт по нему
     # разово переносит старый выбор модели из localStorage (ew.recipeModel).
     initialized: bool = False
+    # Конкретные модели за ключами (deepseek → deepseek-chat, gemini → алиас → реальная версия)
+    # — для подписей в выпадашках моделей.
+    model_names: dict[str, str] = {}

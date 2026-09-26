@@ -15,10 +15,29 @@ from ..services import settings as app_settings
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
 
+def _model_names() -> dict[str, str]:
+    """Ключ → конкретная модель из конфига. У Gemini алиас (gemini-flash-latest) дополняем
+    реальной версией из последнего ответа, если она уже известна."""
+    from ..ai import gemini  # локально: gates тянет гейты, а они — observe/настройки
+    from ..ai.gates import GATES
+
+    from ..config import settings
+
+    names = {k: g._log_model(g.default_model) for k, g in GATES.items()}
+    # Cloudflare — пайплайн из нескольких моделей: главная (mistral: рецепты, покупки, правки),
+    # затем быстрая для спек блюд. Показываем все уникальные, главная первой.
+    cf = [settings.cf_model_judge, settings.cf_model_menu, settings.cf_model]
+    names["cloudflare"] = " + ".join(dict.fromkeys(m.split("/")[-1] for m in cf if m))
+    if gemini.resolved_model and gemini.resolved_model != names.get("gemini"):
+        names["gemini"] = f"{names.get('gemini', '')} → {gemini.resolved_model}"
+    return names
+
+
 def _out() -> SettingsOut:
     return SettingsOut(
         models=ModelDefaults.model_validate(app_settings.get_models()),
         initialized=app_settings.is_initialized(),
+        model_names=_model_names(),
     )
 
 

@@ -3,13 +3,14 @@ import { RouterLink } from '@angular/router';
 import { EasyWeekApi, LimitsStatus, ModelTask } from '../../services/api';
 import { ModelSettings } from '../../services/model-settings';
 import { ALL_MODELS, MODEL_LABELS, RecipeModel } from '../../services/preferences';
+import { ModelName } from '../../shared/model-name';
 
 // Экран «Модели по умолчанию» (/settings/models, под-экран профиля): модель для каждой задачи.
 // Хранится на сервере (общая для всех устройств семьи); страницы стартуют с неё, но могут
 // выбрать другую локально.
 @Component({
   selector: 'ew-settings-models',
-  imports: [RouterLink],
+  imports: [RouterLink, ModelName],
   templateUrl: './settings-models.html',
   styleUrl: './settings-models.scss',
 })

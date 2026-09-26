@@ -28,6 +28,9 @@ export class ModelSettings {
   private readonly api = inject(EasyWeekApi);
 
   readonly models = signal<ModelDefaults>(this.readCache());
+  // Конкретные модели за ключами (deepseek → deepseek-chat …) — для подписей в выпадашках.
+  // Кэшируем, чтобы подписи были сразу при старте/офлайн.
+  readonly names = signal<Record<string, string>>(this.readNames());
   // Настройки получены с сервера в этой сессии (иначе — кэш/встроенные дефолты).
   readonly loaded = signal(false);
   private inflight = false;
@@ -64,7 +67,28 @@ export class ModelSettings {
     this.api.putSettings(next).subscribe({ next: (s) => this.apply(s) });
   }
 
+  /** Конкретная модель за ключом («» — пока неизвестна). */
+  modelId(key: string): string {
+    return this.names()[key] ?? '';
+  }
+
+  private readNames(): Record<string, string> {
+    try {
+      return JSON.parse(localStorage.getItem('ew.modelNames') || '{}');
+    } catch {
+      return {};
+    }
+  }
+
   private apply(s: AppSettings): void {
+    if (s.modelNames) {
+      this.names.set(s.modelNames);
+      try {
+        localStorage.setItem('ew.modelNames', JSON.stringify(s.modelNames));
+      } catch {
+        /* приватный режим — просто без кэша */
+      }
+    }
     const next = { ...BUILTIN };
     for (const t of Object.keys(BUILTIN) as ModelTask[]) {
       if (isModel(s.models?.[t])) next[t] = s.models[t];

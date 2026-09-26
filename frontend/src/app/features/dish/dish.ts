@@ -8,10 +8,11 @@ import { ALL_MODELS, MODEL_LABELS, RecipeModel } from '../../services/preference
 import { CookingLoader } from '../../shared/cooking-loader';
 import { Vote } from '../../shared/vote';
 import { formatGeneratedAt } from '../../shared/format';
+import { ModelName } from '../../shared/model-name';
 
 @Component({
   selector: 'ew-dish',
-  imports: [RouterLink, CookingLoader, Vote],
+  imports: [RouterLink, CookingLoader, Vote, ModelName],
   templateUrl: './dish.html',
   styleUrl: './dish.scss',
 })

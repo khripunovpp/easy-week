@@ -48,7 +48,7 @@
                       [class.msel__opt--active]="m === models.models()[t.task]"
                       (click)="pickModel(t.task, m)">
                       <span class="msel__mark msel__mark--ok">{{ m === models.models()[t.task] ? '✓' : '' }}</span>
-                      <span class="msel__opt-name">{{ modelLabel(m) }}</span>
+                      <span class="msel__opt-name"><ew-model-name [model]="m" /></span>
                       @if (m === 'cloudflare') { <span class="msel__tag">бесплатно</span> }
                     </button>
                   }

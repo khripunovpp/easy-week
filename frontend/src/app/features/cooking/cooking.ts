@@ -11,10 +11,11 @@ import { HlOwner, highlightStepText } from '../../shared/step-highlight';
 import { PlanPicker } from '../../shared/plan-picker';
 import { Vote } from '../../shared/vote';
 import { formatGeneratedAt } from '../../shared/format';
+import { ModelName } from '../../shared/model-name';
 
 @Component({
   selector: 'ew-cooking-plan',
-  imports: [RouterLink, CookingLoader, PlanPicker, Vote],
+  imports: [RouterLink, CookingLoader, PlanPicker, Vote, ModelName],
   templateUrl: './cooking.html',
   styleUrl: './cooking.scss',
 })

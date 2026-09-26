@@ -34,7 +34,7 @@
                   [disabled]="regenerating()"
                   (click)="pickModel(m)">
                   <span class="msel__mark msel__mark--ok">{{ m === shopModel() ? '✓' : '' }}</span>
-                  <span class="msel__opt-name">{{ modelLabel(m) }}</span>
+                  <span class="msel__opt-name"><ew-model-name [model]="m" /></span>
                   @if (m === defaultShopModel()) { <span class="msel__tag">по умолчанию</span> }
                 </button>
               }
