@@ -143,7 +143,7 @@ def _variety_hint(
     dislikes — нелюбимое пользователя (такие продукты не предлагаем вовсе)."""
     rng = rng or random.Random()
     if dislikes is None:
-        dislikes = _prefs.load().get("dislikes") or []
+        dislikes = _prefs.avoid_all()  # аллергии + подозрения + нелюбимое
     counts = _protein_counts(history)
     banned = _disliked_proteins(dislikes)
     pool = [p for p in _PROTEINS if p not in banned]

@@ -30,6 +30,7 @@ from ..schemas import (
     Dish,
     MessageSearchHit,
     PreferencesBody,
+    PreferencesOut,
 )
 from ..services import appstate
 from ..services.history import conversation_rejected, variety_avoid
@@ -51,15 +52,17 @@ async def get_limits() -> dict:
 
 
 @router.get("/preferences")
-async def get_preferences() -> dict:
-    """Пищевые предпочтения пользователя (что любит / не любит)."""
-    return prefs.load()
+async def get_preferences() -> PreferencesOut:
+    """Пищевые предпочтения: аллергии, любит / не любит, БЖУ, подсказки аллергий из чата."""
+    return PreferencesOut(**prefs.load())
 
 
 @router.put("/preferences")
-async def put_preferences(body: PreferencesBody) -> dict:
-    """Полная замена предпочтений (правка из профиля)."""
-    return prefs.set_lists(body.dislikes, body.likes)
+async def put_preferences(body: PreferencesBody) -> PreferencesOut:
+    """Частичная правка (экран /preferences): меняем только переданные поля, остальное как было.
+    Невалидное (пункт > 40 симв., > 30 пунктов, БЖУ не low|normal|high) — 422 от pydantic."""
+    patch = body.model_dump(exclude_none=True)
+    return PreferencesOut(**prefs.update(patch))
 
 
 @router.get("/current-plan")
