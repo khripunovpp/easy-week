@@ -26,6 +26,7 @@ from ..schemas import (
     WeekPlan,
 )
 from ..services.export_pdf import build_plan_pdf
+from ..services.history import original_request, reply_mention
 from ..services.mapping import to_cook_plan, to_dish, to_summary, to_week_plan
 
 # Провайдер (человекочитаемый) → ключ модели — для миграции legacy-детали в вариант.
@@ -78,9 +79,13 @@ async def _backfill_all(
     ]
     if not missing:
         return dishes
+    request = original_request(session, row.conversation_id)  # фон: исходный запрос беседы
     results = await asyncio.gather(
         *(
-            generate_dish_detail(d.get("name", ""), d.get("servings", 4), model=model)
+            generate_dish_detail(
+                d.get("name", ""), d.get("servings", 4), model=model, dish=d, request=request,
+                mention=reply_mention(session, row.id, d.get("name", "")),
+            )
             for _, d in missing
         ),
         return_exceptions=True,
@@ -151,10 +156,13 @@ async def shopping_list(plan_id: str, session: SessionDep) -> list[ShoppingGroup
 
     try:
         items = await normalize_shopping(base)
-    except Exception:  # noqa: BLE001 — нормализация не критична: остаётся детерминированная база
-        items = base
+    except Exception as exc:  # noqa: BLE001 — нормализация не критична: отдаём базу
+        # Базу под этой подписью НЕ кэшируем — иначе сбой нормализации «застывал» навсегда
+        # (кэш совпадает по sig, повторной попытки не было бы).
+        logger.warning("shopping normalize failed, отдаём базу без кэша: %s", str(exc)[:150])
+        return group_items(base)
     if not items:
-        items = base
+        return group_items(base)
     row.shopping_cache = items
     row.shopping_sig = sig
     session.add(row)
@@ -298,7 +306,9 @@ async def _resolve_dish_detail(
     if target not in variants:  # этого варианта ещё нет — генерим (один раз на модель)
         try:
             detail = await generate_dish_detail(
-                dish.get("name", ""), dish.get("servings", 4), model=target
+                dish.get("name", ""), dish.get("servings", 4), model=target,
+                dish=dish, request=original_request(session, row.conversation_id),
+                mention=reply_mention(session, row.id, dish.get("name", "")),
             )
         except LimitError as exc:
             raise HTTPException(status_code=429, detail=str(exc)) from exc
