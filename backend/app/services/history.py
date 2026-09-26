@@ -124,7 +124,7 @@ def disliked_recipes(session: Session) -> list[str]:
 
 def variety_avoid(
     session: Session,
-    cap: int = 30,
+    cap: int = 24,
     exclude_conversation: str | None = None,
     rng: random.Random | None = None,
 ) -> list[str]:

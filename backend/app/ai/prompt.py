@@ -604,7 +604,7 @@ def _clip(text: str, n: int) -> str:
 
 
 # Лимит «недавно ели или отвергли» в промпте (сам список собирает services/history.py).
-AVOID_CAP = 30
+AVOID_CAP = 24
 
 
 def _avoid_block(avoid_titles: list[str], cap: int = AVOID_CAP) -> str:
