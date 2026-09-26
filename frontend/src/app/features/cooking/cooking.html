@@ -1,4 +1,4 @@
-<div class="page page--header-fixed cook">
+<div class="page page--header-fixed cook" [class.page--footer-fixed]="hasFooter()">
   <header class="page__header page__header--fixed fade-top">
     <div class="page__heading">
       <h1 class="page__title">Готовка</h1>
@@ -32,7 +32,7 @@
                     type="button"
                     class="msel__opt"
                     [class.msel__opt--active]="m === cp.activeModel"
-                    [disabled]="loading()"
+                    [disabled]="loading() || regenerating()"
                     (click)="chooseModel(m)">
                     <span class="msel__mark msel__mark--ok">✓</span>
                     <span class="msel__opt-name">{{ modelLabel(m) }}</span>
@@ -43,7 +43,7 @@
                   <button
                     type="button"
                     class="msel__opt msel__opt--new"
-                    [disabled]="loading()"
+                    [disabled]="loading() || regenerating()"
                     (click)="chooseModel(m)">
                     @if (generatingModel() === m) {
                       <span class="msel__spin"></span>
@@ -154,4 +154,22 @@
       }
     }
   </div>
+
+  <!-- Футер действий (GUIDEBOOK «Футер действий страницы»): статус + ↻ / 💬 -->
+  @if (hasFooter()) {
+    <footer class="page__footer page__footer--fixed fade-bottom">
+      @if (regenerating()) {
+        <div class="page__footer-status"><ew-cooking /></div>
+      } @else if (regenError()) {
+        <div class="page__footer-status">
+          <span class="page__footer-error">{{ regenError() }}</span>
+          <button class="link-btn" type="button" (click)="regenerate()">Повторить</button>
+        </div>
+      }
+      <div class="page__footer-row">
+        <button class="btn-ghost" type="button" [disabled]="busy()" (click)="regenerate()">↻ Перегенерировать</button>
+        <button class="btn-primary" type="button" [disabled]="busy()" (click)="discuss()">💬 Обсудить в чате</button>
+      </div>
+    </footer>
+  }
 </div>

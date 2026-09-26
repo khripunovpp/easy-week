@@ -1,4 +1,4 @@
-<div class="page page--header-fixed">
+<div class="page page--header-fixed" [class.page--footer-fixed]="!loading() && !!dish()">
   <header class="page__header page__header--fixed fade-top">
     <button class="icon-btn page__back" type="button" (click)="back()" aria-label="Назад">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -31,7 +31,7 @@
                     type="button"
                     class="msel__opt"
                     [class.msel__opt--active]="m === d.activeModel"
-                    [disabled]="loading()"
+                    [disabled]="loading() || regenerating()"
                     (click)="chooseModel(m)">
                     <span class="msel__mark msel__mark--ok">✓</span>
                     <span class="msel__opt-name">{{ modelLabel(m) }}</span>
@@ -42,7 +42,7 @@
                   <button
                     type="button"
                     class="msel__opt msel__opt--new"
-                    [disabled]="loading()"
+                    [disabled]="loading() || regenerating()"
                     (click)="chooseModel(m)">
                     @if (generatingModel() === m) {
                       <span class="msel__spin"></span>
@@ -156,4 +156,22 @@
     }
     </div>
   </div>
+
+  <!-- Футер действий (GUIDEBOOK «Футер действий страницы»): статус + ↻ / 💬 -->
+  @if (!loading() && dish()) {
+    <footer class="page__footer page__footer--fixed fade-bottom">
+      @if (regenerating()) {
+        <div class="page__footer-status"><ew-cooking /></div>
+      } @else if (regenError()) {
+        <div class="page__footer-status">
+          <span class="page__footer-error">{{ regenError() }}</span>
+          <button class="link-btn" type="button" (click)="regenerate()">Повторить</button>
+        </div>
+      }
+      <div class="page__footer-row">
+        <button class="btn-ghost" type="button" [disabled]="busy()" (click)="regenerate()">↻ Перегенерировать</button>
+        <button class="btn-primary" type="button" [disabled]="busy()" (click)="discuss()">💬 Обсудить в чате</button>
+      </div>
+    </footer>
+  }
 </div>

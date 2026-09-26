@@ -151,6 +151,20 @@
         </div>
       }
 
+      @if (m.discuss || m.suggestReplace) {
+        <!-- Ответ в режиме «Обсуждение»: ссылка на цель + (опц.) переход в режим замены -->
+        <div class="msg-discuss">
+          @if (m.discuss; as ref) {
+            <a class="link-btn" [routerLink]="discussLink(ref)">{{ discussLinkLabel(ref) }}</a>
+          }
+          @if (m.suggestReplace; as s) {
+            <button class="btn-ghost msg-discuss__replace" type="button" (click)="store.acceptReplaceSuggestion(s)">
+              Заменить блюдо
+            </button>
+          }
+        </div>
+      }
+
       @if (m.plan; as plan) {
         <section class="plan" [class.plan--rejected]="plan.status === 'rejected'">
           @if (plan.status === 'rejected') {

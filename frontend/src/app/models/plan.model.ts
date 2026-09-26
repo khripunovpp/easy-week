@@ -55,6 +55,16 @@ export interface WeekPlan {
 
 export type ChatRole = 'user' | 'assistant';
 
+// Цель режима «Обсуждение» в чате: рецепт блюда, план готовки или список покупок.
+export type DiscussTarget = 'recipe' | 'cooking' | 'shopping';
+
+// Привязка реплики обсуждения к цели — для ссылки «Открыть рецепт/план готовки/покупки».
+export interface DiscussRef {
+  target: DiscussTarget;
+  planId: string;
+  dishId?: string;
+}
+
 // Ответ ассистента может быть текстом-уточнением или нести готовый план.
 export interface ChatMessage {
   id: string;
@@ -63,6 +73,13 @@ export interface ChatMessage {
   plan?: WeekPlan;
   model?: string; // ключ модели, сгенерившей ответ (для оценки 👍/👎)
   serverId?: string; // серверный id сообщения (для оценки); у intro/ошибок нет
+  discuss?: DiscussRef; // реплика бота в режиме «Обсуждение»
+  // Модель предложила заменить блюдо целиком — кнопка «Заменить блюдо» под ответом.
+  suggestReplace?: { dishId: string; name: string; query: string };
+  // С сервера (история беседы): поля реплик обсуждения → собираем в discuss.
+  discussTarget?: DiscussTarget | null;
+  dishId?: string | null;
+  discussPlanId?: string | null;
 }
 
 // Позиция в списке покупок — агрегируется из всех блюд плана.

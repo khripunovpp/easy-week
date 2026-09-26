@@ -44,6 +44,11 @@ class MessageRow(SQLModel, table=True):
     plan_id: str | None = Field(default=None, foreign_key="planrow.id")
     # Ключ модели, сгенерившей ответ (для оценки 👍/👎 у реплик бота). Пусто у user/старых.
     model: str = Field(default="")
+    # Обсуждение («💬 Обсудить в чате»): к какой цели относится реплика —
+    # recipe | cooking | shopping (пусто у обычных сообщений), и блюдо для recipe.
+    # Такие сообщения не создают версий плана; по ним собирается контекст перегенерации.
+    discuss_target: str | None = Field(default=None)
+    dish_id: str | None = Field(default=None)
     created_at: datetime = Field(default_factory=_now)
 
 

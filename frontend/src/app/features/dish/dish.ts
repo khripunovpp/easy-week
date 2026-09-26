@@ -40,6 +40,12 @@ export class DishPage {
   readonly errorMsg = signal('');
   readonly modelMenuOpen = signal(false);
   readonly generatingModel = signal<string | null>(null); // модель, чей вариант сейчас генерится
+  // «↻ Перегенерировать»: идёт генерация нового варианта (текущий рецепт остаётся на экране)
+  // и текст ошибки последней попытки (показываем в футере с «Повторить», блюдо не стираем).
+  readonly regenerating = signal(false);
+  readonly regenError = signal('');
+  private readonly opening = signal(false); // «💬 Обсудить»: ждём conversationId плана
+  readonly busy = computed(() => this.regenerating() || this.opening());
 
   // Модели, для которых варианта рецепта ещё нет — в выпадашке показываем со стрелкой ↓.
   readonly remainingModels = computed<RecipeModel[]>(() => {
@@ -98,11 +104,59 @@ export class DishPage {
       this.modelMenuOpen.set(false);
       return;
     }
-    if (this.loading()) return;
+    if (this.loading() || this.regenerating()) return;
     const isNew = !(d.variantModels ?? []).includes(model);
     if (isNew) this.generatingModel.set(model);
     else this.modelMenuOpen.set(false);
     this.load(this.planId(), this.dishId(), model, 'select');
+  }
+
+  // «↻ Перегенерировать»: новый вариант рецепта той модели, что открыта сейчас, с учётом
+  // обсуждения рецепта в чате. Бэк пишет вариант только после успеха — при ошибке старый
+  // рецепт остаётся (и на экране, и в БД), ошибку показываем в футере.
+  regenerate(): void {
+    const d = this.dish();
+    if (!d || this.busy()) return;
+    this.regenerating.set(true);
+    this.regenError.set('');
+    this.modelMenuOpen.set(false);
+    const model = d.activeModel || this.store.recipeModel();
+    this.api.dishDetails(this.planId(), this.dishId(), model, 'regenerate').subscribe({
+      next: (nd) => {
+        this.dish.set(nd);
+        this.regenerating.set(false);
+      },
+      error: (err) => {
+        this.regenError.set(err?.error?.detail ?? 'Не удалось перегенерировать рецепт.');
+        this.regenerating.set(false);
+      },
+    });
+  }
+
+  // «💬 Обсудить в чате»: беседа плана + бейдж «Обсуждение: <блюдо>» в композере.
+  discuss(): void {
+    const d = this.dish();
+    if (!d || this.busy()) return;
+    this.opening.set(true);
+    this.api.getPlan(this.planId()).subscribe({
+      next: (p) => {
+        this.opening.set(false);
+        if (!p.conversationId) return;
+        this.store.startDiscuss({
+          conversationId: p.conversationId,
+          target: 'recipe',
+          planId: p.id,
+          dishId: d.id,
+          name: d.name,
+          model: d.activeModel,
+        });
+        this.router.navigate(['/chat']);
+      },
+      error: () => {
+        this.opening.set(false);
+        this.regenError.set('Не удалось открыть чат плана.');
+      },
+    });
   }
 
   totalTime(prep: number, cook: number): number {

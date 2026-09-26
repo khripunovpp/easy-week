@@ -15,6 +15,8 @@ from .observe import set_ai_context
 from . import prefs as _prefs
 from .prompt import (
     COOKPLAN_SCHEMA,
+    DISCUSS_SCHEMA,
+    DISCUSS_TOOLS,
     DISH_DETAIL_SCHEMA,
     DISH_SCHEMA,
     EDIT_ACTION_SCHEMA,
@@ -25,6 +27,7 @@ from .prompt import (
     VALIDATE_SCHEMA,
     build_cook_plan_messages,
     build_dish_detail_messages,
+    build_discuss_messages,
     build_dish_messages,
     build_ds_plan_messages,
     build_edit_action_messages,
@@ -35,6 +38,7 @@ from .prompt import (
     build_validate_messages,
 )
 from .stream_parse import PlanStreamParser
+from ..services.variants import with_detail
 
 logger = logging.getLogger("easy_week.planner")
 
@@ -450,19 +454,25 @@ async def _generate_plan_cloudflare(
 async def generate_dish_detail(
     name: str, servings: int = 4, change: str = "", model: str = "", *,
     dish: dict | None = None, request: str = "", mention: str = "",
+    discussion: str = "", current: str = "", regenerate: bool = False,
 ) -> dict:
     """Полная деталь блюда (ингредиенты + шаги + советы + note) — лениво при открытии.
     change — правка рецепта (напр. «убрать болгарский перец»): перегенерирует рецепт с учётом.
     dish — блюдо из плана (шапка: теги/тайминги/гарнир), request — исходный запрос беседы:
     mention — реплика к плану, где упомянуто блюдо. Всё — чтобы рецепт не расходился
-    с тем, что обещано в плане.
+    с тем, что обещано в плане. discussion/current/regenerate — «↻ Перегенерировать» и правка
+    из обсуждения: реплики обсуждения рецепта, выжимка текущего варианта, правило перегенерации.
 
     Генерит текущая выбранная модель. Без фолбэков — падение пробрасывается наверх."""
     gate = gate_for(model)
     enforce_daily(gate, "recipe")  # дневной лимит на Claude (no-op для остальных)
-    label = f"деталь блюда: {name}" + (f" ({change})" if change else "")
+    label = (
+        f"деталь блюда: {name}" + (" [перегенерация]" if regenerate else "")
+        + (f" ({change})" if change else "")
+    )
     messages = build_dish_detail_messages(
-        name, servings, change, dish=dish, request=request, mention=mention
+        name, servings, change, dish=dish, request=request, mention=mention,
+        discussion=discussion, current=current, regenerate=regenerate,
     )
     if gate is cloudflare:
         parsed, _ = await gate.complete_json(
@@ -514,14 +524,17 @@ def _clean_cook_steps(steps: list) -> list[dict]:
     return out
 
 
-async def generate_cooking_plan(dishes: list[dict], model: str = "") -> dict:
+async def generate_cooking_plan(
+    dishes: list[dict], model: str = "", *, discussion: str = "", regenerate: bool = False
+) -> dict:
     """Единый оптимизированный план готовки по ВСЕМ блюдам недели — лениво, кэш в плане.
+    discussion/regenerate — «↻ Перегенерировать»: учесть обсуждение плана готовки в чате.
 
     Генерит выбранная модель (как рецепты). Без фолбэков — падение пробрасывается наверх."""
     gate = gate_for(model)
     enforce_daily(gate, "recipe")  # дневной лимит на Claude (no-op для остальных)
-    label = f"план готовки: {len(dishes)} блюд"
-    messages = build_cook_plan_messages(dishes)
+    label = f"план готовки: {len(dishes)} блюд" + (" [перегенерация]" if regenerate else "")
+    messages = build_cook_plan_messages(dishes, discussion=discussion, regenerate=regenerate)
     if gate is cloudflare:
         parsed, _ = await gate.complete_json(
             messages, schema=COOKPLAN_SCHEMA, model=settings.cf_model_judge,
@@ -760,16 +773,10 @@ async def edit_plan(
                 detail = await generate_dish_detail(
                     dish.get("name", ""), dish.get("servings", 4), change, model, dish=dish
                 )
-                nd = {
-                    **dish,
-                    "ingredients": detail.get("ingredients") or [],
-                    "steps": detail.get("steps") or [],
-                    "tips": detail.get("tips") or [],
-                    "detail_provider": detail.get("provider") or "",
-                }
-                if detail.get("note"):
-                    nd["storage"] = {**(dish.get("storage") or {}), "note": detail["note"]}
-                work[idx] = nd
+                # Пишем в варианты (variants[модель] + active_model), а не только в плоские
+                # поля: иначе при следующем открытии рецепт брался из старого варианта и
+                # правка «терялась».
+                work[idx] = with_detail(dish, gate.key, detail)
                 changed.append(f"рецепт «{dish.get('name')}» обновлён ({change})")
         elif op == "create_plan":
             # Пересборка — новое меню: исходный запрос (в context) и история avoid сохраняются,
@@ -895,22 +902,24 @@ def _shop_chunks(items: list[dict]) -> list[list[dict]]:
     return [c for c in chunks if c]
 
 
-async def normalize_shopping(items: list[dict]) -> list[dict]:
+async def normalize_shopping(items: list[dict], discussion: str = "") -> list[dict]:
     """Доводит детерминированную базу списка покупок моделью (Cloudflare mistral).
 
     Список покупок — вспомогательная задача, всегда на Cloudflare (не участвует в выборе).
     Падение/пустой ответ — пробрасываем AIError: роутер вернёт базу и НЕ закэширует её
-    под подписью (чтобы следующий заход попробовал нормализовать снова)."""
+    под подписью (чтобы следующий заход попробовал нормализовать снова).
+    discussion — «↻ Перегенерировать»: пожелания из обсуждения списка покупок в чате."""
     if not items:
         return []
     chunks = _shop_chunks(items)
     results = await asyncio.gather(*(
         cloudflare.complete_json(
-            build_shop_normalize_messages(chunk),
+            build_shop_normalize_messages(chunk, discussion),
             schema=SHOP_SCHEMA,
             model=settings.cf_model_judge,
             max_tokens=_shop_max_tokens(len(chunk)),
             label="список покупок (нормализация)"
+            + (" [перегенерация]" if discussion else "")
             + (f" {i + 1}/{len(chunks)}" if len(chunks) > 1 else ""),
         )
         for i, chunk in enumerate(chunks)
@@ -922,3 +931,72 @@ async def normalize_shopping(items: list[dict]) -> list[dict]:
             raise AIError("Cloudflare вернул пустой список покупок")
         out.extend(got)
     return out
+
+
+# --- Обсуждение цели в чате («💬 Обсудить в чате») ---
+
+# Функции DeepSeek → операции обсуждения (как у structured-ответа остальных моделей).
+_DISCUSS_OPS = {"update_recipe": "edit", "replace_dish": "replace", "regenerate": "regenerate"}
+# Какие операции допустимы для цели: у рецепта — правка/замена, у готовки/покупок — пересборка.
+_DISCUSS_ALLOWED = {
+    "recipe": {"edit", "replace"},
+    "cooking": {"regenerate"},
+    "shopping": {"regenerate"},
+}
+
+
+async def discuss_reply(
+    target: str,
+    context: str,
+    turns: list[dict[str, str]],
+    question: str,
+    gender: str = "f",
+    model: str = "",
+) -> dict[str, Any]:
+    """Ответ в обсуждении цели (рецепт / план готовки / список покупок) выбранной моделью.
+
+    DeepSeek — function calling с маленьким набором функций на цель; Gemini/Claude/Cloudflare —
+    structured JSON (DISCUSS_SCHEMA, Cloudflare — с json_schema). Возвращает
+    {"reply", "op": none|edit|replace|regenerate, "change", "query", "provider"}.
+    Сам ничего не меняет — применяет роутер. Без фолбэков: AIError пробрасываем."""
+    gate = gate_for(model)
+    label = f"обсуждение: {target}"
+    op, change, query, reply = "none", "", "", ""
+    if gate.supports_tools:
+        calls, reply = await gate.call_tools(
+            build_discuss_messages(target, context, turns, question, gender, tools=True),
+            DISCUSS_TOOLS.get(target, []),
+            max_tokens=900,
+            label=label + " (tools)",
+        )
+        for call in calls:
+            got = _DISCUSS_OPS.get(call.get("name", ""))
+            if got:
+                args = call.get("args") or {}
+                op, change, query = got, str(args.get("change", "")), str(args.get("query", ""))
+                break
+    else:
+        parsed, _ = await gate.complete_json(
+            build_discuss_messages(target, context, turns, question, gender),
+            schema=DISCUSS_SCHEMA,
+            model=(settings.cf_model_judge if gate is cloudflare else None),
+            max_tokens=1200,
+            label=label,
+        )
+        reply = str(parsed.get("reply") or "")
+        action = parsed.get("action") or {}
+        if isinstance(action, dict):
+            op = str(action.get("op") or "none").lower()
+            change = str(action.get("change") or "")
+            query = str(action.get("query") or "")
+    if op not in _DISCUSS_ALLOWED.get(target, set()):
+        op = "none"
+    if op == "edit" and not change.strip():
+        change = question.strip()  # модель не описала правку — берём саму просьбу
+    return {
+        "reply": reply.strip(),
+        "op": op,
+        "change": change.strip(),
+        "query": query.strip(),
+        "provider": gate.provider,
+    }

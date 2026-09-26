@@ -165,14 +165,22 @@ SHOP_SYSTEM = (
 )
 
 
-def build_shop_normalize_messages(items: list[dict]) -> list[dict[str, str]]:
+def build_shop_normalize_messages(items: list[dict], discussion: str = "") -> list[dict[str, str]]:
+    """discussion — обсуждение списка покупок в чате (перегенерация): пожелания пользователя
+    вроде «соль есть дома» / «объедини лук» — в USER-части, system не трогаем."""
     lines = [
         f"{it.get('name')} — {it.get('qty')} {it.get('unit')} — {it.get('category')}"
         for it in items
     ]
+    content = "Список:\n" + "\n".join(lines)
+    if discussion:
+        content += (
+            "\n\nПожелания пользователя из обсуждения списка (примени, если касаются этих "
+            "позиций: убрать, объединить, переименовать, сменить единицу):\n" + discussion
+        )
     return [
         {"role": "system", "content": SHOP_SYSTEM},
-        {"role": "user", "content": "Список:\n" + "\n".join(lines)},
+        {"role": "user", "content": content},
     ]
 
 
@@ -299,17 +307,37 @@ def _dish_header(dish: dict | None) -> str:
     return ("\nШапка блюда из плана: " + "; ".join(parts) + ".") if parts else ""
 
 
+# Правило перегенерации (кнопка «↻ Перегенерировать» и правки из обсуждения). Живёт в USER-части,
+# чтобы system-промпты оставались стабильными (кэш префикса DeepSeek).
+_REGEN_RULE = (
+    "\nПЕРЕГЕНЕРАЦИЯ: есть пожелания из обсуждения — примени их; нет — дай заметно другой "
+    "вариант того же блюда (другие акценты, техника или набор специй), суть блюда сохрани."
+)
+
+
+def _discussion_block(discussion: str) -> str:
+    # Обсуждение цели с пользователем (services/discussion.discussion_text) — уже урезано.
+    return f"\nОбсуждение с пользователем (учти пожелания):\n{discussion}" if discussion else ""
+
+
 def build_dish_detail_messages(
     name: str, servings: int, change: str = "", dish: dict | None = None, request: str = "",
-    mention: str = "",
+    mention: str = "", *, discussion: str = "", current: str = "", regenerate: bool = False,
 ) -> list[dict[str, str]]:
     """dish — блюдо из плана (для шапки); request — исходный запрос беседы (короткий фон);
-    mention — реплика к плану, где упомянуто это блюдо (обещанное в ней — выполни)."""
+    mention — реплика к плану, где упомянуто это блюдо (обещанное в ней — выполни).
+    discussion — обсуждение рецепта в чате; current — выжимка текущего варианта;
+    regenerate — «↻ Перегенерировать»: пожелания из обсуждения либо заметно другой вариант."""
     content = f"Блюдо: {name}. Порций: {servings}." + _dish_header(dish)
     if mention:
         content += f"\nЧто обещано о блюде в плане (выполни): {_clip(mention, 200)}"
     if request:
         content += f"\nИсходный запрос пользователя к плану (фон): {_clip(request, 300)}"
+    content += _discussion_block(discussion)
+    if current:
+        content += f"\nТекущий вариант рецепта ({current})."
+    if regenerate:
+        content += _REGEN_RULE
     if change:
         content += f" Изменение рецепта (обязательно учти): {change}."
     content += as_hint(constraints_only=True)
@@ -372,7 +400,10 @@ COOKPLAN_SCHEMA = {
 }
 
 
-def build_cook_plan_messages(dishes: list[dict]) -> list[dict[str, str]]:
+def build_cook_plan_messages(
+    dishes: list[dict], *, discussion: str = "", regenerate: bool = False
+) -> list[dict[str, str]]:
+    """discussion — обсуждение плана готовки в чате; regenerate — «↻ Перегенерировать»."""
     blocks: list[str] = []
     for i, d in enumerate(dishes):
         ing = "; ".join(
@@ -389,6 +420,12 @@ def build_cook_plan_messages(dishes: list[dict]) -> list[dict[str, str]]:
             block += f"\nШаги:\n{steps}"
         blocks.append(block)
     content = "Блюда недели:\n\n" + "\n\n".join(blocks)
+    content += _discussion_block(discussion)
+    if regenerate:
+        content += (
+            "\nПЕРЕСБОРКА плана готовки: есть пожелания из обсуждения — примени их; нет — "
+            "пересобери заново, поищи порядок и параллели эффективнее прежних."
+        )
     content += as_hint(constraints_only=True)
     return [
         {"role": "system", "content": COOKPLAN_SYSTEM},
@@ -758,3 +795,186 @@ def build_dish_messages(name: str, user_message: str) -> list[dict[str, str]]:
         {"role": "system", "content": DISH_SYSTEM},
         {"role": "user", "content": content},
     ]
+
+
+# --- Обсуждение цели в чате («💬 Обсудить в чате»): рецепт / план готовки / список покупок ---
+
+# Общий префикс тот же (кэшируется DeepSeek); вся динамика (содержимое цели, реплики) — в
+# user/assistant-сообщениях. Два стабильных варианта system: для tools (DeepSeek) и для JSON.
+DISCUSS_SYSTEM = _SHARED_PREFIX + (
+    "Сейчас ты обсуждаешь с пользователем ОДНУ цель из его плана заготовок на неделю: рецепт "
+    "блюда, общий план готовки или список покупок. Цель и её полное содержание — в первом "
+    "сообщении. Отвечай кратко и по делу, в markdown (короткие абзацы, списки), на «ты», "
+    "строго на русском. НИЧЕГО не меняй, если об этом явно не просят: вопросы, советы, "
+    "пояснения, варианты «на подумать» — просто ответ текстом. "
+    "Если пользователь ЯВНО просит изменить рецепт (убрать/добавить/заменить продукт, острее, "
+    "меньше соли, приготовить иначе) — это ПРАВКА РЕЦЕПТА: кратко опиши изменение. "
+    "Если явно просит заменить блюдо целиком другим — это ЗАМЕНА БЛЮДА: сам не заменяй, "
+    "передай, чем заменить. Для плана готовки и списка покупок явная просьба что-то "
+    "поменять — это ПЕРЕСБОРКА цели: кратко опиши, что поменять. "
+    "Не утверждай, что уже что-то изменил, — изменение применяет система после твоего ответа. "
+)
+
+DISCUSS_TOOLS_RULE = (
+    "Правку рецепта делай функцией update_recipe, замену блюда — replace_dish, пересборку "
+    "плана готовки или списка покупок — regenerate. Без явной просьбы функции не вызывай. "
+    "Текст ответа пользователю — обычным сообщением."
+)
+
+DISCUSS_JSON_RULE = (
+    'Верни СТРОГО JSON: {"reply": "ответ пользователю в markdown", "action": {"op": '
+    '"none|edit|replace|regenerate", "change": "что изменить", "query": "чем заменить"}}. '
+    "op: none — менять ничего не просили; edit — правка рецепта (change); replace — замена "
+    "блюда (query); regenerate — пересборка плана готовки/списка покупок (change)."
+)
+
+DISCUSS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "reply": {"type": "string", "description": "Ответ пользователю в markdown, на русском"},
+        "action": {
+            "type": "object",
+            "properties": {
+                "op": {"type": "string", "description": "none|edit|replace|regenerate"},
+                "change": {"type": "string"},
+                "query": {"type": "string"},
+            },
+            "required": ["op"],
+        },
+    },
+    "required": ["reply", "action"],
+}
+
+
+def _fn(name: str, description: str, arg: str, arg_desc: str) -> dict:
+    return {
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": description,
+            "parameters": {
+                "type": "object",
+                "properties": {arg: {"type": "string", "description": arg_desc}},
+                "required": [arg],
+            },
+        },
+    }
+
+
+# Небольшой набор функций на цель: рецепт — правка/замена, готовка и покупки — пересборка.
+DISCUSS_TOOLS = {
+    "recipe": [
+        _fn(
+            "update_recipe",
+            "Изменить рецепт обсуждаемого блюда по явной просьбе (блюдо то же, меняется рецепт).",
+            "change", "Что изменить, напр. 'без болгарского перца, острее'",
+        ),
+        _fn(
+            "replace_dish",
+            "Пользователь явно хочет заменить обсуждаемое блюдо целиком другим.",
+            "query", "Чем заменить, напр. 'рыбное на пару' (может быть пусто)",
+        ),
+    ],
+    "cooking": [
+        _fn(
+            "regenerate",
+            "Пересобрать план готовки с учётом явной просьбы пользователя.",
+            "change", "Что поменять в плане готовки",
+        ),
+    ],
+    "shopping": [
+        _fn(
+            "regenerate",
+            "Пересобрать список покупок с учётом явной просьбы пользователя.",
+            "change", "Что поменять в списке покупок",
+        ),
+    ],
+}
+
+_DISCUSS_TITLES = {"recipe": "рецепт", "cooking": "план готовки", "shopping": "список покупок"}
+
+
+def discuss_recipe_context(dish: dict, others: list[str], request: str = "") -> str:
+    """Полный контекст рецепта: шапка из плана + ингредиенты/шаги/советы/заметка."""
+    parts = [
+        f"Обсуждаем рецепт: «{dish.get('name')}» ({dish.get('servings', 4)} порц.)."
+        + _dish_header(dish)
+    ]
+    ings = dish.get("ingredients") or []
+    if ings:
+        parts.append("Ингредиенты: " + "; ".join(
+            f"{i.get('name')} {i.get('qty')} {i.get('unit')}" for i in ings
+        ))
+    steps = dish.get("steps") or []
+    if steps:
+        parts.append("Шаги:\n" + "\n".join(f"{j + 1}. {s}" for j, s in enumerate(steps)))
+    tips = dish.get("tips") or []
+    if tips:
+        parts.append("Советы: " + " ".join(str(t) for t in tips))
+    note = (dish.get("storage") or {}).get("note")
+    if note:
+        parts.append(f"Хранение/разогрев: {note}")
+    if others:
+        parts.append("Другие блюда плана: " + ", ".join(others))
+    if request:
+        parts.append(f"Исходный запрос пользователя к плану: {_clip(request, 300)}")
+    return "\n".join(parts)
+
+
+def discuss_cooking_context(cooking: dict, dishes: list[str], request: str = "") -> str:
+    """Контекст плана готовки: шаги по фазам с таймингами + итог."""
+    parts = ["Обсуждаем общий план готовки на неделю. Блюда: " + (", ".join(dishes) or "—")]
+    steps = sorted(cooking.get("steps") or [], key=lambda s: s.get("order") or 0)
+    if steps:
+        parts.append("Шаги:\n" + "\n".join(
+            f"{s.get('order')}. [{s.get('phase') or 'Готовка'}] {s.get('text')} "
+            f"(активно {s.get('active_min', 0)} мин, пассивно {s.get('passive_min', 0)} мин)"
+            for s in steps
+        ))
+    else:
+        parts.append("План готовки ещё не собран.")
+    if cooking.get("note"):
+        parts.append(f"Итог: {cooking['note']}")
+    if request:
+        parts.append(f"Исходный запрос пользователя к плану: {_clip(request, 300)}")
+    return "\n".join(parts)
+
+
+def discuss_shopping_context(items: list[dict], dishes: list[str], request: str = "") -> str:
+    """Контекст списка покупок: позиции с количествами + блюда плана."""
+    parts = ["Обсуждаем список покупок на неделю. Блюда: " + (", ".join(dishes) or "—")]
+    if items:
+        parts.append("Позиции:\n" + "\n".join(
+            f"- {i.get('name')} — {i.get('qty')} {i.get('unit')} ({i.get('category')})"
+            for i in items
+        ))
+    if request:
+        parts.append(f"Исходный запрос пользователя к плану: {_clip(request, 300)}")
+    return "\n".join(parts)
+
+
+def build_discuss_messages(
+    target: str,
+    context: str,
+    turns: list[dict[str, str]],
+    question: str,
+    gender: str = "f",
+    *,
+    tools: bool = False,
+) -> list[dict[str, str]]:
+    """Мульти-тёрн обсуждения: system (стабильный) → контекст цели + прошлые реплики →
+    текущий вопрос. Контекст идёт первым user-сообщением (стабильный префикс для кэша), к нему
+    приклеиваем первую реплику, если она пользовательская (роли должны чередоваться)."""
+    system = DISCUSS_SYSTEM + (DISCUSS_TOOLS_RULE if tools else DISCUSS_JSON_RULE)
+    head = f"{context}\n\n(Обсуждаем {_DISCUSS_TITLES.get(target, target)}.)"
+    msgs: list[dict[str, str]] = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": head},
+    ]
+    current = {"role": "user", "content": question.strip() + _gender_hint(gender)}
+    for t in [*turns, current]:
+        if msgs[-1]["role"] == t["role"]:
+            msgs[-1] = {**msgs[-1], "content": msgs[-1]["content"] + "\n\n" + t["content"]}
+        else:
+            msgs.append(dict(t))
+    return msgs
