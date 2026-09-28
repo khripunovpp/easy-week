@@ -68,9 +68,9 @@ async def reasons_catalog() -> dict[str, list[dict[str, str]]]:
     return rating_reasons.catalog()
 
 
-@router.put("/ratings/reasons")
+@router.patch("/ratings/reasons")
 async def set_reasons(body: RatingReasonsBody, session: SessionDep) -> RatingOut:
-    """Причины к уже поставленному 👎. Голос не трогаем (без 👎 — 409)."""
+    """Причины к уже поставленному 👎 (PATCH). Голос не трогаем (без 👎 — 409)."""
     row = _find(session, body.target_type, body.target_id, body.model)
     if row is None or row.vote != -1:
         raise HTTPException(status_code=409, detail="причины — только к 👎")

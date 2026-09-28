@@ -1,13 +1,25 @@
-import { Component, ElementRef, computed, effect, inject, input, signal } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  ElementRef,
+  computed,
+  effect,
+  inject,
+  input,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { EasyWeekApi, RatingReason, RatingTarget } from '../services/api';
 
 // Голосование 👍/👎 за ответ модели. Сам грузит текущий голос и шлёт rate (toggle/switch).
 // Переиспользуется на рецепте/плане/готовке/сообщении чата.
 // После 👎 — выпадашка «Что не так?» с причинами (каталог с бэка) и полем «Другое» в конце:
-// фокус в поле сам отмечает «Другое». Голос уже сохранён — причины идут отдельным PUT.
+// фокус в поле сам отмечает «Другое». Порядок: клик → сразу состояние + выпадашка →
+// фоном POST голоса → после него PATCH причин.
+// Выпадашка — нативный popover (top layer): поверх всего, без войны z-index'ов и
+// контекстов наложения (тултип в чате, фикс-шапки); закрытие по клику мимо и Esc — сам браузер.
 @Component({
   selector: 'ew-vote',
-  host: { '(document:keydown.escape)': 'closeMenu()' },
   template: `
     <div class="vote">
       <button
@@ -36,9 +48,11 @@ import { EasyWeekApi, RatingReason, RatingTarget } from '../services/api';
     </div>
 
     @if (menu(); as pos) {
-      <div class="msel__backdrop vote__backdrop" (click)="closeMenu()"></div>
       <div
+        #pop
+        popover="auto"
         class="msel__menu vote__menu"
+        (toggle)="onToggle($event)"
         role="dialog"
         aria-label="Что не так с ответом"
         [style.left.px]="pos.left"
@@ -121,15 +135,15 @@ import { EasyWeekApi, RatingReason, RatingTarget } from '../services/api';
       background: var(--no);
     }
 
-    /* Выпадашка причин: карточка .msel__menu, но fixed — кнопки стоят и слева, и справа
-       (рецепт / план / тултип в чате), позицию считаем от кнопки и держим в экране. */
-    .vote__backdrop {
-      z-index: 60;
-    }
+    /* Выпадашка причин: карточка .msel__menu в top layer (popover). Кнопки стоят и слева, и
+       справа (рецепт / план / тултип в чате) — позицию считаем от кнопки, держим в экране и
+       двигаем за ней при скролле. Сбрасываем UA-стили [popover] (inset/margin/border). */
     .vote__menu {
       position: fixed;
-      right: auto;
-      z-index: 61;
+      inset: auto;
+      margin: 0;
+      border: 0;
+      color: var(--ink);
       min-width: 0;
       max-width: none;
       overflow-y: auto;
@@ -202,10 +216,13 @@ export class Vote {
   private loadedKey = '';
   /** Пользователь уже кликнул — поздний ответ GET-а текущего голоса не должен перетереть клик. */
   private touched = false;
-  /** Запрос с голосом — причины шлём после него (без 👎 на сервере PUT вернёт 409). */
+  /** Запрос с голосом — причины шлём после него (без 👎 на сервере PATCH вернёт 409). */
   private voteSent: Promise<unknown> = Promise.resolve();
 
   // --- Выпадашка причин 👎 ---
+  private readonly pop = viewChild<ElementRef<HTMLElement>>('pop');
+  /** Направление выбираем при открытии и не меняем при скролле (иначе меню прыгает). */
+  private down = true;
   /** Позиция открытой выпадашки (null — закрыта). top ИЛИ bottom — вниз/вверх от кнопки. */
   readonly menu = signal<{
     left: number;
@@ -226,6 +243,24 @@ export class Vote {
   );
 
   constructor() {
+    // Отрисовали popover — показываем в top layer (без поддержки API останется fixed-карточкой).
+    effect(() => {
+      const el = this.pop()?.nativeElement;
+      if (el && !el.matches(':popover-open')) el.showPopover?.();
+    });
+    // Меню едет за кнопкой: скролл любого контейнера (capture) и ресайз/клавиатура.
+    const follow = () => {
+      if (this.menu()) this.menu.set(this.place(false));
+    };
+    const vv = window.visualViewport;
+    document.addEventListener('scroll', follow, { capture: true, passive: true });
+    window.addEventListener('resize', follow);
+    vv?.addEventListener('resize', follow);
+    inject(DestroyRef).onDestroy(() => {
+      document.removeEventListener('scroll', follow, { capture: true });
+      window.removeEventListener('resize', follow);
+      vv?.removeEventListener('resize', follow);
+    });
     // Прогрев каталога причин (кэш в API-сервисе, один запрос на сессию) — к первому 👎
     // выпадашка открывается без ожидания сети. Не на старте приложения: там может быть /login.
     this.api.ratingReasons().subscribe({ error: () => {} });
@@ -281,14 +316,14 @@ export class Vote {
         const items = cat[this.targetType()] ?? [];
         if (!items.length) return;
         this.catalog.set(items);
-        this.menu.set(this.place());
+        this.menu.set(this.place(true));
       },
       error: () => {},
     });
   }
 
   /** Меню у кнопок: по правому краю, в пределах экрана; вниз, если места хватает, иначе вверх. */
-  private place() {
+  private place(open: boolean) {
     const r = this.host.nativeElement.getBoundingClientRect();
     const vw = window.innerWidth;
     const vh = window.innerHeight;
@@ -298,14 +333,20 @@ export class Vote {
     const left = Math.max(edge, Math.min(r.right - width, vw - width - edge));
     const below = vh - r.bottom - gap - edge;
     const above = r.top - gap - edge;
-    const down = below >= 420 || below >= above;
-    return down
-      ? { left, width, top: r.bottom + gap, bottom: null, maxH: below }
-      : { left, width, top: null, bottom: vh - r.top + gap, maxH: above };
+    if (open) this.down = below >= 420 || below >= above;
+    const minH = 160; // кнопка уехала к краю — меню не схлопывается в ноль
+    return this.down
+      ? { left, width, top: r.bottom + gap, bottom: null, maxH: Math.max(minH, below) }
+      : { left, width, top: null, bottom: vh - r.top + gap, maxH: Math.max(minH, above) };
   }
 
   closeMenu(): void {
     this.menu.set(null);
+  }
+
+  /** Браузер закрыл popover сам (клик мимо / Esc) — синхронизируем состояние. */
+  onToggle(e: Event): void {
+    if ((e as ToggleEvent).newState === 'closed') this.menu.set(null);
   }
 
   toggle(key: string): void {
@@ -338,7 +379,7 @@ export class Vote {
       reasons,
       note,
     };
-    // Тоже оптимистично: сразу «Спасибо», запрос — после того как дошёл сам 👎.
+    // Тоже оптимистично: сразу «Спасибо», PATCH причин — после того как дошёл сам 👎.
     this.thanks.set(true);
     setTimeout(() => this.closeMenu(), 900);
     this.voteSent.then(() => this.api.setRatingReasons(body).subscribe({ error: () => {} }));

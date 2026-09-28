@@ -1,4 +1,4 @@
-"""Оценки 👍/👎 и причины 👎: PUT /api/ratings/reasons, каталог, сброс причин при смене голоса."""
+"""Оценки 👍/👎 и причины 👎: PATCH /api/ratings/reasons, каталог, сброс причин при смене голоса."""
 
 from uuid import uuid4
 
@@ -30,9 +30,9 @@ def test_catalog_has_other_last():
 def test_reasons_need_dislike():
     t = _target()
     with TestClient(app) as c:
-        assert c.put("/api/ratings/reasons", json={**t, "reasons": ["wrong"]}).status_code == 409
+        assert c.patch("/api/ratings/reasons", json={**t, "reasons": ["wrong"]}).status_code == 409
         c.post("/api/ratings", json={**t, "vote": 1})
-        assert c.put("/api/ratings/reasons", json={**t, "reasons": ["wrong"]}).status_code == 409
+        assert c.patch("/api/ratings/reasons", json={**t, "reasons": ["wrong"]}).status_code == 409
 
 
 def test_reasons_saved_and_cleaned(session):
@@ -44,7 +44,7 @@ def test_reasons_saved_and_cleaned(session):
     t = _target()
     with TestClient(app) as c:
         c.post("/api/ratings", json={**t, "vote": -1})
-        r = c.put(
+        r = c.patch(
             "/api/ratings/reasons",
             # мусорный ключ и ключ чужого типа отбрасываются; текст → добавляет «other»
             json={**t, "reasons": ["too_long", "bogus", "duplicates", "wrong"], "note": " сухо "},

@@ -503,7 +503,7 @@ export class EasyWeekApi {
       .pipe(shareReplay({ bufferSize: 1, refCount: false }));
     return this.reasons$;
   }
-  // Причины к уже поставленному 👎.
+  // Причины к уже поставленному 👎 (PATCH — голос не трогаем).
   setRatingReasons(body: {
     targetType: RatingTarget;
     targetId: string;
@@ -511,7 +511,7 @@ export class EasyWeekApi {
     reasons: string[];
     note: string;
   }): Observable<{ vote: number }> {
-    return this.http.put<{ vote: number }>(`${API_BASE}/ratings/reasons`, body);
+    return this.http.patch<{ vote: number }>(`${API_BASE}/ratings/reasons`, body);
   }
   rating(targetType: string, targetId: string, model: string): Observable<{ vote: number }> {
     return this.http.get<{ vote: number }>(`${API_BASE}/ratings`, {
