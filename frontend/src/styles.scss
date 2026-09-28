@@ -64,6 +64,7 @@
   --shadow-card: 0 14px 34px -18px rgba(72, 45, 32, 0.28);
   --shadow-soft: 0 6px 18px -10px rgba(72, 45, 32, 0.22);
   --shadow-float: 0 18px 40px -14px rgba(72, 45, 32, 0.35);
+  --scrim: rgba(34, 29, 26, 0.42); /* затемнение под модалкой */
 
   /* Шкала отступов */
   --space-1: 6px;
@@ -143,6 +144,7 @@
   --shadow-card: 0 14px 34px -18px rgba(0, 0, 0, 0.6);
   --shadow-soft: 0 6px 18px -10px rgba(0, 0, 0, 0.5);
   --shadow-float: 0 18px 40px -14px rgba(0, 0, 0, 0.7);
+  --scrim: rgba(0, 0, 0, 0.55);
 }
 
 /* Ручной выбор тёмной темы */
@@ -1105,4 +1107,69 @@ ul {
   margin: 4px 0 0;
   font-size: 12px;
   color: var(--ink-3);
+}
+
+/* Модалка (GUIDEBOOK → «Модалка»): затемнение + карточка по центру. Работает и на <div>, и на
+   нативном <dialog> (showModal → top layer поверх всего, фокус внутри) — UA-стили диалога гасим. */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  background: var(--scrim);
+  animation: modal-fade 0.15s ease;
+}
+@keyframes modal-fade {
+  from {
+    opacity: 0;
+  }
+}
+.modal__card {
+  width: 100%;
+  max-width: 340px;
+  background: var(--surface);
+  border-radius: var(--r-card);
+  padding: 24px 22px 20px;
+  box-shadow: var(--shadow-float);
+  animation: modal-pop 0.16s ease;
+}
+@keyframes modal-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
+.modal__title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 19px;
+  margin: 0 0 6px;
+}
+.modal__text {
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0 0 20px;
+}
+.modal__actions {
+  display: flex;
+  gap: 10px;
+}
+.modal__actions > * {
+  flex: 1;
+  width: auto;
+}
+dialog.modal {
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  color: var(--ink);
+}
+dialog.modal::backdrop {
+  background: transparent;
 }
