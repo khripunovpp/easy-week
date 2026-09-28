@@ -835,9 +835,9 @@ ul {
 }
 
 .fade-top::before {
-  background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-top) 72%, transparent 100%);
-  -webkit-mask: linear-gradient(180deg, #000 0%, #000 74%, transparent 100%);
-  mask: linear-gradient(180deg, #000 0%, #000 74%, transparent 100%);
+  background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-top) 85%, transparent 100%);
+  -webkit-mask: linear-gradient(180deg, #000 0%, #000 85%, transparent 100%);
+  mask: linear-gradient(180deg, #000 0%, #000 85%, transparent 100%);
 }
 
 .fade-bottom::before {
