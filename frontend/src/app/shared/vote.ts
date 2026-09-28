@@ -1,31 +1,25 @@
-import {
-  Component,
-  DestroyRef,
-  ElementRef,
-  computed,
-  effect,
-  inject,
-  input,
-  signal,
-  viewChild,
-} from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, input, signal } from '@angular/core';
 import { EasyWeekApi, RatingReason, RatingTarget } from '../services/api';
+import { Modal } from './modal';
 
 // Голосование 👍/👎 за ответ модели. Сам грузит текущий голос и шлёт rate (toggle/switch).
 // Переиспользуется на рецепте/плане/готовке/сообщении чата.
 // После 👎 — модалка «Что не так?» с причинами (каталог с бэка) и полем «Другое» в конце:
 // фокус в поле сам отмечает «Другое». Порядок: клик → сразу состояние + модалка →
 // фоном POST голоса → после него PATCH причин.
-// Модалка — нативный <dialog> (showModal → top layer поверх всего, Esc закрывает сам браузер).
-// Высоту подгоняем под visualViewport: на iPhone клавиатура не перекрывает карточку.
+// Менять голос можно 30 минут от первого голоса (как на бэке), потом кнопки блокируются.
+// Модалка — общий ew-modal (поверх всего, вписан в видимую часть экрана над клавиатурой iOS).
 @Component({
   selector: 'ew-vote',
+  imports: [Modal],
   template: `
     <div class="vote">
       <button
         type="button"
         class="vote__btn"
         [class.vote__btn--up]="vote() === 1"
+        [disabled]="locked()"
+        [attr.title]="locked() ? lockedHint : null"
         (click)="cast(1)"
         aria-label="Нравится ответ модели">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -37,6 +31,8 @@ import { EasyWeekApi, RatingReason, RatingTarget } from '../services/api';
         type="button"
         class="vote__btn"
         [class.vote__btn--down]="vote() === -1"
+        [disabled]="locked()"
+        [attr.title]="locked() ? lockedHint : null"
         (click)="cast(-1)"
         aria-label="Не нравится ответ модели"
         aria-haspopup="dialog">
@@ -48,51 +44,42 @@ import { EasyWeekApi, RatingReason, RatingTarget } from '../services/api';
     </div>
 
     @if (open()) {
-      <dialog
-        #dlg
-        class="modal"
-        aria-label="Что не так с ответом"
-        [style.top.px]="vp().top"
-        [style.height.px]="vp().height"
-        (click)="onBackdrop($event)"
-        (close)="open.set(false)">
-        <div class="modal__card vote__card">
-          @if (thanks()) {
-            <p class="vote__thanks">Спасибо — учтём 🙏</p>
-          } @else {
-            <p class="modal__title">Что не так?</p>
-            <p class="modal__text muted vote__hint">Отметьте одно или несколько — это поможет модели.</p>
-            <div class="vote__list">
-              @for (r of options(); track r.key) {
-                <button
-                  type="button"
-                  class="msel__opt"
-                  [class.msel__opt--active]="picked().has(r.key)"
-                  [attr.aria-pressed]="picked().has(r.key)"
-                  (click)="toggle(r.key)">
-                  <span class="msel__opt-name">{{ r.label }}</span>
-                  <span class="msel__mark msel__mark--ok">{{ picked().has(r.key) ? '✓' : '' }}</span>
-                </button>
-              }
-              <textarea
-                class="text-field vote__note"
-                [class.vote__note--on]="picked().has('other')"
-                rows="2"
-                maxlength="1000"
-                placeholder="Другое — опишите, что не так"
-                [value]="note()"
-                (focus)="pickOther()"
-                (input)="onNote($event)"></textarea>
-            </div>
-            <div class="modal__actions vote__actions">
-              <button type="button" class="btn-ghost" (click)="closeMenu()">Пропустить</button>
-              <button type="button" class="btn-primary" [disabled]="!canSend()" (click)="send()">
-                Отправить
+      <ew-modal (closed)="closeMenu()">
+        @if (thanks()) {
+          <p class="vote__thanks">Спасибо — учтём 🙏</p>
+        } @else {
+          <p class="modal__title">Что не так?</p>
+          <p class="modal__text muted vote__hint">Отметьте одно или несколько — это поможет модели.</p>
+          <div class="vote__list">
+            @for (r of options(); track r.key) {
+              <button
+                type="button"
+                class="msel__opt"
+                [class.msel__opt--active]="picked().has(r.key)"
+                [attr.aria-pressed]="picked().has(r.key)"
+                (click)="toggle(r.key)">
+                <span class="msel__opt-name">{{ r.label }}</span>
+                <span class="msel__mark msel__mark--ok">{{ picked().has(r.key) ? '✓' : '' }}</span>
               </button>
-            </div>
-          }
-        </div>
-      </dialog>
+            }
+            <textarea
+              class="text-field vote__note"
+              [class.vote__note--on]="picked().has('other')"
+              rows="2"
+              maxlength="1000"
+              placeholder="Другое — опишите, что не так"
+              [value]="note()"
+              (focus)="pickOther()"
+              (input)="onNote($event)"></textarea>
+          </div>
+          <div class="modal__actions vote__actions">
+            <button type="button" class="btn-ghost" (click)="closeMenu()">Пропустить</button>
+            <button type="button" class="btn-primary" [disabled]="!canSend()" (click)="send()">
+              Отправить
+            </button>
+          </div>
+        }
+      </ew-modal>
     }
   `,
   styles: `
@@ -123,6 +110,14 @@ import { EasyWeekApi, RatingReason, RatingTarget } from '../services/api';
     .vote__btn:active {
       transform: scale(0.9);
     }
+    /* Окно правки прошло: голос виден, но не нажимается; невыбранная кнопка — приглушена */
+    .vote__btn:disabled {
+      transform: none;
+      cursor: default;
+    }
+    .vote__btn:disabled:not(.vote__btn--up):not(.vote__btn--down) {
+      opacity: 0.45;
+    }
     .vote__btn--up {
       color: #fff;
       background: var(--ok);
@@ -132,25 +127,8 @@ import { EasyWeekApi, RatingReason, RatingTarget } from '../services/api';
       background: var(--no);
     }
 
-    /* Модалка на видимую область (top/height — из visualViewport), паддинг меньше — больше места
-       списку; карточка колонкой: шапка и кнопки на месте, скроллится только список. */
-    .modal {
-      bottom: auto;
-      padding: 16px;
-    }
-    .vote__card {
-      display: flex;
-      flex-direction: column;
-      max-width: 380px;
-      max-height: 100%;
-      padding: 20px 16px 16px;
-    }
     .vote__hint {
       margin: 0 0 10px;
-      padding: 0 2px;
-    }
-    .modal__title {
-      padding: 0 2px;
     }
     .vote__list {
       flex: 1 1 auto;
@@ -176,10 +154,6 @@ import { EasyWeekApi, RatingReason, RatingTarget } from '../services/api';
     .vote__actions {
       flex-shrink: 0;
       margin-top: 14px;
-    }
-    .vote__actions .btn-ghost,
-    .vote__actions .btn-primary {
-      padding: 14px 16px;
     }
     .vote__actions .btn-primary:disabled {
       opacity: 0.55;
@@ -210,11 +184,16 @@ export class Vote {
   /** Запрос с голосом — причины шлём после него (без 👎 на сервере PATCH вернёт 409). */
   private voteSent: Promise<unknown> = Promise.resolve();
 
+  // --- Окно правки голоса ---
+  readonly lockedHint = 'Оценку можно менять только 30 минут';
+  private static readonly EDIT_WINDOW_MS = 30 * 60_000;
+  /** Когда блокируется голос (мс); 0 — голоса нет. */
+  private locksAt = 0;
+  readonly locked = signal(false);
+  private lockTimer?: ReturnType<typeof setTimeout>;
+
   // --- Модалка причин 👎 ---
-  private readonly dlg = viewChild<ElementRef<HTMLDialogElement>>('dlg');
   readonly open = signal(false);
-  /** Видимая область экрана (без клавиатуры на iOS) — в неё вписываем модалку. */
-  readonly vp = signal({ top: 0, height: window.innerHeight });
   private readonly catalog = signal<RatingReason[]>([]);
   /** Пункты без «Другое» — оно всегда последним, полем ввода. */
   readonly options = computed(() => this.catalog().filter((r) => r.key !== 'other'));
@@ -230,27 +209,7 @@ export class Vote {
     // Прогрев каталога причин (кэш в API-сервисе, один запрос на сессию) — к первому 👎
     // модалка открывается без ожидания сети. Не на старте приложения: там может быть /login.
     this.api.ratingReasons().subscribe({ error: () => {} });
-
-    // Отрисовали <dialog> — открываем модально (top layer). Без API — останется fixed-оверлеем.
-    effect(() => {
-      const el = this.dlg()?.nativeElement;
-      if (el && !el.open) {
-        if (el.showModal) el.showModal();
-        else el.setAttribute('open', '');
-      }
-    });
-
-    // Клавиатура iOS сжимает visualViewport, а не окно — держим модалку в видимой части.
-    const vv = window.visualViewport;
-    const fit = () => this.fit();
-    vv?.addEventListener('resize', fit);
-    vv?.addEventListener('scroll', fit);
-    window.addEventListener('resize', fit);
-    inject(DestroyRef).onDestroy(() => {
-      vv?.removeEventListener('resize', fit);
-      vv?.removeEventListener('scroll', fit);
-      window.removeEventListener('resize', fit);
-    });
+    inject(DestroyRef).onDestroy(() => clearTimeout(this.lockTimer));
 
     // Грузим текущий голос при смене цели/модели (один раз на комбинацию).
     effect(() => {
@@ -261,29 +220,31 @@ export class Vote {
       if (key === this.loadedKey) return;
       this.loadedKey = key;
       this.vote.set(0);
+      this.setLock(0);
       this.touched = false;
       this.closeMenu();
       this.api.rating(this.targetType(), id, m).subscribe({
         next: (r) => {
-          if (!this.touched) this.vote.set(r.vote);
+          if (this.touched) return;
+          this.vote.set(r.vote);
+          this.setLock(r.locksAt ? Date.parse(r.locksAt) : 0);
         },
         error: () => {},
       });
     });
   }
 
-  private fit(): void {
-    const vv = window.visualViewport;
-    this.vp.set(vv ? { top: vv.offsetTop, height: vv.height } : { top: 0, height: window.innerHeight });
-  }
-
   // Оптимистично: сразу подсвечиваем кнопку (та же логика, что на бэке: повтор — снять,
   // противоположный — переключить) и открываем причины, запрос — фоном. Упал — не страшно:
   // после обновления страницы голос подтянется с сервера как есть.
   cast(v: 1 | -1): void {
+    if (this.locked()) return;
     this.touched = true;
     const next = this.vote() === v ? 0 : v;
     this.vote.set(next);
+    // Снятый голос — окна нет; первый голос — окно с этого момента; переключение окно не продлевает.
+    if (next === 0) this.setLock(0);
+    else if (!this.locksAt) this.setLock(Date.now() + Vote.EDIT_WINDOW_MS);
     if (next === -1) this.openMenu();
     else this.closeMenu();
     const req = this.api.rate({
@@ -296,8 +257,29 @@ export class Vote {
       conversationId: this.conversationId() || undefined,
     });
     this.voteSent = new Promise<void>((done) =>
-      req.subscribe({ complete: done, error: () => done() }),
+      req.subscribe({
+        // Серверное время окна точнее локального — подхватываем, но голос не откатываем.
+        next: (r) => {
+          if (r.locksAt) this.setLock(Date.parse(r.locksAt));
+        },
+        complete: done,
+        error: () => done(),
+      }),
     );
+  }
+
+  /** Выставить момент блокировки и таймер на него (страница может быть открыта долго). */
+  private setLock(at: number): void {
+    clearTimeout(this.lockTimer);
+    this.locksAt = at;
+    const left = at - Date.now();
+    this.locked.set(at > 0 && left <= 0);
+    if (at > 0 && left > 0) {
+      this.lockTimer = setTimeout(() => {
+        this.locked.set(true);
+        this.closeMenu();
+      }, left);
+    }
   }
 
   private openMenu(): void {
@@ -309,7 +291,6 @@ export class Vote {
         const items = cat[this.targetType()] ?? [];
         if (!items.length) return;
         this.catalog.set(items);
-        this.fit();
         this.open.set(true);
       },
       error: () => {},
@@ -318,11 +299,6 @@ export class Vote {
 
   closeMenu(): void {
     this.open.set(false);
-  }
-
-  /** Тап по затемнению (сам <dialog>, не карточка) — закрыть. */
-  onBackdrop(e: MouseEvent): void {
-    if (e.target === e.currentTarget) this.closeMenu();
   }
 
   toggle(key: string): void {

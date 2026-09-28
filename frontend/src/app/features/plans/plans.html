@@ -107,17 +107,15 @@
   </footer>
 
   @if (pendingDelete(); as plan) {
-    <div class="modal" (click)="cancelDelete()">
-      <div class="modal__card" (click)="$event.stopPropagation()">
-        <p class="modal__title">Удалить план?</p>
-        <p class="modal__text muted">«{{ plan.title }}» · {{ plan.weekLabel }}.<br />Действие необратимо.</p>
-        <div class="modal__actions">
-          <button class="btn-ghost" type="button" (click)="cancelDelete()">Отмена</button>
-          <button class="btn-danger" type="button" (click)="confirmDelete()" [disabled]="deleting()">
-            Удалить
-          </button>
-        </div>
+    <ew-modal (closed)="cancelDelete()">
+      <p class="modal__title">Удалить план?</p>
+      <p class="modal__text muted">«{{ plan.title }}» · {{ plan.weekLabel }}.<br />Действие необратимо.</p>
+      <div class="modal__actions">
+        <button class="btn-ghost" type="button" (click)="cancelDelete()">Отмена</button>
+        <button class="btn-danger" type="button" (click)="confirmDelete()" [disabled]="deleting()">
+          Удалить
+        </button>
       </div>
-    </div>
+    </ew-modal>
   }
 </div>

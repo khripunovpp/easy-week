@@ -6,10 +6,11 @@ import { EasyWeekApi, PlanSummary } from '../../services/api';
 import { CookingLoader } from '../../shared/cooking-loader';
 import { dishColorClass } from '../../shared/dish-color';
 import { formatDuration } from '../../shared/format';
+import { Modal } from '../../shared/modal';
 
 @Component({
   selector: 'ew-plans',
-  imports: [RouterLink, CookingLoader, NgTemplateOutlet],
+  imports: [RouterLink, CookingLoader, NgTemplateOutlet, Modal],
   templateUrl: './plans.html',
   styleUrl: './plans.scss',
 })

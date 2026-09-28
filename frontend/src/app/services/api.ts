@@ -103,6 +103,12 @@ export interface RatingBody {
   conversationId?: string;
 }
 
+// Состояние голоса: vote 1|-1|0; locksAt — до какого момента можно менять (ISO UTC), '' — голоса нет.
+export interface RatingState {
+  vote: number;
+  locksAt?: string;
+}
+
 // Причина 👎 из каталога бэка (GET /api/ratings/reasons); key 'other' — «Другое» + текст.
 export interface RatingReason {
   key: string;
@@ -492,8 +498,8 @@ export class EasyWeekApi {
   }
 
   // Оценка 👍/👎 ответа модели. vote: 1 | -1. Возврат — текущее состояние (1|-1|0).
-  rate(body: RatingBody): Observable<{ vote: number }> {
-    return this.http.post<{ vote: number }>(`${API_BASE}/ratings`, body);
+  rate(body: RatingBody): Observable<RatingState> {
+    return this.http.post<RatingState>(`${API_BASE}/ratings`, body);
   }
   // Каталог причин 👎 — один раз на сессию (кэш в shareReplay).
   private reasons$?: Observable<RatingReasonCatalog>;
@@ -510,11 +516,11 @@ export class EasyWeekApi {
     model: string;
     reasons: string[];
     note: string;
-  }): Observable<{ vote: number }> {
-    return this.http.patch<{ vote: number }>(`${API_BASE}/ratings/reasons`, body);
+  }): Observable<RatingState> {
+    return this.http.patch<RatingState>(`${API_BASE}/ratings/reasons`, body);
   }
-  rating(targetType: string, targetId: string, model: string): Observable<{ vote: number }> {
-    return this.http.get<{ vote: number }>(`${API_BASE}/ratings`, {
+  rating(targetType: string, targetId: string, model: string): Observable<RatingState> {
+    return this.http.get<RatingState>(`${API_BASE}/ratings`, {
       params: { targetType, targetId, model },
     });
   }

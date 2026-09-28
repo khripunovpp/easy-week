@@ -1109,8 +1109,10 @@ ul {
   color: var(--ink-3);
 }
 
-/* Модалка (GUIDEBOOK → «Модалка»): затемнение + карточка по центру. Работает и на <div>, и на
-   нативном <dialog> (showModal → top layer поверх всего, фокус внутри) — UA-стили диалога гасим. */
+/* Модалка (GUIDEBOOK → «Модалка»): затемнение + карточка по центру. Компонент — ew-modal
+   (shared/modal.ts, нативный <dialog> + showModal); UA-стили диалога гасим ниже.
+   Карточка — колонка не выше экрана: длинный блок внутри (flex: 1; min-height: 0; overflow-y: auto)
+   скроллится, заголовок и кнопки остаются на месте. */
 .modal {
   position: fixed;
   inset: 0;
@@ -1118,7 +1120,7 @@ ul {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 28px;
+  padding: 20px 16px;
   background: var(--scrim);
   animation: modal-fade 0.15s ease;
 }
@@ -1128,8 +1130,12 @@ ul {
   }
 }
 .modal__card {
+  display: flex;
+  flex-direction: column;
   width: 100%;
-  max-width: 340px;
+  max-width: 360px;
+  max-height: 100%;
+  overflow-y: auto;
   background: var(--surface);
   border-radius: var(--r-card);
   padding: 24px 22px 20px;

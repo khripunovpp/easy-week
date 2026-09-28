@@ -1,9 +1,12 @@
 """Оценки 👍/👎 сгенерированных моделью ответов (рецепт/план/готовка/сообщение).
 
 Авторизации нет — одно глобальное хранилище. Один голос на (target_type, target_id, model):
-повторный тот же голос — снять; противоположный — переключить."""
+повторный тот же голос — снять; противоположный — переключить. Менять голос и причины можно
+EDIT_WINDOW от первого голоса (created_at), потом — 409 и кнопки на фронте заблокированы.
+Снятый голос удаляет строку: новый голос — новое окно."""
 
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Annotated
 from uuid import uuid4
 
@@ -17,6 +20,8 @@ from ..schemas import RatingBody, RatingOut, RatingReasonsBody
 from ..services import rating_reasons
 
 logger = logging.getLogger("easy_week.ratings")
+
+EDIT_WINDOW = timedelta(minutes=30)
 
 router = APIRouter(prefix="/api", tags=["ratings"])
 
@@ -33,11 +38,31 @@ def _find(session: Session, target_type: str, target_id: str, model: str) -> Rat
     ).first()
 
 
+def _locks_at(row: RatingRow) -> datetime:
+    created = row.created_at
+    if created.tzinfo is None:  # SQLite отдаёт naive — пишем в UTC
+        created = created.replace(tzinfo=timezone.utc)
+    return created + EDIT_WINDOW
+
+
+def _out(row: RatingRow | None) -> RatingOut:
+    if row is None:
+        return RatingOut(vote=0)
+    return RatingOut(vote=row.vote, locks_at=_locks_at(row).isoformat())
+
+
+def _check_editable(row: RatingRow) -> None:
+    if datetime.now(timezone.utc) >= _locks_at(row):
+        raise HTTPException(status_code=409, detail="оценку можно менять только 30 минут")
+
+
 @router.post("/ratings")
 async def rate(body: RatingBody, session: SessionDep) -> RatingOut:
     if body.vote not in (1, -1):
         raise HTTPException(status_code=422, detail="vote должен быть 1 или -1")
     row = _find(session, body.target_type, body.target_id, body.model)
+    if row is not None:
+        _check_editable(row)
     if row is not None and row.vote == body.vote:
         # Повторный тот же голос — снимаем.
         session.delete(row)
@@ -59,7 +84,7 @@ async def rate(body: RatingBody, session: SessionDep) -> RatingOut:
     session.add(row)
     session.commit()
     record_rating(body.target_type, body.model, body.vote)
-    return RatingOut(vote=body.vote)
+    return _out(row)
 
 
 @router.get("/ratings/reasons")
@@ -74,6 +99,7 @@ async def set_reasons(body: RatingReasonsBody, session: SessionDep) -> RatingOut
     row = _find(session, body.target_type, body.target_id, body.model)
     if row is None or row.vote != -1:
         raise HTTPException(status_code=409, detail="причины — только к 👎")
+    _check_editable(row)
     keys = rating_reasons.clean(body.target_type, body.reasons)
     note = (body.note or "").strip()[:1000]
     if note and rating_reasons.OTHER not in keys:
@@ -89,7 +115,7 @@ async def set_reasons(body: RatingReasonsBody, session: SessionDep) -> RatingOut
         "👎 %s/%s model=%s reasons=%s note=%r",
         body.target_type, body.target_id, body.model or "?", keys, note[:200],
     )
-    return RatingOut(vote=row.vote)
+    return _out(row)
 
 
 @router.get("/ratings")
@@ -99,5 +125,4 @@ async def get_rating(
     target_id: str = Query(alias="targetId"),
     model: str = Query("", alias="model"),
 ) -> RatingOut:
-    row = _find(session, target_type, target_id, model)
-    return RatingOut(vote=row.vote if row else 0)
+    return _out(_find(session, target_type, target_id, model))

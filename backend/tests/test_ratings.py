@@ -49,7 +49,7 @@ def test_reasons_saved_and_cleaned(session):
             # мусорный ключ и ключ чужого типа отбрасываются; текст → добавляет «other»
             json={**t, "reasons": ["too_long", "bogus", "duplicates", "wrong"], "note": " сухо "},
         )
-        assert r.status_code == 200 and r.json() == {"vote": -1}
+        assert r.status_code == 200 and r.json()["vote"] == -1
         with Session(engine) as s:
             row = s.exec(select(RatingRow).where(RatingRow.target_id == t["targetId"])).one()
             assert row.reasons == "wrong,too_long,other"
@@ -59,3 +59,28 @@ def test_reasons_saved_and_cleaned(session):
         with Session(engine) as s:
             row = s.exec(select(RatingRow).where(RatingRow.target_id == t["targetId"])).one()
             assert row.reasons == "" and row.vote == 1
+
+
+def test_locked_after_window():
+    from datetime import datetime, timedelta, timezone
+
+    from sqlmodel import Session, select
+
+    from app.db import engine
+    from app.models import RatingRow
+
+    t = _target()
+    with TestClient(app) as c:
+        r = c.post("/api/ratings", json={**t, "vote": -1}).json()
+        assert r["vote"] == -1 and r["locksAt"]
+        # Внутри окна переключать можно.
+        assert c.post("/api/ratings", json={**t, "vote": 1}).json()["vote"] == 1
+        with Session(engine) as s:
+            row = s.exec(select(RatingRow).where(RatingRow.target_id == t["targetId"])).one()
+            row.created_at = datetime.now(timezone.utc) - timedelta(minutes=31)
+            s.add(row)
+            s.commit()
+        assert c.post("/api/ratings", json={**t, "vote": -1}).status_code == 409
+        assert c.post("/api/ratings", json={**t, "vote": 1}).status_code == 409  # и снять нельзя
+        g = c.get("/api/ratings", params={**t}).json()
+        assert g["vote"] == 1 and g["locksAt"]

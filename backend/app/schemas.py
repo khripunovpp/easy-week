@@ -134,6 +134,8 @@ class RatingBody(CamelModel):
 class RatingOut(CamelModel):
     # Текущее состояние голоса цели: 1 | -1 | 0 (нет голоса).
     vote: int = 0
+    # До какого момента голос можно менять (ISO UTC); пусто — голоса нет, голосовать можно.
+    locks_at: str = ""
 
 
 class RatingReasonsBody(CamelModel):
