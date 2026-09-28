@@ -75,7 +75,7 @@ import { EasyWeekApi, RatingReason, RatingTarget } from '../services/api';
             <button
               type="button"
               class="btn-primary vote__send"
-              [disabled]="!canSend() || sending()"
+              [disabled]="!canSend()"
               (click)="send()">
               Отправить
             </button>
@@ -200,6 +200,10 @@ export class Vote {
 
   readonly vote = signal(0);
   private loadedKey = '';
+  /** Пользователь уже кликнул — поздний ответ GET-а текущего голоса не должен перетереть клик. */
+  private touched = false;
+  /** Запрос с голосом — причины шлём после него (без 👎 на сервере PUT вернёт 409). */
+  private voteSent: Promise<unknown> = Promise.resolve();
 
   // --- Выпадашка причин 👎 ---
   /** Позиция открытой выпадашки (null — закрыта). top ИЛИ bottom — вниз/вверх от кнопки. */
@@ -215,7 +219,6 @@ export class Vote {
   readonly options = computed(() => this.catalog().filter((r) => r.key !== 'other'));
   readonly picked = signal<ReadonlySet<string>>(new Set());
   readonly note = signal('');
-  readonly sending = signal(false);
   readonly thanks = signal(false);
   /** Есть что отправить: причина из списка или текст (пустое «Другое» — не в счёт). */
   readonly canSend = computed(
@@ -235,33 +238,38 @@ export class Vote {
       if (key === this.loadedKey) return;
       this.loadedKey = key;
       this.vote.set(0);
+      this.touched = false;
       this.closeMenu();
       this.api.rating(this.targetType(), id, m).subscribe({
-        next: (r) => this.vote.set(r.vote),
+        next: (r) => {
+          if (!this.touched) this.vote.set(r.vote);
+        },
         error: () => {},
       });
     });
   }
 
+  // Оптимистично: сразу подсвечиваем кнопку (та же логика, что на бэке: повтор — снять,
+  // противоположный — переключить) и открываем причины, запрос — фоном. Упал — не страшно:
+  // после обновления страницы голос подтянется с сервера как есть.
   cast(v: 1 | -1): void {
-    this.closeMenu();
-    this.api
-      .rate({
-        targetType: this.targetType(),
-        targetId: this.targetId(),
-        model: this.model(),
-        vote: v,
-        planId: this.planId() || undefined,
-        dishId: this.dishId() || undefined,
-        conversationId: this.conversationId() || undefined,
-      })
-      .subscribe({
-        next: (r) => {
-          this.vote.set(r.vote);
-          if (r.vote === -1) this.openMenu();
-        },
-        error: () => {},
-      });
+    this.touched = true;
+    const next = this.vote() === v ? 0 : v;
+    this.vote.set(next);
+    if (next === -1) this.openMenu();
+    else this.closeMenu();
+    const req = this.api.rate({
+      targetType: this.targetType(),
+      targetId: this.targetId(),
+      model: this.model(),
+      vote: v,
+      planId: this.planId() || undefined,
+      dishId: this.dishId() || undefined,
+      conversationId: this.conversationId() || undefined,
+    });
+    this.voteSent = new Promise<void>((done) =>
+      req.subscribe({ complete: done, error: () => done() }),
+    );
   }
 
   private openMenu(): void {
@@ -323,22 +331,16 @@ export class Vote {
     const note = this.note().trim();
     // Пустое «Другое» без текста — не причина.
     const reasons = [...this.picked()].filter((k) => k !== 'other' || note);
-    this.sending.set(true);
-    this.api
-      .setRatingReasons({
-        targetType: this.targetType(),
-        targetId: this.targetId(),
-        model: this.model(),
-        reasons,
-        note,
-      })
-      .subscribe({
-        next: () => {
-          this.sending.set(false);
-          this.thanks.set(true);
-          setTimeout(() => this.closeMenu(), 900);
-        },
-        error: () => this.sending.set(false),
-      });
+    const body = {
+      targetType: this.targetType(),
+      targetId: this.targetId(),
+      model: this.model(),
+      reasons,
+      note,
+    };
+    // Тоже оптимистично: сразу «Спасибо», запрос — после того как дошёл сам 👎.
+    this.thanks.set(true);
+    setTimeout(() => this.closeMenu(), 900);
+    this.voteSent.then(() => this.api.setRatingReasons(body).subscribe({ error: () => {} }));
   }
 }
