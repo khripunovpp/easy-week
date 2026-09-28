@@ -65,6 +65,10 @@ _plans = Counter("easyweek_plans_total", "Созданные планы", ["sour
 _conversations = Counter("easyweek_conversations_total", "Начатые диалоги")
 # Оценки ответов моделей — из них в Grafana: 👍/👎 по моделям и типам ответов.
 _ratings = Counter("easyweek_ratings_total", "Оценки ответов", ["target_type", "model", "vote"])
+# Причины 👎 (ключи из services/rating_reasons) — топ жалоб по моделям.
+_rating_reasons = Counter(
+    "easyweek_rating_reasons_total", "Причины 👎", ["target_type", "model", "reason"]
+)
 
 
 def record_plan(source: str = "create") -> None:
@@ -76,6 +80,11 @@ def record_rating(target_type: str, model: str, vote: int) -> None:
     """vote: 1 (👍) | -1 (👎). model — ключ модели (пусто → 'unknown')."""
     label = "up" if vote > 0 else "down"
     _ratings.labels(target_type or "?", model or "unknown", label).inc()
+
+
+def record_rating_reasons(target_type: str, model: str, reasons: list[str]) -> None:
+    for r in reasons:
+        _rating_reasons.labels(target_type or "?", model or "unknown", r).inc()
 
 
 def record_conversation() -> None:

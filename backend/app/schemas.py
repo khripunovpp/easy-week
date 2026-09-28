@@ -136,6 +136,15 @@ class RatingOut(CamelModel):
     vote: int = 0
 
 
+class RatingReasonsBody(CamelModel):
+    # Причины к уже поставленному 👎 (ключи каталога) + свободный текст к «Другое».
+    target_type: str
+    target_id: str
+    model: str = ""
+    reasons: list[str] = []
+    note: str = ""
+
+
 class PlanSummary(CamelModel):
     id: str
     title: str

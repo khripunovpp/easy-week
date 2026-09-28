@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, shareReplay } from 'rxjs';
 import {
   ChatMessage,
   DiscussTarget,
@@ -102,6 +102,13 @@ export interface RatingBody {
   dishId?: string;
   conversationId?: string;
 }
+
+// Причина 👎 из каталога бэка (GET /api/ratings/reasons); key 'other' — «Другое» + текст.
+export interface RatingReason {
+  key: string;
+  label: string;
+}
+export type RatingReasonCatalog = Partial<Record<RatingTarget, RatingReason[]>>;
 
 export interface ChatStreamMeta {
   conversationId: string;
@@ -487,6 +494,24 @@ export class EasyWeekApi {
   // Оценка 👍/👎 ответа модели. vote: 1 | -1. Возврат — текущее состояние (1|-1|0).
   rate(body: RatingBody): Observable<{ vote: number }> {
     return this.http.post<{ vote: number }>(`${API_BASE}/ratings`, body);
+  }
+  // Каталог причин 👎 — один раз на сессию (кэш в shareReplay).
+  private reasons$?: Observable<RatingReasonCatalog>;
+  ratingReasons(): Observable<RatingReasonCatalog> {
+    this.reasons$ ??= this.http
+      .get<RatingReasonCatalog>(`${API_BASE}/ratings/reasons`)
+      .pipe(shareReplay({ bufferSize: 1, refCount: false }));
+    return this.reasons$;
+  }
+  // Причины к уже поставленному 👎.
+  setRatingReasons(body: {
+    targetType: RatingTarget;
+    targetId: string;
+    model: string;
+    reasons: string[];
+    note: string;
+  }): Observable<{ vote: number }> {
+    return this.http.put<{ vote: number }>(`${API_BASE}/ratings/reasons`, body);
   }
   rating(targetType: string, targetId: string, model: string): Observable<{ vote: number }> {
     return this.http.get<{ vote: number }>(`${API_BASE}/ratings`, {

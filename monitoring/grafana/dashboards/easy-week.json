@@ -513,7 +513,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 76
+        "y": 89
       },
       "datasource": {
         "type": "loki",
@@ -943,6 +943,94 @@
           "refId": "A",
           "expr": "100 * sum by (provider) (increase(easyweek_ai_tokens_total{kind=\"cache_hit\"}[1h])) / clamp_min(sum by (provider) (increase(easyweek_ai_tokens_total{kind=\"prompt\"}[1h])), 1)",
           "legendFormat": "{{provider}}"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Оценки 👍/👎",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 71
+      },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "bargauge",
+      "title": "Причины 👎 за 30 дней",
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 72
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sort_desc(sum by (target_type, reason) (increase(easyweek_rating_reasons_total[30d])) > 0)",
+          "legendFormat": "{{target_type}} · {{reason}}",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "type": "bargauge",
+      "title": "Оценки за 30 дней по модели",
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 72
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (model, vote) (increase(easyweek_ratings_total[30d])) > 0",
+          "legendFormat": "{{model}} · {{vote}}",
+          "instant": true
         }
       ]
     }

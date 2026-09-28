@@ -65,6 +65,8 @@ class RatingRow(SQLModel, table=True):
     target_id: str = Field(index=True)
     model: str = Field(default="", index=True)  # ключ модели (deepseek|gemini|anthropic|cloudflare)
     vote: int = 0  # 1 | -1
+    # Причины 👎 — ключи из services/rating_reasons через запятую; note — текст «Другое».
+    reasons: str = Field(default="")
     note: str = Field(default="")
     # Корреляция для анализа (nullable).
     plan_id: str | None = Field(default=None)
