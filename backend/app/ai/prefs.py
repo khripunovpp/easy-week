@@ -1,8 +1,9 @@
 """Пищевые предпочтения пользователя: аллергии, любимое/нелюбимое, БЖУ, заметка о питании.
 
 Одно глобальное хранилище (авторизации нет): JSON-файл рядом с БД.
-- авто-извлечение из сообщений чата бесплатной моделью Cloudflare (фоновая вспом. задача):
-  дописывает likes/dislikes, а подозрения на аллергию кладёт в suggested_allergies —
+- авто-извлечение из сообщений чата моделью задачи `prefs` из настроек (по умолчанию
+  Cloudflare; фоновая вспом. задача): дописывает likes/dislikes, а подозрения на аллергию
+  кладёт в suggested_allergies —
   сами аллергии экстрактор НИКОГДА не трогает (только ручная правка на /preferences);
 - инъекция в промпты генерации (см. prompt.py → as_hint);
 - просмотр/правка на экране /preferences (API в routers/chat.py).
@@ -20,7 +21,7 @@ import threading
 from pathlib import Path
 
 from ..config import settings
-from .gates import cloudflare
+from .gates import cloudflare, gate_for
 
 logger = logging.getLogger("easy_week.prefs")
 
@@ -265,10 +266,13 @@ def avoid_all() -> list[str]:
 
 
 async def extract_and_merge(message: str, context: str = "") -> None:
-    """Извлечь предпочтения из сообщения (Cloudflare, бесплатно) и слить в профиль.
+    """Извлечь предпочтения из сообщения моделью задачи `prefs` (настройки; по умолчанию
+    Cloudflare) и слить в профиль.
 
     context — фон для оценки «вкус или разовая правка плана» (напр. «Это правка плана» +
-    пара реплик). Извлечение идёт СТРОГО из message; из контекста ничего не берём."""
+    пара реплик). Извлечение идёт СТРОГО из message; из контекста ничего не берём.
+    Cloudflare — со строгой json_schema и mistral; остальные (OpenRouter/DeepSeek/Gemini) —
+    JSON-режим, форма ответа задана few-shot-примерами."""
     msg = (message or "").strip()
     if len(msg) < 3:
         return
@@ -282,13 +286,11 @@ async def extract_and_merge(message: str, context: str = "") -> None:
     else:
         final = msg
     messages.append({"role": "user", "content": final})
+    gate = gate_for("", "prefs")
+    cf_kw = {"schema": PREFS_SCHEMA, "model": settings.cf_model_judge} if gate is cloudflare else {}
     try:
-        parsed, _ = await cloudflare.complete_json(
-            messages,
-            schema=PREFS_SCHEMA,
-            model=settings.cf_model_judge,
-            max_tokens=200,
-            label="извлечение предпочтений",
+        parsed, _ = await gate.complete_json(
+            messages, **cf_kw, max_tokens=200, label="извлечение предпочтений",
         )
         d = parsed.get("dislikes") or []
         l = parsed.get("likes") or []

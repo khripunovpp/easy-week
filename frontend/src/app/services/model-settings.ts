@@ -1,33 +1,62 @@
-import { Injectable, inject, signal } from '@angular/core';
-import { AppSettings, EasyWeekApi, ModelDefaults, ModelTask } from './api';
+import { Injectable, computed, inject, signal } from '@angular/core';
+import { AppSettings, EasyWeekApi, ModelDefaults, ModelTask, TaskModels } from './api';
 import { ALL_MODELS, RecipeModel } from './preferences';
 
 // Кэш последних серверных настроек — чтобы дефолты были верными сразу при старте (до ответа
 // сервера) и офлайн. Источник правды — сервер (/api/settings), кэш только подсказка.
 const CACHE_KEY = 'ew.modelDefaults';
+const TASKS_KEY = 'ew.taskModels';
 // Старый единый выбор модели из профиля (до серверных настроек) — разово переносим на сервер.
 const LEGACY_KEY = 'ew.recipeModel';
 
-// Встроенные дефолты (как на бэке, пока настройки не сохранены): покупки — Cloudflare.
+// Встроенные дефолты (как на бэке, пока настройки не сохранены): покупки/предпочтения — Cloudflare.
 const BUILTIN: ModelDefaults = {
   chat: 'deepseek',
   recipe: 'deepseek',
   shopping: 'cloudflare',
   cooking: 'deepseek',
+  prefs: 'cloudflare',
+};
+
+// Карта «задача → модели» как на бэке (services/settings.TASK_MODELS) — пока сервер не ответил.
+// Cloudflare/OpenRouter (дешёвые) не годятся для развёрнутых рецептов и плана готовки.
+const FULL: RecipeModel[] = ['deepseek', 'gemini', 'anthropic'];
+const BUILTIN_TASKS: TaskModels = {
+  chat: [...FULL, 'cloudflare', 'openrouter'],
+  recipe: FULL,
+  shopping: [...FULL, 'cloudflare', 'openrouter'],
+  cooking: FULL,
+  prefs: ['cloudflare', 'openrouter', 'deepseek', 'gemini'],
 };
 
 function isModel(v: unknown): v is RecipeModel {
   return typeof v === 'string' && (ALL_MODELS as string[]).includes(v);
 }
 
+function pickTasks(raw: Partial<Record<ModelTask, unknown>> | null | undefined): TaskModels {
+  const out: TaskModels = { ...BUILTIN_TASKS };
+  if (!raw) return out;
+  for (const t of Object.keys(BUILTIN_TASKS) as ModelTask[]) {
+    const list = raw[t];
+    if (Array.isArray(list)) {
+      const models = list.filter(isModel);
+      if (models.length) out[t] = models;
+    }
+  }
+  return out;
+}
+
 // Модели по умолчанию для каждой задачи — общие для всех устройств семьи (хранятся на сервере).
 // Страницы (чат, рецепт, готовка, покупки) стартуют с этих значений, но могут выбрать другую
-// модель локально — это не меняет настройки.
+// модель локально — это не меняет настройки. Что вообще можно выбрать для задачи — карта
+// taskModels с сервера: выпадашки строятся по ней (modelsFor).
 @Injectable({ providedIn: 'root' })
 export class ModelSettings {
   private readonly api = inject(EasyWeekApi);
 
   readonly models = signal<ModelDefaults>(this.readCache());
+  // Карта «задача → допустимые модели» (сервер; кэш на старт/офлайн).
+  readonly taskModels = signal<TaskModels>(this.readTasks());
   // Конкретные модели за ключами (deepseek → deepseek-chat …) — для подписей в выпадашках.
   // Кэшируем, чтобы подписи были сразу при старте/офлайн.
   readonly names = signal<Record<string, string>>(this.readNames());
@@ -67,9 +96,24 @@ export class ModelSettings {
     this.api.putSettings(next).subscribe({ next: (s) => this.apply(s) });
   }
 
+  /** Модели, которые можно выбрать для задачи (порядок — как в выпадашке). */
+  modelsFor(task: ModelTask): RecipeModel[] {
+    return this.taskModels()[task] ?? BUILTIN_TASKS[task];
+  }
+
+  /** Реактивный вариант modelsFor — для шаблонов и computed. */
+  modelsForSignal(task: ModelTask) {
+    return computed(() => this.modelsFor(task));
+  }
+
   /** Конкретная модель за ключом («» — пока неизвестна). */
   modelId(key: string): string {
     return this.names()[key] ?? '';
+  }
+
+  /** Бесплатная ли модель: Cloudflare (свободные нейроны) или «:free»-модель OpenRouter. */
+  isFree(key: string): boolean {
+    return key === 'cloudflare' || this.modelId(key).endsWith(':free');
   }
 
   private readNames(): Record<string, string> {
@@ -87,6 +131,15 @@ export class ModelSettings {
         localStorage.setItem('ew.modelNames', JSON.stringify(s.modelNames));
       } catch {
         /* приватный режим — просто без кэша */
+      }
+    }
+    if (s.taskModels) {
+      const tasks = pickTasks(s.taskModels);
+      this.taskModels.set(tasks);
+      try {
+        localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
+      } catch {
+        /* не критично */
       }
     }
     const next = { ...BUILTIN };
@@ -109,7 +162,16 @@ export class ModelSettings {
       /* localStorage недоступен — мигрировать нечего */
     }
     if (!isModel(legacy)) return false;
-    const seeded: ModelDefaults = { chat: legacy, recipe: legacy, shopping: 'cloudflare', cooking: legacy };
+    // Старый выбор мог быть Cloudflare — на рецепты/готовку он не годится, берём встроенный.
+    const forTask = (t: ModelTask): RecipeModel =>
+      this.modelsFor(t).includes(legacy) ? legacy : BUILTIN[t];
+    const seeded: ModelDefaults = {
+      chat: forTask('chat'),
+      recipe: forTask('recipe'),
+      shopping: 'cloudflare',
+      cooking: forTask('cooking'),
+      prefs: 'cloudflare',
+    };
     this.models.set(seeded);
     this.api.putSettings(seeded).subscribe({
       next: (s) => {
@@ -133,6 +195,14 @@ export class ModelSettings {
       return out;
     } catch {
       return { ...BUILTIN };
+    }
+  }
+
+  private readTasks(): TaskModels {
+    try {
+      return pickTasks(JSON.parse(localStorage.getItem(TASKS_KEY) || 'null'));
+    } catch {
+      return { ...BUILTIN_TASKS };
     }
   }
 

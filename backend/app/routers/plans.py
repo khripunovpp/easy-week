@@ -263,7 +263,11 @@ async def _resolve_dish_detail(
 
     dish = dishes[idx]
     variants = variants_of(dish)
-    resolved = gate_for(req.recipe_model, "recipe").key  # реальный ключ (учёт дефолта рецептов)
+    explicit = (req.recipe_model or "").strip().lower()
+    # Реальный ключ: явная модель, если годится для рецептов (карта TASK_MODELS), иначе дефолт.
+    # Переключение на УЖЕ сгенерированный вариант карте не подчиняется — старые варианты
+    # (напр. Cloudflare) остаются открываемыми, просто новых такой моделью не делаем.
+    resolved = explicit if explicit in variants else gate_for(req.recipe_model, "recipe").key
 
     if action == "regenerate":
         try:
@@ -325,7 +329,14 @@ async def cooking_plan(
     не генерим. Параллельные одинаковые запросы склеиваются (single-flight)."""
     action = (req.action or "open").lower()
     set_ai_context(plan_id=plan_id, endpoint="cooking", action=action)
-    target = gate_for(req.recipe_model, "cooking").key  # пусто → дефолт плана готовки
+    explicit = (req.recipe_model or "").strip().lower()
+    # Явная модель, если годится для плана готовки (карта TASK_MODELS), иначе дефолт задачи.
+    # Уже собранный вариант (напр. старый Cloudflare) остаётся переключаемым — см. ниже.
+    row = _get_plan(session, plan_id)
+    if explicit in _cook_variants(row) and (row.cooking_plan or {}).get("sig") == cook_sig(row):
+        target = explicit
+    else:
+        target = gate_for(req.recipe_model, "cooking").key  # пусто → дефолт плана готовки
     key = (plan_id, "cooking", action, target)
     return await _single_flight(
         key, lambda: _resolve_cooking_plan(plan_id, req, action, target, session)

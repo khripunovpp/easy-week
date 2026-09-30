@@ -10,6 +10,7 @@
 """
 
 import asyncio
+import json
 import logging
 import time
 from abc import ABC, abstractmethod
@@ -36,6 +37,24 @@ class AIError(RuntimeError):
 class AINonRetryable(AIError):
     """Ошибка, которую бессмысленно ретраить тем же входом (гейт уже сделал свою
     корректирующую попытку, либо ответ обрезан по max_tokens) — базовый ретрай пропускаем."""
+
+
+def loads_lenient(text: str) -> dict:
+    """JSON из ответа модели без строгого JSON-режима: снимаем ```-ограждение и обрезаем до
+    внешнего объекта (проза до/после). Битый JSON → JSONDecodeError (ValueError) → ретрай в базе."""
+    t = text.strip()
+    if t.startswith("```"):
+        t = t.split("\n", 1)[1] if "\n" in t else t[3:]
+        if t.rstrip().endswith("```"):
+            t = t.rstrip()[:-3]
+        t = t.strip()
+    try:
+        return json.loads(t)
+    except json.JSONDecodeError:
+        i, j = t.find("{"), t.rfind("}")
+        if i != -1 and j > i:
+            return json.loads(t[i : j + 1])  # noqa: E203
+        raise
 
 
 class ModelGate(ABC):

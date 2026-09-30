@@ -3,7 +3,8 @@ import { Router, RouterLink } from '@angular/router';
 import { CookingPlan, CookingStep, EasyWeekApi, PlanSummary } from '../../services/api';
 import { Dish, WeekPlan } from '../../models/plan.model';
 import { ChatStore } from '../../services/chat-store';
-import { ALL_MODELS, MODEL_LABELS, RecipeModel } from '../../services/preferences';
+import { MODEL_LABELS, RecipeModel } from '../../services/preferences';
+import { ModelSettings } from '../../services/model-settings';
 import { CookingLoader } from '../../shared/cooking-loader';
 import { dishColorClass } from '../../shared/dish-color';
 import { ingTokens } from '../../shared/ingredient-match';
@@ -53,10 +54,12 @@ export class CookingPlanPage {
     () => !this.loading() && !this.empty() && !this.failed() && !!this.plan()?.steps?.length,
   );
 
+  private readonly modelSettings = inject(ModelSettings);
   // Модели, для которых варианта плана готовки ещё нет (для ⟳). Пусто → ⟳ прячем.
+  // Только годные для плана готовки (карта задач с сервера).
   readonly remainingModels = computed<RecipeModel[]>(() => {
     const have = new Set(this.plan()?.variantModels ?? []);
-    return ALL_MODELS.filter((m) => !have.has(m));
+    return this.modelSettings.modelsFor('cooking').filter((m) => !have.has(m));
   });
 
   // Шаги, сгруппированные по фазам (в порядке order); html — подсветка ингредиентов

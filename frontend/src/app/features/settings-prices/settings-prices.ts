@@ -21,7 +21,7 @@ export class SettingsPricesPage {
   readonly status = signal<'idle' | 'saving' | 'saved' | 'error'>('idle');
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
 
-  readonly models: RecipeModel[] = ['deepseek', 'gemini', 'anthropic', 'cloudflare'];
+  readonly models: RecipeModel[] = ['deepseek', 'gemini', 'anthropic', 'cloudflare', 'openrouter'];
   readonly fields: { key: PriceField; label: string }[] = [
     { key: 'input', label: 'Вход' },
     { key: 'cachedInput', label: 'Вход из кэша' },

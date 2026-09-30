@@ -15,7 +15,8 @@ from app.models import PlanRow
 from app.services import regenerate
 from app.services import settings as app_settings
 
-MODELS = {"chat": "gemini", "recipe": "anthropic", "shopping": "deepseek", "cooking": "cloudflare"}
+MODELS = {"chat": "gemini", "recipe": "anthropic", "shopping": "deepseek", "cooking": "deepseek",
+          "prefs": "openrouter"}
 
 
 @pytest.fixture(autouse=True)
@@ -34,6 +35,17 @@ def _client() -> TestClient:
 def test_model_keys_match_gates():
     # Literal в схеме и реестр гейтов не должны разъехаться.
     assert set(get_args(app_settings.ModelKey)) == set(gates.GATES)
+    # Карта задач покрывает все задачи и ссылается только на известные модели.
+    assert set(app_settings.TASK_MODELS) == set(app_settings.TASKS)
+    for task, keys in app_settings.TASK_MODELS.items():
+        assert keys and set(keys) <= set(gates.GATES), task
+    # Дешёвые модели не предлагаем для развёрнутых рецептов и плана готовки.
+    for task in ("recipe", "cooking"):
+        assert "cloudflare" not in app_settings.TASK_MODELS[task]
+        assert "openrouter" not in app_settings.TASK_MODELS[task]
+    # Встроенные дефолты сами подчиняются карте.
+    for task, key in app_settings.builtin_defaults().items():
+        assert app_settings.allowed(task, key), (task, key)
 
 
 def test_get_defaults_when_missing():
@@ -43,13 +55,17 @@ def test_get_defaults_when_missing():
     base = config.recipe_model_default
     # Покупки по умолчанию — Cloudflare (прежнее поведение), остальное — дефолт из .env.
     assert body["models"] == {"chat": base, "recipe": base, "shopping": "cloudflare",
-                              "cooking": base}
+                              "cooking": base, "prefs": "cloudflare"}
+    # Карта задач едет фронту — он строит по ней выпадашки.
+    assert body["taskModels"]["recipe"] == ["deepseek", "gemini", "anthropic"]
+    assert "openrouter" in body["taskModels"]["shopping"]
 
 
 def test_put_persists_atomically():
     with _client() as c:
         r = c.put("/api/settings", json={"models": MODELS})
-        assert r.status_code == 200 and r.json() == {"models": MODELS, "initialized": True}
+        assert r.status_code == 200
+        assert r.json()["models"] == MODELS and r.json()["initialized"] is True
         assert c.get("/api/settings").json()["models"] == MODELS
     f = app_settings._file()
     assert f.exists()
@@ -63,7 +79,21 @@ def test_put_rejects_unknown_model_and_missing_task():
         assert c.put("/api/settings", json={"models": bad}).status_code == 422
         partial = {k: v for k, v in MODELS.items() if k != "cooking"}
         assert c.put("/api/settings", json={"models": partial}).status_code == 422
+        # Модель известна, но не годится для задачи (карта): Cloudflare для рецептов → 422.
+        wrong = {**MODELS, "recipe": "cloudflare"}
+        r = c.put("/api/settings", json={"models": wrong})
+        assert r.status_code == 422 and "recipe" in r.json()["detail"]
     assert app_settings.is_initialized() is False  # ничего не записали
+
+
+def test_stored_disallowed_model_falls_back_to_builtin():
+    # settings.json, сохранённый до появления карты: Cloudflare на рецептах → встроенный дефолт.
+    f = app_settings._file()
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text('{"models": {"recipe": "cloudflare", "shopping": "openrouter"}}', encoding="utf-8")
+    models = app_settings.get_models()
+    assert models["recipe"] == app_settings.builtin_defaults()["recipe"]
+    assert models["shopping"] == "openrouter"  # а где годится — берём как есть
 
 
 def test_broken_file_falls_back_to_defaults():
@@ -81,6 +111,11 @@ def test_gate_for_resolves_by_task():
         assert gates.gate_for("nope", task).key == key
         assert gates.gate_for("deepseek", task).key == "deepseek"
     assert gates.resolve_key(None, "recipe") == "anthropic"
+    # Явная модель, не подходящая задаче (старый клиент / внутренний шаг) → дефолт задачи.
+    assert gates.resolve_key("cloudflare", "recipe") == "anthropic"
+    assert gates.resolve_key("openrouter", "cooking") == "deepseek"
+    assert gates.resolve_key("cloudflare", "chat") == "cloudflare"  # для плана годится
+    assert gates.gate_for("", "prefs").key == "openrouter"
 
 
 class FakeGate:

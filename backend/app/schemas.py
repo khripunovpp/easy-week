@@ -180,7 +180,7 @@ class ModelPrice(CamelModel):
 
 class PricesBody(CamelModel):
     # Цены по ключам моделей (deepseek/gemini/anthropic/cloudflare); неизвестные ключи — 422.
-    prices: dict[Literal["deepseek", "gemini", "anthropic", "cloudflare"], ModelPrice]
+    prices: dict[Literal["deepseek", "gemini", "anthropic", "cloudflare", "openrouter"], ModelPrice]
 
 
 class ShoppingItem(CamelModel):
@@ -219,8 +219,8 @@ class ChatRequest(CamelModel):
     add_dish: bool = False
     # Пол ассистента — влияет на род в прозе модели (f — женский, m — мужской).
     gender: str = "f"
-    # Модель рецептов, выбранная в чате/профиле: deepseek | gemini | cloudflare.
-    # Пусто → дефолт из настроек (recipe_model_default). Без фолбэков между моделями.
+    # Модель, выбранная в чате/профиле: deepseek | gemini | cloudflare | anthropic | openrouter.
+    # Пусто → дефолт задачи из настроек. Без фолбэков между моделями.
     recipe_model: str = ""
 
 
@@ -334,11 +334,14 @@ class DiscussResponse(CamelModel):
 class ModelDefaults(CamelModel):
     # Модель по умолчанию для каждой задачи. Ключи — как в реестре GATES (ai/gates.py);
     # неизвестный ключ → 422. chat — план/правки/обсуждение, recipe — рецепт блюда
-    # (и догенерация для PDF/покупок), shopping — нормализация покупок, cooking — план готовки.
+    # (и догенерация для PDF/покупок), shopping — нормализация покупок, cooking — план готовки,
+    # prefs — фоновое извлечение предпочтений из чата. Подходит ли модель задаче — проверяет
+    # роутер по карте services/settings.TASK_MODELS (не подходит → 422).
     chat: ModelKey
     recipe: ModelKey
     shopping: ModelKey
     cooking: ModelKey
+    prefs: ModelKey
 
 
 class SettingsBody(CamelModel):
@@ -354,3 +357,6 @@ class SettingsOut(CamelModel):
     # Конкретные модели за ключами (deepseek → deepseek-chat, gemini → алиас → реальная версия)
     # — для подписей в выпадашках моделей.
     model_names: dict[str, str] = {}
+    # Карта «задача → модели, которые можно выбрать» (services/settings.TASK_MODELS): фронт
+    # строит по ней выпадашки — неподходящие модели (напр. Cloudflare для рецептов) не предлагает.
+    task_models: dict[str, list[str]] = {}

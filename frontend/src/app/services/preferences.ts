@@ -2,16 +2,19 @@ import { Injectable, effect, signal } from '@angular/core';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type Gender = 'f' | 'm';
-export type RecipeModel = 'deepseek' | 'gemini' | 'cloudflare' | 'anthropic';
+export type RecipeModel = 'deepseek' | 'gemini' | 'cloudflare' | 'anthropic' | 'openrouter';
 
-// Модели рецептов: ключ → человекочитаемое имя (совпадает с provider плана на бэке).
+// Модели: ключ → человекочитаемое имя (совпадает с provider плана на бэке).
 export const MODEL_LABELS: Record<RecipeModel, string> = {
   deepseek: 'DeepSeek',
   gemini: 'Gemini',
   anthropic: 'Claude',
   cloudflare: 'Cloudflare',
+  openrouter: 'OpenRouter',
 };
-export const ALL_MODELS: RecipeModel[] = ['deepseek', 'gemini', 'anthropic', 'cloudflare'];
+// Все известные ключи. Что предлагать в выпадашке конкретной задачи — решает карта с сервера
+// (ModelSettings.modelsFor(task)): не всякая модель годится на всё.
+export const ALL_MODELS: RecipeModel[] = ['deepseek', 'gemini', 'anthropic', 'cloudflare', 'openrouter'];
 
 // Провайдер плана (человекочитаемый, из бэка: «DeepSeek»/«Claude»…) → ключ модели.
 // Пусто, если не распознан. Обратный маппинг к MODEL_LABELS.

@@ -7,7 +7,7 @@ from typing import Any
 import httpx
 
 from ..config import settings
-from .base import AIError, AINonRetryable, ModelGate
+from .base import AIError, AINonRetryable, ModelGate, loads_lenient
 from .observe import log_ai_call
 
 logger = logging.getLogger("easy_week.anthropic")
@@ -70,21 +70,7 @@ def _extract_text(body: dict) -> str:
     return "".join(b.get("text", "") for b in parts if isinstance(b, dict) and b.get("type") == "text")
 
 
-def _loads_lenient(text: str) -> dict:
-    """JSON из ответа Claude: снимаем ```-ограждение и обрезаем до внешнего объекта."""
-    t = text.strip()
-    if t.startswith("```"):
-        t = t.split("\n", 1)[1] if "\n" in t else t[3:]
-        if t.rstrip().endswith("```"):
-            t = t.rstrip()[:-3]
-        t = t.strip()
-    try:
-        return json.loads(t)
-    except json.JSONDecodeError:
-        i, j = t.find("{"), t.rfind("}")
-        if i != -1 and j > i:
-            return json.loads(t[i : j + 1])  # noqa: E203
-        raise
+_loads_lenient = loads_lenient  # общий парсер (ai/base.py); имя оставлено для тестов
 
 
 def _norm_usage(u: dict | None) -> dict[str, Any]:

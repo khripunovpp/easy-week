@@ -31,6 +31,8 @@ DEFAULT_PRICES: dict[str, dict[str, float]] = {
         "input": 0.351, "cached_input": 0.351, "cache_write": 0.351, "output": 0.555,
         "per_1k_neurons": 0.011,
     },
+    # OpenRouter: по умолчанию бесплатная модель («:free») — нули; при смене модели поправить.
+    "openrouter": {"input": 0.0, "cached_input": 0.0, "cache_write": 0.0, "output": 0.0},
 }
 PRICE_FIELDS = ("input", "cached_input", "cache_write", "output", "per_1k_neurons")
 

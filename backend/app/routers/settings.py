@@ -1,12 +1,14 @@
 """Общие настройки приложения (одни на все устройства семьи): модели по умолчанию по задачам.
 
-GET /api/settings  → {models: {chat, recipe, shopping, cooking}, initialized}
-PUT /api/settings  ← {models: {...}} — ключи моделей валидирует схема (Literal ключей GATES).
+GET /api/settings  → {models: {chat, recipe, shopping, cooking, prefs}, initialized,
+                      modelNames, taskModels}
+PUT /api/settings  ← {models: {...}} — ключи моделей валидирует схема (Literal ключей GATES),
+                      соответствие задаче — карта TASK_MODELS (не подходит → 422).
 GET/PUT /api/settings/prices — цены моделей для учёта затрат (USD за 1M токенов).
 Хранение — `services/settings.py` (settings.json рядом с БД, атомарная запись).
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from ..schemas import ModelDefaults, ModelPrice, PricesBody, SettingsBody, SettingsOut
 from ..services import prices
@@ -38,6 +40,7 @@ def _out() -> SettingsOut:
         models=ModelDefaults.model_validate(app_settings.get_models()),
         initialized=app_settings.is_initialized(),
         model_names=_model_names(),
+        task_models={t: list(m) for t, m in app_settings.TASK_MODELS.items()},
     )
 
 
@@ -48,7 +51,15 @@ async def get_settings() -> SettingsOut:
 
 @router.put("")
 async def put_settings(body: SettingsBody) -> SettingsOut:
-    app_settings.set_models(body.models.model_dump())
+    models = body.models.model_dump()
+    bad = [(t, m) for t, m in models.items() if not app_settings.allowed(t, m)]
+    if bad:
+        raise HTTPException(
+            status_code=422,
+            detail="Модель не подходит для задачи: "
+            + ", ".join(f"{t} → {m}" for t, m in bad),
+        )
+    app_settings.set_models(models)
     return _out()
 
 

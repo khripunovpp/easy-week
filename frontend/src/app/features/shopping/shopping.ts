@@ -4,7 +4,7 @@ import { Router } from '@angular/router';
 import { DishShopping, EasyWeekApi, PlanSummary, ShoppingGroup, ShoppingListItem } from '../../services/api';
 import { ChatStore } from '../../services/chat-store';
 import { ModelSettings } from '../../services/model-settings';
-import { ALL_MODELS, MODEL_LABELS, RecipeModel } from '../../services/preferences';
+import { MODEL_LABELS, RecipeModel } from '../../services/preferences';
 import { CookingLoader } from '../../shared/cooking-loader';
 import { PlanPicker } from '../../shared/plan-picker';
 import { formatGeneratedAt } from '../../shared/format';
@@ -69,7 +69,8 @@ export class Shopping {
   readonly shopModel = linkedSignal<RecipeModel>(() => this.modelSettings.models().shopping);
   readonly defaultShopModel = computed(() => this.modelSettings.models().shopping);
   readonly modelMenuOpen = signal(false);
-  readonly allModels = ALL_MODELS;
+  // Модели, годные для нормализации покупок (карта задач с сервера).
+  readonly allModels = this.modelSettings.modelsForSignal('shopping');
 
   // Отметки «куплено» — ОДНИ на оба режима: множество ключей продуктов (productKey).
   // Отметил лук в «Общем» — он отмечен и во всех блюдах в «По рецептам», и наоборот.

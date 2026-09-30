@@ -46,13 +46,16 @@ _errors = Counter("easyweek_ai_errors_total", "Ошибки AI-вызовов", 
 _cost = Counter("easyweek_ai_cost_usd_total", "Затраты на AI-вызовы, USD", ["provider", "model", "category"])
 
 # Метка провайдера в логах → ключ модели в таблице цен (без импорта gates — цикл импортов).
-_PROVIDER_KEY = {"deepseek": "deepseek", "claude": "anthropic", "gemini": "gemini", "cloudflare": "cloudflare"}
+_PROVIDER_KEY = {
+    "deepseek": "deepseek", "claude": "anthropic", "gemini": "gemini", "cloudflare": "cloudflare",
+    "openrouter": "openrouter",
+}
 
 
 def _norm_cache(usage: dict) -> dict:
     """Кэш у провайдеров называется по-разному — приводим к prompt_cache_hit_tokens.
-    DeepSeek/Claude/Gemini уже нормализованы в своих гейтах; Cloudflare (OpenAI-формат)
-    отдаёт prompt_tokens_details.cached_tokens."""
+    DeepSeek/Claude/Gemini уже нормализованы в своих гейтах; Cloudflare и OpenRouter
+    (OpenAI-формат) отдают prompt_tokens_details.cached_tokens."""
     u = dict(usage or {})
     if u.get("prompt_cache_hit_tokens") is None:
         cached = (u.get("prompt_tokens_details") or {}).get("cached_tokens")

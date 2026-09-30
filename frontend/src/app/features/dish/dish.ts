@@ -4,7 +4,8 @@ import { Router, RouterLink } from '@angular/router';
 import { Dish } from '../../models/plan.model';
 import { EasyWeekApi } from '../../services/api';
 import { ChatStore } from '../../services/chat-store';
-import { ALL_MODELS, MODEL_LABELS, RecipeModel } from '../../services/preferences';
+import { MODEL_LABELS, RecipeModel } from '../../services/preferences';
+import { ModelSettings } from '../../services/model-settings';
 import { CookingLoader } from '../../shared/cooking-loader';
 import { Vote } from '../../shared/vote';
 import { formatGeneratedAt } from '../../shared/format';
@@ -54,10 +55,13 @@ export class DishPage {
   private readonly opening = signal(false); // «💬 Обсудить»: ждём conversationId плана
   readonly busy = computed(() => this.regenerating() || this.opening());
 
+  private readonly modelSettings = inject(ModelSettings);
   // Модели, для которых варианта рецепта ещё нет — в выпадашке показываем со стрелкой ↓.
+  // Только годные для рецептов (карта задач): дешёвые Cloudflare/OpenRouter не предлагаем;
+  // уже сгенерированные ими старые варианты при этом остаются в списке (variantModels).
   readonly remainingModels = computed<RecipeModel[]>(() => {
     const have = new Set(this.dish()?.variantModels ?? []);
-    return ALL_MODELS.filter((m) => !have.has(m));
+    return this.modelSettings.modelsFor('recipe').filter((m) => !have.has(m));
   });
 
   constructor() {

@@ -5,7 +5,7 @@ import { DiscussRef } from '../../models/plan.model';
 import { EasyWeekApi, MessageSearchHit } from '../../services/api';
 import { ChatStore } from '../../services/chat-store';
 import { ModelSettings } from '../../services/model-settings';
-import { providerToModel, RecipeModel } from '../../services/preferences';
+import { MODEL_LABELS, RecipeModel, providerToModel } from '../../services/preferences';
 import { CookingLoader } from '../../shared/cooking-loader';
 import { dishColorClass } from '../../shared/dish-color';
 import { renderMarkdown } from '../../shared/markdown';
@@ -75,12 +75,8 @@ export class Chat {
   readonly menuOpen = signal(false);
   readonly modelMenuOpen = signal(false);
   readonly countOptions = [2, 3, 4, 5, 6, 7, 8];
-  readonly modelOptions: { value: RecipeModel; label: string }[] = [
-    { value: 'deepseek', label: 'DeepSeek' },
-    { value: 'gemini', label: 'Gemini' },
-    { value: 'anthropic', label: 'Claude' },
-    { value: 'cloudflare', label: 'Cloudflare' },
-  ];
+  // Модели, которые можно выбрать для чата/плана — по карте задач с сервера.
+  readonly modelOptions = this.modelSettings.modelsForSignal('chat');
 
   private readonly streamEl = viewChild<ElementRef<HTMLElement>>('stream');
   private readonly composerInput = viewChild<ElementRef<HTMLTextAreaElement>>('composerInput');
@@ -254,7 +250,7 @@ export class Chat {
   }
 
   modelLabel(value: RecipeModel): string {
-    return this.modelOptions.find((o) => o.value === value)?.label ?? value;
+    return MODEL_LABELS[value] ?? value;
   }
 
   toggleModelMenu(): void {

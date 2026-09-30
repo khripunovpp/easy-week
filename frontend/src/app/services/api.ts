@@ -192,13 +192,17 @@ export interface LimitsStatus {
 
 // Общие настройки (сервер, одни на все устройства): модели по умолчанию по задачам.
 // chat — план/правки/обсуждение, recipe — рецепт блюда, shopping — нормализация покупок,
-// cooking — план готовки. initialized=false — ещё ни разу не сохраняли (встроенные дефолты).
-export type ModelTask = 'chat' | 'recipe' | 'shopping' | 'cooking';
+// cooking — план готовки, prefs — фоновое извлечение предпочтений из чата.
+// initialized=false — ещё ни разу не сохраняли (встроенные дефолты).
+export type ModelTask = 'chat' | 'recipe' | 'shopping' | 'cooking' | 'prefs';
 export type ModelDefaults = Record<ModelTask, RecipeModel>;
+// Карта «задача → модели, которые можно выбрать» (бэк: services/settings.TASK_MODELS).
+export type TaskModels = Record<ModelTask, RecipeModel[]>;
 export interface AppSettings {
   models: ModelDefaults;
   initialized: boolean;
   modelNames?: Record<string, string>; // ключ → конкретная модель (для подписей в выпадашках)
+  taskModels?: Partial<Record<ModelTask, string[]>>;
 }
 
 export interface PlanSummary {

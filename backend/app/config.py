@@ -50,7 +50,20 @@ class Settings(BaseSettings):
     anthropic_daily_plans: int = 2
     anthropic_daily_recipes: int = 10
 
-    # Модель рецептов по умолчанию: deepseek | gemini | cloudflare | anthropic
+    # OpenRouter — один API ко многим моделям (в т.ч. бесплатным «:free»). Пробуем как замену
+    # Cloudflare на дешёвых задачах (покупки, извлечение предпочтений). Модель — любая чатовая
+    # с OpenRouter; nemotron-3-super:free даёт чистый JSON на русском при выключенном reasoning.
+    # NB: respan/span-01-lite:free — «decisions»-модель (скоринг), chat/completions не умеет.
+    # Бесплатные модели: ~20 запросов/мин и дневной лимит (50/день без купленных кредитов).
+    openrouter_api_key: str = ""
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_model: str = "nvidia/nemotron-3-super-120b-a12b:free"
+
+    @property
+    def openrouter_configured(self) -> bool:
+        return bool(self.openrouter_api_key)
+
+    # Модель рецептов по умолчанию: deepseek | gemini | cloudflare | anthropic | openrouter
     recipe_model_default: str = "deepseek"
 
     # База и сеть

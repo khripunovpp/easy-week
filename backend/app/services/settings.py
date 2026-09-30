@@ -7,9 +7,17 @@ JSON-файл `settings.json` рядом с БД (как `app_state.json` / пр
 - chat     — генерация плана, правки в чате, ответы в обсуждении;
 - recipe   — развёрнутый рецепт блюда (открыть/перегенерировать, догенерация для PDF/покупок);
 - shopping — нормализация списка покупок (по умолчанию Cloudflare — как было раньше);
-- cooking  — единый план готовки.
+- cooking  — единый план готовки;
+- prefs    — фоновое извлечение предпочтений из сообщений чата (по умолчанию Cloudflare).
 
-Здесь только чтение/запись дефолтов; выбор гейта по задаче — в `ai/gates.gate_for(model, task)`.
+Карта «задача → какие модели можно выбрать» — `TASK_MODELS`. Не всякая модель годится на всё:
+Cloudflare (mistral/llama через json_schema) плохо пишет развёрнутые рецепты и планы готовки —
+на этих задачах её не предлагаем; бесплатные модели OpenRouter — на пробу для «служебных»
+задач (покупки, предпочтения) и плана. Фронт получает карту через GET /api/settings и строит
+выпадашки по ней; PUT с неподходящей моделью → 422; `gates.resolve_key` неподходящую явную
+модель заменяет дефолтом задачи (с warning в лог) — это политика, а не фолбэк по сбою.
+
+Здесь только чтение/запись дефолтов и карта; выбор гейта — в `ai/gates.gate_for(model, task)`.
 Модуль не импортирует `ai/*` (иначе цикл импортов gates ↔ settings).
 """
 
@@ -25,12 +33,39 @@ from ..config import settings as config
 logger = logging.getLogger("easy_week.settings")
 
 # Ключи моделей = ключи реестра GATES (ai/gates.py). Совпадение проверяет тест.
-ModelKey = Literal["deepseek", "gemini", "anthropic", "cloudflare"]
+ModelKey = Literal["deepseek", "gemini", "anthropic", "cloudflare", "openrouter"]
 MODEL_KEYS: tuple[str, ...] = get_args(ModelKey)
 
 # Задачи, для которых в настройках задаётся модель по умолчанию.
-Task = Literal["chat", "recipe", "shopping", "cooking"]
+Task = Literal["chat", "recipe", "shopping", "cooking", "prefs"]
 TASKS: tuple[str, ...] = get_args(Task)
+
+# «Большие» модели — годятся на всё.
+_FULL: tuple[str, ...] = ("deepseek", "gemini", "anthropic")
+# Дешёвые/бесплатные — только там, где хватает короткого структурированного ответа.
+_CHEAP: tuple[str, ...] = ("cloudflare", "openrouter")
+
+# Карта: задача → модели, которые можно для неё выбрать (порядок = порядок в выпадашках).
+TASK_MODELS: dict[str, tuple[str, ...]] = {
+    # План: у Cloudflare свой пайплайн меню→спеки→валидатор; OpenRouter — одним запросом (проба).
+    "chat": _FULL + _CHEAP,
+    # Развёрнутый рецепт и план готовки — длинный связный JSON: дешёвые модели тут плохи.
+    "recipe": _FULL,
+    "cooking": _FULL,
+    # Нормализация покупок — короткий JSON по строгой форме: подходят все.
+    "shopping": _FULL + _CHEAP,
+    # Извлечение предпочтений — крошечный фоновый вызов на каждое сообщение: только дешёвые
+    # и DeepSeek/Gemini (Claude — дорогой и лимитированный, сюда не предлагаем).
+    "prefs": ("cloudflare", "openrouter", "deepseek", "gemini"),
+}
+
+# Дефолт задачи, если модель из .env (RECIPE_MODEL_DEFAULT) для неё не годится.
+_FALLBACK_FULL = "deepseek"
+
+
+def allowed(task: str, key: str) -> bool:
+    """Можно ли выбрать модель key для задачи task (неизвестная задача → как chat)."""
+    return key in TASK_MODELS.get(task, TASK_MODELS["chat"])
 
 
 def _file() -> Path:
@@ -39,9 +74,12 @@ def _file() -> Path:
 
 def builtin_defaults() -> dict[str, str]:
     """Дефолты, пока настройки не сохранены: рецептные задачи — модель из .env
-    (RECIPE_MODEL_DEFAULT), список покупок — Cloudflare (прежнее поведение)."""
-    base = config.recipe_model_default if config.recipe_model_default in MODEL_KEYS else "deepseek"
-    return {"chat": base, "recipe": base, "shopping": "cloudflare", "cooking": base}
+    (RECIPE_MODEL_DEFAULT, если она годится для задачи), покупки и предпочтения — Cloudflare."""
+    base = config.recipe_model_default if config.recipe_model_default in MODEL_KEYS else _FALLBACK_FULL
+    out = {"shopping": "cloudflare", "prefs": "cloudflare"}
+    for task in ("chat", "recipe", "cooking"):
+        out[task] = base if allowed(task, base) else _FALLBACK_FULL
+    return out
 
 
 def _read() -> dict | None:
@@ -62,13 +100,14 @@ def is_initialized() -> bool:
 
 
 def get_models() -> dict[str, str]:
-    """Модели по умолчанию для всех задач. Неизвестные/пустые значения → встроенный дефолт."""
+    """Модели по умолчанию для всех задач. Неизвестные/пустые/неподходящие задаче значения →
+    встроенный дефолт (напр. сохранённый раньше Cloudflare для рецептов)."""
     out = builtin_defaults()
     stored = (_read() or {}).get("models") or {}
     if isinstance(stored, dict):
         for task in TASKS:
             val = str(stored.get(task) or "").lower()
-            if val in MODEL_KEYS:
+            if val in MODEL_KEYS and allowed(task, val):
                 out[task] = val
     return out
 
@@ -80,8 +119,12 @@ def default_model(task: str) -> str:
 
 
 def set_models(models: dict[str, str]) -> dict[str, str]:
-    """Сохранить модели по умолчанию (атомарно). Возвращает итоговые значения."""
-    merged = {**get_models(), **{t: m for t, m in models.items() if t in TASKS and m in MODEL_KEYS}}
+    """Сохранить модели по умолчанию (атомарно). Пары «задача → неподходящая модель»
+    молча пропускаются (роутер валидирует их раньше и отдаёт 422). Возвращает итог."""
+    merged = {
+        **get_models(),
+        **{t: m for t, m in models.items() if t in TASKS and m in MODEL_KEYS and allowed(t, m)},
+    }
     data = {**(_read() or {}), "models": merged}
     f = _file()
     f.parent.mkdir(parents=True, exist_ok=True)

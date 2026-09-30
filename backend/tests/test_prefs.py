@@ -136,3 +136,41 @@ def test_variety_bans_allergens(monkeypatch):
     _fake(monkeypatch, allergies=["креветки"])
     assert "креветки" in prefs.avoid_all()
     assert planner._variety_hint([])  # не падает с аллергиями
+
+
+class _FakeGate:
+    provider = "Fake"
+    key = "fake"
+
+    def __init__(self, parsed):
+        self.parsed = parsed
+        self.kw = None
+
+    async def complete_json(self, messages, **kw):
+        self.kw = kw
+        return self.parsed, {}
+
+
+def test_extract_uses_prefs_task_model(pfile, monkeypatch):
+    """Экстрактор берёт модель задачи `prefs` из настроек; не-Cloudflare — без json_schema."""
+    import asyncio
+
+    gate = _FakeGate({"dislikes": ["кинза"], "likes": [], "allergies": []})
+    seen = []
+    monkeypatch.setattr(prefs, "gate_for", lambda m, task="chat": seen.append((m, task)) or gate)
+    asyncio.run(prefs.extract_and_merge("не люблю кинзу"))
+    assert seen == [("", "prefs")]
+    assert "schema" not in gate.kw and "model" not in gate.kw
+    assert prefs.load()["dislikes"] == ["кинза"]
+
+
+def test_extract_cloudflare_passes_schema(pfile, monkeypatch):
+    from app.config import settings as config
+
+    gate = _FakeGate({"dislikes": [], "likes": [], "allergies": []})
+    monkeypatch.setattr(prefs, "cloudflare", gate)
+    monkeypatch.setattr(prefs, "gate_for", lambda m, task="chat": gate)
+    import asyncio
+
+    asyncio.run(prefs.extract_and_merge("сделай 5 ужинов"))
+    assert gate.kw["schema"] is prefs.PREFS_SCHEMA and gate.kw["model"] == config.cf_model_judge

@@ -13,20 +13,30 @@
 - 🟣 **Gemini** — `gemini-flash-latest`
 - 🟤 **Claude** — Anthropic API
 - 🟠 **Cloudflare** — Workers AI (mistral / llama)
+- ⚪ **OpenRouter** — OpenAI-совместимый шлюз, модель из `OPENROUTER_MODEL` (по умолчанию бесплатная
+  `nvidia/nemotron-3-super-120b-a12b:free`) — проба дешёвых моделей на служебных задачах
+
+**Карта задач.** Не всякая модель годится на всё: `TASK_MODELS` (`services/settings.py`) говорит,
+какие модели можно выбрать для задачи (`chat` / `recipe` / `shopping` / `cooking` / `prefs`).
+Дешёвые Cloudflare/OpenRouter — только план, покупки и предпочтения; рецепт и план готовки — DeepSeek /
+Gemini / Claude. Карта едет фронту в `GET /api/settings` (`taskModels`) — выпадашки строятся по ней;
+`PUT` с неподходящей парой → 422; `resolve_key` неподходящую явную модель заменяет дефолтом задачи
+(warning в лог). Полная таблица — в [`CLAUDE.md`](../CLAUDE.md).
 
 ## 1. Выбор модели и роутинг
 
 Два уровня: **дефолт задачи** (сервер, общий для семьи) и **локальный выбор страницы**
 (чат — override на этот чат; рецепт/готовка — выпадашка вариантов; покупки — выпадашка для ↻).
 Локальный выбор настройки **не** меняет. `recipeModel` едет в теле запроса (как `gender`);
-пусто → бэк берёт дефолт задачи: `gate_for(model, task)` (`task` = chat | recipe | shopping | cooking).
+пусто → бэк берёт дефолт задачи: `gate_for(model, task)` (`task` = chat | recipe | shopping | cooking |
+prefs). Фоновое извлечение предпочтений (`ai/prefs.py`) — задача `prefs`, модель тоже из настроек.
 Миграция: если на сервере настроек ещё нет (`initialized: false`), фронт разово переносит старый
 `localStorage ew.recipeModel` на chat/recipe/cooking (покупки — Cloudflare).
 
 ```mermaid
 flowchart TD
   subgraph SRV["Сервер — модели по умолчанию"]
-    S["GET/PUT /api/settings<br/>data/settings.json · services/settings.py<br/>chat · recipe · shopping · cooking"]
+    S["GET/PUT /api/settings<br/>data/settings.json · services/settings.py<br/>chat · recipe · shopping · cooking · prefs<br/>+ карта TASK_MODELS"]
   end
   subgraph FE["Фронт — выбор модели"]
     MS["ModelSettings (services/model-settings.ts)<br/>экран «Модели по умолчанию» /settings/models"]
@@ -43,6 +53,7 @@ flowchart TD
   GF --> DS["DeepSeekGate<br/>stream ✓ · tools ✓"]
   GF --> GM["GeminiGate<br/>stream ✓ · tools ✗"]
   GF --> CF["CloudflareGate<br/>stream ✗ · tools ✗"]
+  GF --> OR["OpenRouterGate<br/>stream ✗ · tools ✗"]
 
   classDef ds fill:#dde7fc,stroke:#2f6bed,color:#12305f;
   classDef gm fill:#e7ddfb,stroke:#8b5cf6,color:#3a1f6b;
@@ -72,9 +83,11 @@ classDiagram
   ModelGate <|-- DeepSeekGate
   ModelGate <|-- GeminiGate
   ModelGate <|-- CloudflareGate
+  ModelGate <|-- OpenRouterGate
   class DeepSeekGate { OpenAI-совместимый · _request_json + stream_json + call_tools }
   class GeminiGate { REST · _request_json + stream_json · thinkingBudget=0 }
   class CloudflareGate { Workers AI json_schema · _request_json }
+  class OpenRouterGate { OpenAI-совместимый · json_object · reasoning off · loads_lenient }
 ```
 
 ## 3. Что делает каждая модель по задачам
@@ -82,6 +95,9 @@ classDiagram
 Каждую задачу делает её модель: выбранная на странице, иначе дефолт задачи из настроек
 (колонка «Задача» → ключ `task`). Недостающие рецепты для покупок / PDF / плана готовки
 догенерирует модель задачи `recipe`.
+
+Колонка Cloudflare описывает и ⚪ OpenRouter там, где он допущен картой задач (план, покупки,
+предпочтения): один JSON-запрос в JSON-режиме, форма ответа — в промпте, без стрима и tools.
 
 | Задача | 🔵 DeepSeek | 🟣 Gemini | 🟠 Cloudflare |
 |---|---|---|---|
@@ -180,11 +196,12 @@ backend/app/ai/
   gemini.py      # GeminiGate
   anthropic.py   # AnthropicGate (prefill + корректирующая попытка JSON)
   cloudflare.py  # CloudflareGate
+  openrouter.py  # OpenRouterGate (json_object + reasoning off, loads_lenient)
   planner.py     # роутинг по выбранной модели, без фолбэков; зерно разнообразия; одно блюдо
   prompt.py      # промпты (system стабильны, динамика — в user)
   observe.py     # log_ai_call (консоль + JSONL + Prometheus)
 backend/app/services/
-  settings.py    # модели по умолчанию по задачам (data/settings.json, атомарная запись)
+  settings.py    # модели по умолчанию по задачам + карта TASK_MODELS (data/settings.json)
   history.py     # «недавно ели или отвергли», отвергнутое в беседе, исходный запрос
   discussion.py  # реплики обсуждения цели: контекст перегенерации и мульти-тёрн
   regenerate.py  # (пере)генерация рецепта / плана готовки / покупок, бэкфилл деталей

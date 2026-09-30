@@ -2,7 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { EasyWeekApi, LimitsStatus, ModelTask } from '../../services/api';
 import { ModelSettings } from '../../services/model-settings';
-import { ALL_MODELS, MODEL_LABELS, RecipeModel } from '../../services/preferences';
+import { MODEL_LABELS, RecipeModel } from '../../services/preferences';
 import { ModelName } from '../../shared/model-name';
 
 // Экран «Модели по умолчанию» (/settings/models, под-экран профиля): модель для каждой задачи.
@@ -24,14 +24,14 @@ export class SettingsModelsPage {
   // Какая выпадашка открыта (одна за раз).
   readonly openTask = signal<ModelTask | null>(null);
 
-  readonly allModels = ALL_MODELS;
-
-  // Строки: задача → подпись и что в неё входит.
+  // Строки: задача → подпись и что в неё входит. Какие модели предлагать в каждой строке —
+  // карта с сервера (models.modelsFor(task)): дешёвые модели на рецептах/готовке не показываем.
   readonly taskRows: { task: ModelTask; label: string; hint: string }[] = [
     { task: 'chat', label: 'Чат и план', hint: 'план недели, правки, обсуждение' },
     { task: 'recipe', label: 'Рецепты', hint: 'рецепт блюда, догенерация для PDF' },
     { task: 'shopping', label: 'Список покупок', hint: 'сведение и чистка списка' },
     { task: 'cooking', label: 'План готовки', hint: 'порядок готовки всех блюд' },
+    { task: 'prefs', label: 'Предпочтения из чата', hint: 'фоновое извлечение вкусов из сообщений' },
   ];
 
   constructor() {
