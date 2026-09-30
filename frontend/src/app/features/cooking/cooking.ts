@@ -63,6 +63,11 @@ export class CookingPlanPage {
     return this.modelSettings.modelsFor('cooking').filter((m) => !have.has(m));
   });
 
+  // Тексты всех шагов по порядку — группа для прогрева озвучки (ew-tts-btn [group]).
+  readonly stepTexts = computed<string[]>(() =>
+    [...(this.plan()?.steps ?? [])].sort((a, b) => a.order - b.order).map((s) => s.text),
+  );
+
   // Шаги, сгруппированные по фазам (в порядке order); html — подсветка ингредиентов
   // (только для мульти-блюдных шагов; иначе null → рендерим чистый текст).
   readonly phases = computed<{ phase: string; steps: { s: CookingStep; html: string | null }[] }[]>(

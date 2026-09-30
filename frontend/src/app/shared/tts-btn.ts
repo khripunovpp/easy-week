@@ -4,6 +4,7 @@ import { TtsPlayer, ttsKey } from './tts-player';
 // Кнопка озвучки шага 🔊 (GUIDEBOOK → «Озвучка шага»): круглая 28px на --surface-sunk;
 // пока аудио грузится — пульсирует; играет — коралловая заливка и значок «стоп».
 // Состояние общее (TtsPlayer): играет только один шаг, тап по другому переключает.
+// [group] — все шаги рецепта/плана: первый тап греет остальные фоном (см. TtsPlayer.warm).
 @Component({
   selector: 'ew-tts-btn',
   template: `
@@ -15,7 +16,7 @@ import { TtsPlayer, ttsKey } from './tts-player';
       [attr.aria-label]="playing() ? 'Остановить озвучку' : 'Озвучить шаг'"
       [attr.aria-pressed]="playing() || loading()"
       [attr.title]="active() && player.error() ? player.error() : null"
-      (click)="player.toggle(text())">
+      (click)="player.toggle(text(), group())">
       @if (playing()) {
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <rect x="6" y="6" width="12" height="12" rx="2" />
@@ -76,6 +77,7 @@ import { TtsPlayer, ttsKey } from './tts-player';
 export class TtsBtn {
   readonly player = inject(TtsPlayer);
   readonly text = input.required<string>();
+  readonly group = input<readonly string[]>([]);
 
   readonly active = computed(() => this.player.current() === ttsKey(this.text()));
   readonly playing = computed(() => this.active() && this.player.state() === 'playing');

@@ -64,7 +64,9 @@
 `POST /audio/speech`, бесплатная `fish-audio/s2.1-pro-free:free` (русский, mp3; модель/голос —
 `OPENROUTER_TTS_MODEL` / `OPENROUTER_TTS_VOICE`). В настройки не выведено — провайдер один.
 Кэш `data/tts/<sha1(модель·голос|текст)>.mp3` (не бэкапим), параллельные запросы одного шага
-склеиваются, `Cache-Control: private, max-age=30d`. Фронт: `ew-tts-btn` (`shared/tts-btn.ts`) +
+склеиваются, `Cache-Control: private, max-age=30d`. **Прогрев:** первый тап в рецепте/плане готовки
+шлёт остальные шаги в `POST /api/tts/warm` (порядок — от нажатого по кругу), бэк генерит их фоном
+по 2 параллельно (`WARM_PARALLEL`) в тот же кэш — следующие тапы играют сразу. Фронт: `ew-tts-btn` (`shared/tts-btn.ts`) +
 общий плеер `TtsPlayer` — `audio.src` + `play()` синхронно в тапе (иначе iOS не играет), поэтому
 GET с текстом в query, а не POST. TTS-модели OpenRouter в общем каталоге `/models` не видны
 (`deepgram/flux-tts:free` — только английский, требует `voice=flux-*-en`).
