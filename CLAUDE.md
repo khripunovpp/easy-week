@@ -181,8 +181,9 @@ ssh pi5 'cd ~/easy-week && bash deploy/update.sh'
   (`npm ci && npm run build`) → `systemctl restart easy-week-backend` + `nginx reload`.
 - Локально в сети: `http://192.168.1.230:8080`. Логи: `ssh pi5 'journalctl -u easy-week-backend -f'`.
 - **HTTPS/офлайн PWA:** service worker не регистрируется по LAN-http → офлайн не работает. Решение —
-  **Tailscale Funnel** (`https://<pi>.<tailnet>.ts.net`, без домена), см. `deploy/README.md` шаг 6.
-  Устанавливать PWA нужно с ts.net-адреса (SW/кэш привязаны к origin).
+  **Tailscale Funnel**, поднят: `https://pashtitto.tail36c191.ts.net` → `127.0.0.1:8080`
+  (`tailscale funnel status`), см. `deploy/README.md` шаг 6. PWA установлена с этого адреса
+  (SW/кэш привязаны к origin).
 - Полное описание (первичная настройка, Tailscale/Cloudflare) — `deploy/README.md`.
 
 ## Прочее
