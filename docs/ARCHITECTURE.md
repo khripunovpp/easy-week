@@ -197,6 +197,7 @@ backend/app/ai/
   anthropic.py   # AnthropicGate (prefill + корректирующая попытка JSON)
   cloudflare.py  # CloudflareGate
   openrouter.py  # OpenRouterGate (json_object + reasoning off, loads_lenient)
+  tts.py         # озвучка шага: OpenRouter /audio/speech (Fish Audio, mp3), лог как у AI-вызовов
   planner.py     # роутинг по выбранной модели, без фолбэков; зерно разнообразия; одно блюдо
   prompt.py      # промпты (system стабильны, динамика — в user)
   observe.py     # log_ai_call (консоль + JSONL + Prometheus)
@@ -209,4 +210,5 @@ backend/app/services/
 backend/app/routers/
   settings.py    # GET/PUT /api/settings
   discuss.py     # POST /api/chat/discuss
+  tts.py         # GET /api/tts?text=… — mp3 с кэшем data/tts, single-flight по тексту
 ```

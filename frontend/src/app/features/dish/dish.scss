@@ -177,9 +177,15 @@
 }
 
 .step__text {
+  flex: 1;
+  min-width: 0;
   font-size: 15px;
   line-height: 1.45;
   padding-top: 2px;
+}
+/* Кнопка озвучки шага (ew-tts-btn) — справа, по верху строки */
+.step__tts {
+  align-self: flex-start;
 }
 
 /* Ингредиенты */

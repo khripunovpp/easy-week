@@ -60,6 +60,15 @@
 Провайдеры логируются с меткой: `AI → DeepSeek · …` / `AI → Gemini · …` / `AI → Cloudflare · …` /
 `AI → OpenRouter · …`.
 
+**Озвучка шагов (TTS)** — `ai/tts.py` + `GET /api/tts?text=…` (`routers/tts.py`): OpenRouter
+`POST /audio/speech`, бесплатная `fish-audio/s2.1-pro-free:free` (русский, mp3; модель/голос —
+`OPENROUTER_TTS_MODEL` / `OPENROUTER_TTS_VOICE`). В настройки не выведено — провайдер один.
+Кэш `data/tts/<sha1(модель·голос|текст)>.mp3` (не бэкапим), параллельные запросы одного шага
+склеиваются, `Cache-Control: private, max-age=30d`. Фронт: `ew-tts-btn` (`shared/tts-btn.ts`) +
+общий плеер `TtsPlayer` — `audio.src` + `play()` синхронно в тапе (иначе iOS не играет), поэтому
+GET с текстом в query, а не POST. TTS-модели OpenRouter в общем каталоге `/models` не видны
+(`deepgram/flux-tts:free` — только английский, требует `voice=flux-*-en`).
+
 ### Архитектура (гейты)
 Наглядная схема (потоки + классы + матрица задач) — [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 Каждый провайдер — подкласс `ModelGate` (`ai/base.py`): `complete_json` (шаблонный метод с

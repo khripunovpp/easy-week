@@ -13,10 +13,11 @@ import { PlanPicker } from '../../shared/plan-picker';
 import { Vote } from '../../shared/vote';
 import { formatGeneratedAt } from '../../shared/format';
 import { ModelName } from '../../shared/model-name';
+import { TtsBtn } from '../../shared/tts-btn';
 
 @Component({
   selector: 'ew-cooking-plan',
-  imports: [RouterLink, CookingLoader, PlanPicker, Vote, ModelName],
+  imports: [RouterLink, CookingLoader, PlanPicker, Vote, ModelName, TtsBtn],
   templateUrl: './cooking.html',
   styleUrl: './cooking.scss',
 })

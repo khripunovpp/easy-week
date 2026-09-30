@@ -157,6 +157,10 @@
   gap: 6px;
   margin-top: 7px;
 }
+/* Кнопка озвучки шага (ew-tts-btn) — справа, по верху строки */
+.ck-step__tts {
+  align-self: flex-start;
+}
 .ck-chip {
   font-size: 12px;
   font-weight: 600;

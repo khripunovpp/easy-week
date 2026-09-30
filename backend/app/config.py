@@ -63,6 +63,12 @@ class Settings(BaseSettings):
     def openrouter_configured(self) -> bool:
         return bool(self.openrouter_api_key)
 
+    # Озвучка шагов (ai/tts.py, GET /api/tts): OpenRouter /audio/speech, бесплатная Fish Audio
+    # (русский, mp3). Кэш аудио — data/tts. Голос: Fish не требует; Deepgram Flux — flux-*-en.
+    openrouter_tts_model: str = "fish-audio/s2.1-pro-free:free"
+    openrouter_tts_voice: str = ""
+    tts_max_chars: int = 1200  # длиннее шага не бывает; защита от злоупотребления
+
     # Модель рецептов по умолчанию: deepseek | gemini | cloudflare | anthropic | openrouter
     recipe_model_default: str = "deepseek"
 

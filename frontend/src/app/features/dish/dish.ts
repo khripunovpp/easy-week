@@ -10,10 +10,11 @@ import { CookingLoader } from '../../shared/cooking-loader';
 import { Vote } from '../../shared/vote';
 import { formatGeneratedAt } from '../../shared/format';
 import { ModelName } from '../../shared/model-name';
+import { TtsBtn } from '../../shared/tts-btn';
 
 @Component({
   selector: 'ew-dish',
-  imports: [RouterLink, CookingLoader, Vote, ModelName],
+  imports: [RouterLink, CookingLoader, Vote, ModelName, TtsBtn],
   templateUrl: './dish.html',
   styleUrl: './dish.scss',
 })
