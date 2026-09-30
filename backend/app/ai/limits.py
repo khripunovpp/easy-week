@@ -1,7 +1,8 @@
-"""Дневные лимиты генерации — защита от расхода на дорогих моделях.
+"""Дневные лимиты генерации — защита от расхода на дорогих моделях и чужих квот.
 
-Сейчас лимитируется только Claude (anthropic): план дорог, поэтому режем частоту.
-Остальные провайдеры (DeepSeek/Gemini/Cloudflare) — без лимитов.
+Claude (anthropic): план дорог, поэтому режем частоту. Озвучка шагов (TTS): свой лимит
+TTS_DAILY_LIMIT (по умолчанию 20 генераций в сутки) — бережёт общий дневной лимит бесплатных
+моделей OpenRouter. Остальные провайдеры (DeepSeek/Gemini/Cloudflare) — без лимитов.
 
 Счётчик персистентный: JSON-файл рядом с БД (переживает рестарты/деплой),
 сбрасывается по смене даты (локальной).
@@ -66,6 +67,41 @@ def status() -> dict:
         return {"used": used, "limit": limit, "remaining": max(0, limit - used)}
 
     return {"plans": one("plan"), "recipes": one("recipe")}
+
+
+# --- Озвучка шагов ---
+# Бронь до вызова модели + возврат при сбое: считаем только УДАВШИЕСЯ генерации, а два
+# параллельных синтеза (прогрев) не проскочат лимит (между чтением и записью файла нет await).
+
+
+def tts_status() -> dict:
+    """Расход дневного лимита озвучки: used/limit/remaining (limit 0 — без лимита)."""
+    limit = settings.tts_daily_limit
+    used = int(_read_today().get("tts", 0))
+    return {"used": used, "limit": limit, "remaining": max(0, limit - used) if limit > 0 else -1}
+
+
+def tts_reserve() -> bool:
+    """Забронировать одну генерацию озвучки. False — дневной лимит исчерпан."""
+    limit = settings.tts_daily_limit
+    if limit <= 0:
+        return True
+    data = _read_today()
+    used = int(data.get("tts", 0))
+    if used >= limit:
+        return False
+    data["tts"] = used + 1
+    _write(data)
+    return True
+
+
+def tts_refund() -> None:
+    """Вернуть бронь (синтез не удался — он не должен съедать лимит)."""
+    if settings.tts_daily_limit <= 0:
+        return
+    data = _read_today()
+    data["tts"] = max(0, int(data.get("tts", 0)) - 1)
+    _write(data)
 
 
 def enforce_daily(gate, kind: str) -> None:

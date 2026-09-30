@@ -16,6 +16,11 @@ from app.routers import tts as tts_router
 @pytest.fixture(autouse=True)
 def _clean(monkeypatch):
     monkeypatch.setattr(config, "app_password", "")
+    monkeypatch.setattr(tts_ai, "blocked_until", 0.0)
+    monkeypatch.setattr(tts_ai, "blocked_reason", "")
+    from app.ai import limits
+
+    limits._file().unlink(missing_ok=True)  # счётчики дневных лимитов — с нуля
     shutil.rmtree(tts_router.cache_dir(), ignore_errors=True)
     yield
     shutil.rmtree(tts_router.cache_dir(), ignore_errors=True)
@@ -132,3 +137,126 @@ def test_not_configured(monkeypatch):
     monkeypatch.setattr(config, "openrouter_api_key", "")
     with pytest.raises(AIError):
         asyncio.run(tts_ai.synthesize("шаг"))
+
+
+class _Resp429:
+    status_code = 429
+    content = b""
+    text = ""
+
+    def __init__(self, body, headers=None):
+        self._body = body
+        self.headers = {"content-type": "application/json", **(headers or {})}
+
+    def json(self):
+        return self._body
+
+
+def _client_returning(resp, calls):
+    class Client:
+        def __init__(self, *a, **kw):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def post(self, *a, **kw):
+            calls.append(1)
+            return resp
+
+    return Client
+
+
+DAILY = {"error": {"message": "Rate limit exceeded: free-models-per-day. Add 10 credits",
+                   "code": 429, "metadata": {"limit_source": "openrouter_free_tier_daily",
+                                             "headers": {"X-RateLimit-Reset": "4102444800000"}}}}
+
+
+def test_daily_limit_blocks_until_reset(monkeypatch):
+    monkeypatch.setattr(config, "openrouter_api_key", "k")
+    calls = []
+    monkeypatch.setattr(tts_ai.httpx, "AsyncClient", _client_returning(_Resp429(DAILY), calls))
+    with pytest.raises(tts_ai.TtsLimitError) as exc:
+        asyncio.run(tts_ai.synthesize("шаг"))
+    assert "50 запросов в сутки" in str(exc.value) and exc.value.until == 4102444800
+    # Дальше — без обращения к OpenRouter, пока не наступит сброс.
+    with pytest.raises(tts_ai.TtsLimitError):
+        asyncio.run(tts_ai.synthesize("другой шаг"))
+    assert len(calls) == 1
+    ok, reason, until = tts_ai.limit_status()
+    assert not ok and until == 4102444800 and "Снова заработает" in reason
+
+
+def test_busy_pool_blocks_briefly(monkeypatch):
+    monkeypatch.setattr(config, "openrouter_api_key", "k")
+    body = {"error": {"message": "Provider returned error", "code": 429,
+                      "metadata": {"limit_source": "upstream_provider_shared_pool"}}}
+    monkeypatch.setattr(tts_ai.httpx, "AsyncClient", _client_returning(_Resp429(body), []))
+    with pytest.raises(tts_ai.TtsLimitError) as exc:
+        asyncio.run(tts_ai.synthesize("шаг"))
+    assert "перегружен" in str(exc.value)
+    assert 0 < exc.value.until - __import__("time").time() <= tts_ai._BUSY_BLOCK_SEC
+
+
+def test_router_limit_is_429_with_detail_and_status(monkeypatch):
+    async def limited(text):
+        raise tts_ai.TtsLimitError("Бесплатная озвучка на сегодня закончилась", 4102444800)
+
+    monkeypatch.setattr(tts_router.tts_ai, "synthesize", limited)
+    with TestClient(app) as c:
+        assert c.get("/api/tts/status").json() == {"available": True, "detail": "", "resetAt": None}
+        r = c.get("/api/tts", params={"text": "шаг"})
+        assert r.status_code == 429 and "закончилась" in r.json()["detail"]
+        assert int(r.headers["retry-after"]) > 0
+        monkeypatch.setattr(tts_ai, "blocked_until", 4102444800.0)
+        monkeypatch.setattr(tts_ai, "blocked_reason", "лимит")
+        st = c.get("/api/tts/status").json()
+        assert st["available"] is False and st["detail"] == "лимит" and st["resetAt"].startswith("2100-")
+
+
+def test_own_daily_limit_counts_only_successful(monkeypatch):
+    from app.ai import limits
+
+    monkeypatch.setattr(config, "tts_daily_limit", 2)
+    monkeypatch.setattr(config, "openrouter_api_key", "k")
+    outcomes = iter([b"a", AIError("сбой"), b"b"])
+
+    async def fake_request(text):
+        r = next(outcomes)
+        if isinstance(r, Exception):
+            raise r
+        return r
+
+    monkeypatch.setattr(tts_ai, "_request", fake_request)
+    assert asyncio.run(tts_ai.synthesize("1")) == b"a"
+    with pytest.raises(AIError):
+        asyncio.run(tts_ai.synthesize("2"))  # сбой — лимит не тратится
+    assert limits.tts_status()["used"] == 1
+    assert asyncio.run(tts_ai.synthesize("3")) == b"b"
+    assert limits.tts_status() == {"used": 2, "limit": 2, "remaining": 0}
+    with pytest.raises(tts_ai.TtsLimitError) as exc:
+        asyncio.run(tts_ai.synthesize("4"))
+    assert "2 новых шагов в день" in str(exc.value)
+    ok, reason, until = tts_ai.limit_status()
+    assert not ok and until > __import__("time").time()
+
+
+def test_cached_step_plays_when_limit_reached(monkeypatch):
+    calls = []
+    monkeypatch.setattr(config, "tts_daily_limit", 1)
+    monkeypatch.setattr(tts_ai, "_request", lambda t: _ok(calls, t))
+    with TestClient(app) as c:
+        assert c.get("/api/tts", params={"text": "первый"}).status_code == 200
+        r = c.get("/api/tts", params={"text": "второй"})
+        assert r.status_code == 429 and "Лимит озвучки" in r.json()["detail"]
+        assert c.get("/api/tts", params={"text": "первый"}).status_code == 200  # из кэша
+        lim = c.get("/api/limits").json()["tts"]
+    assert calls == ["первый"] and lim == {"used": 1, "limit": 1, "remaining": 0}
+
+
+async def _ok(calls, text):
+    calls.append(text)
+    return b"mp3"

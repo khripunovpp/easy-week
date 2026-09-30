@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { EasyWeekApi } from '../services/api';
 
@@ -12,6 +13,11 @@ import { EasyWeekApi } from '../services/api';
 //
 // Режим: 'one' — играем один шаг; 'all' — по окончании включаем следующий шаг группы (готов —
 // сразу, нет — грузим). Выбор режима — на устройстве (localStorage), это удобство, не данные.
+//
+// Лимиты (дневной лимит озвучки на бэке, лимит бесплатных моделей OpenRouter): <audio> текста
+// ошибки не видит, поэтому при сбое спрашиваем GET /api/tts/status и показываем причину в
+// панели. Прогрев на 429 останавливается и до сброса лимита не запускается (уже озвученные
+// шаги при этом играют — они из кэша).
 export type TtsState = 'idle' | 'loading' | 'playing' | 'paused' | 'error';
 export type TtsMode = 'one' | 'all';
 
@@ -55,6 +61,7 @@ export class TtsPlayer {
   private readonly blobs = new Map<string, string>(); // ключ → blob URL
   private queue: string[] = [];
   private inflight = 0;
+  private limitedUntil = 0; // ms: лимит новых генераций — прогрев не запускаем
 
   /** Тап по кнопке шага: другой шаг — играть его; свой — пауза/продолжить/повтор. */
   toggle(text: string, group: readonly string[] = [], source = ''): void {
@@ -177,9 +184,7 @@ export class TtsPlayer {
       this.stop();
     });
     a.addEventListener('error', () => {
-      if (this.state() === 'loading' || this.state() === 'playing') {
-        this.fail('Не удалось озвучить — нажмите ▶, чтобы повторить');
-      }
+      if (this.state() === 'loading' || this.state() === 'playing') this.explainFailure();
     });
     this.audio = a;
     this.bindMediaSession();
@@ -192,9 +197,30 @@ export class TtsPlayer {
     this.state.set('error');
   }
 
+  /** Сбой загрузки аудио: причину (лимит) узнаём у бэка, иначе — общий текст. */
+  private explainFailure(): void {
+    const key = this.current();
+    const generic = 'Не удалось озвучить — нажмите ▶, чтобы повторить';
+    this.fail(generic);
+    this.api.ttsStatus().subscribe({
+      next: (st) => {
+        if (st.available || this.current() !== key) return;
+        this.noteLimit(st.resetAt);
+        this.fail(st.detail || generic);
+      },
+    });
+  }
+
+  private noteLimit(resetAt: string | null): void {
+    const t = resetAt ? Date.parse(resetAt) : NaN;
+    this.limitedUntil = Number.isFinite(t) ? t : Date.now() + 60_000;
+    this.queue = []; // прогрев бессмыслен до сброса лимита
+  }
+
   // ---- прогрев ----
 
   private warm(key: string, keys: readonly string[]): void {
+    if (Date.now() < this.limitedUntil) return; // лимит: новые шаги не греем
     const i = keys.indexOf(key);
     // От нажатого дальше по кругу: следующий шаг понадобится раньше всех.
     const order = i >= 0 ? [...keys.slice(i + 1), ...keys.slice(0, i)] : keys;
@@ -214,7 +240,15 @@ export class TtsPlayer {
       this.setIn(this.warming, k, true);
       this.api.ttsAudio(k).subscribe({
         next: (blob) => this.store(k, blob),
-        error: () => this.done(k), // не вышло — тап по шагу повторит обычным GET
+        error: (e: unknown) => {
+          // 429 — лимит: останавливаем прогрев до сброса (время — из /api/tts/status).
+          if (e instanceof HttpErrorResponse && e.status === 429) {
+            this.queue = [];
+            this.limitedUntil = Date.now() + 60_000;
+            this.api.ttsStatus().subscribe({ next: (st) => !st.available && this.noteLimit(st.resetAt) });
+          }
+          this.done(k); // прочие сбои — тап по шагу повторит обычным GET
+        },
         complete: () => this.done(k),
       });
     }

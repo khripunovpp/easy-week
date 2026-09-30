@@ -71,6 +71,10 @@ class Settings(BaseSettings):
     openrouter_tts_model: str = "fish-audio/s2.1-pro-free:free"
     openrouter_tts_voice: str = "alloy"
     tts_max_chars: int = 1200  # длиннее шага не бывает; защита от злоупотребления
+    # Свой дневной лимит генераций озвучки (реальных вызовов модели; кэш не считается), 0 — без
+    # лимита. Бережёт общий лимит бесплатных моделей OpenRouter (50/сутки на ВСЕ :free-модели —
+    # покупки и предпочтения тоже там). .env: TTS_DAILY_LIMIT.
+    tts_daily_limit: int = 20
 
     # Модель рецептов по умолчанию: deepseek | gemini | cloudflare | anthropic | openrouter
     recipe_model_default: str = "deepseek"

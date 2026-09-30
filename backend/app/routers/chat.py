@@ -50,8 +50,10 @@ SessionDep = Annotated[Session, Depends(get_session)]
 
 @router.get("/limits")
 async def get_limits() -> dict:
-    """Дневные лимиты генерации Claude за сегодня (used/limit/remaining)."""
-    return {"anthropic": limits_status()}
+    """Дневные лимиты за сегодня (used/limit/remaining): генерации Claude и озвучка шагов."""
+    from ..ai.limits import tts_status
+
+    return {"anthropic": limits_status(), "tts": tts_status()}
 
 
 @router.get("/preferences")

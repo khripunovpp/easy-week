@@ -1,4 +1,6 @@
-"""Озвучка шага: GET /api/tts?text=… → mp3 (OpenRouter Fish Audio, см. ai/tts.py).
+"""Озвучка шага: GET /api/tts?text=… → mp3 (OpenRouter Fish Audio, см. ai/tts.py);
+GET /api/tts/status → доступна ли озвучка (лимит бесплатных моделей) — фронт показывает причину,
+т.к. <audio> текст ошибки не видит. Лимит → 429 + Retry-After, прочий сбой → 502.
 
 Почему GET с текстом в query: кнопка 🔊 на фронте ставит `audio.src` и зовёт `play()` прямо в
 обработчике тапа — iOS разрешает воспроизведение только из жеста пользователя, а асинхронный
@@ -16,6 +18,8 @@ import hashlib
 import logging
 import os
 import tempfile
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated
 
@@ -94,6 +98,19 @@ async def speak(
     set_ai_context(endpoint="tts")
     try:
         f = await ensure_audio(clean)
+    except tts_ai.TtsLimitError as exc:
+        retry = max(1, int(exc.until - time.time()))
+        raise HTTPException(
+            status_code=429, detail=str(exc), headers={"Retry-After": str(retry)}
+        ) from exc
     except AIError as exc:
         raise HTTPException(status_code=502, detail=f"Не удалось озвучить: {exc}") from exc
     return FileResponse(f, media_type="audio/mpeg", headers=_CACHE_HEADERS)
+
+
+@router.get("/status")
+async def status() -> dict:
+    """{available, detail, resetAt} — лимит бесплатной озвучки (без обращения к OpenRouter)."""
+    ok, reason, until = tts_ai.limit_status()
+    reset = datetime.fromtimestamp(until, tz=timezone.utc).isoformat() if until else None
+    return {"available": ok, "detail": reason, "resetAt": reset}

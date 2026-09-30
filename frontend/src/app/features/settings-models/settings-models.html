@@ -59,6 +59,14 @@
           </div>
         }
 
+        @if (limits()?.tts; as t) {
+          @if (t.limit > 0) {
+            <p class="setting__hint setting__limit">
+              Озвучка шагов сегодня: <b>{{ t.used }}/{{ t.limit }}</b>
+              <span class="muted"> · уже озвученные не считаются · сброс в полночь</span>
+            </p>
+          }
+        }
         @if (usesClaude() && limits(); as l) {
           <p class="setting__hint setting__limit">
             Дневной лимит Claude: планы <b>{{ l.anthropic.plans.used }}/{{ l.anthropic.plans.limit }}</b>,

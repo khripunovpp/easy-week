@@ -191,6 +191,14 @@ export interface DailyLimit {
 }
 export interface LimitsStatus {
   anthropic: { plans: DailyLimit; recipes: DailyLimit };
+  tts?: DailyLimit; // озвучка шагов: новых генераций в сутки (limit 0 — без лимита)
+}
+
+// Доступна ли новая генерация озвучки (свой дневной лимит / лимит бесплатных моделей OpenRouter).
+export interface TtsStatus {
+  available: boolean;
+  detail: string;
+  resetAt: string | null;
 }
 
 // Общие настройки (сервер, одни на все устройства): модели по умолчанию по задачам.
@@ -394,6 +402,10 @@ export class EasyWeekApi {
   /** URL озвучки шага — для <audio src> (играть прямо из тапа, см. shared/tts-player). */
   ttsUrl(text: string): string {
     return `${API_BASE}/tts?text=${encodeURIComponent(text)}&r=${TTS_REV}`;
+  }
+  /** Почему озвучка недоступна (<audio> текст ошибки не видит) — лимиты, см. бэк routers/tts. */
+  ttsStatus(): Observable<TtsStatus> {
+    return this.http.get<TtsStatus>(`${API_BASE}/tts/status`);
   }
   /** Аудио шага блобом — фоновый прогрев остальных шагов рецепта (тот же GET, тот же кэш). */
   ttsAudio(text: string): Observable<Blob> {
