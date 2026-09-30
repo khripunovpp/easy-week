@@ -28,11 +28,12 @@
             <div class="msel">
               <button
                 type="button"
-                class="msel__btn"
+                class="msel__btn msel__btn--full"
                 [class.msel__btn--open]="openTask() === t.task"
-                [attr.aria-label]="'Модель: ' + t.label"
+                [attr.aria-label]="'Модель: ' + t.label + ', ' + modelLabel(models.models()[t.task])"
                 (click)="toggleTask(t.task)">
-                <span class="msel__name">{{ modelLabel(models.models()[t.task]) }}</span>
+                <!-- как в пункте выпадашки: провайдер + конкретная модель мелко под ним -->
+                <span class="msel__name msel__name--full"><ew-model-name [model]="models.models()[t.task]" /></span>
                 <svg class="msel__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>

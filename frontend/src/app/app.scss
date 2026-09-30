@@ -17,7 +17,12 @@
   display: flex;
   flex-direction: column;
   /* оставляем место под фиксированный таб-бар */
-  padding-bottom: calc(76px + var(--safe-bottom));
+  padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom));
+}
+
+/* Играет озвучка — страница (вместе с её фикс-футером) поднимается над панелью плеера */
+.app__main--player {
+  padding-bottom: calc(var(--tabbar-h) + var(--tts-panel-h) + 8px + var(--safe-bottom));
 }
 
 /* Экран без таб-бара (вход) — место под него не держим */

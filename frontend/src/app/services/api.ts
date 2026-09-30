@@ -50,6 +50,9 @@ import { AuthService } from './auth';
 // Относительный путь: в проде nginx проксирует /api → бэкенд;
 // в деве — dev-прокси Angular (proxy.conf.json) на localhost:8000.
 const API_BASE = '/api';
+// Ревизия URL озвучки: старые ответы /api/tts браузер держал 30 дней (max-age) и со случайными
+// голосами — меняем URL один раз. Дальше бэк отдаёт no-cache + ETag, смену голоса видно сразу.
+const TTS_REV = '2';
 
 export interface ChatResponse {
   conversationId: string;
@@ -371,11 +374,11 @@ export class EasyWeekApi {
 
   /** URL озвучки шага — для <audio src> (играть прямо из тапа, см. shared/tts-player). */
   ttsUrl(text: string): string {
-    return `${API_BASE}/tts?text=${encodeURIComponent(text)}`;
+    return `${API_BASE}/tts?text=${encodeURIComponent(text)}&r=${TTS_REV}`;
   }
   /** Аудио шага блобом — фоновый прогрев остальных шагов рецепта (тот же GET, тот же кэш). */
   ttsAudio(text: string): Observable<Blob> {
-    return this.http.get(`${API_BASE}/tts`, { params: { text }, responseType: 'blob' });
+    return this.http.get(`${API_BASE}/tts`, { params: { text, r: TTS_REV }, responseType: 'blob' });
   }
 
   getPreferences(): Observable<FoodPreferences> {

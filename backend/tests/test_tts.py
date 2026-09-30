@@ -35,7 +35,8 @@ def test_speak_caches_and_normalizes_text(monkeypatch):
     with TestClient(app) as c:
         r = c.get("/api/tts", params={"text": "Нарежьте  лук\n полукольцами"})
         assert r.status_code == 200 and r.headers["content-type"].startswith("audio/mpeg")
-        assert r.content == b"ID3fake" and "max-age" in r.headers["cache-control"]
+        assert r.content == b"ID3fake" and "no-cache" in r.headers["cache-control"]
+        assert r.headers.get("etag")  # ревалидация: смена голоса → новый файл → новый ETag
         # Тот же текст с другими пробелами — из кэша, без второго вызова модели.
         assert c.get("/api/tts", params={"text": "Нарежьте лук полукольцами"}).status_code == 200
     assert calls == ["Нарежьте лук полукольцами"]
@@ -109,8 +110,12 @@ def test_synthesize_payload_and_errors(monkeypatch):
     monkeypatch.setattr(tts_ai.httpx, "AsyncClient", Client)
     assert asyncio.run(tts_ai.synthesize("шаг")) == b"ID3audio"
     assert seen["url"].endswith("/audio/speech")
-    assert seen["json"] == {"model": config.openrouter_tts_model, "input": "шаг", "response_format": "mp3"}
-    # Голос передаём только если задан (Deepgram Flux требует, Fish — нет).
+    # Голос по умолчанию — alloy: без него Fish берёт случайного диктора на каждый шаг.
+    assert seen["json"] == {"model": config.openrouter_tts_model, "input": "шаг",
+                            "response_format": "mp3", "voice": "alloy"}
+    monkeypatch.setattr(config, "openrouter_tts_voice", "")
+    asyncio.run(tts_ai.synthesize("шаг"))
+    assert "voice" not in seen["json"]  # пустой — не шлём
     monkeypatch.setattr(config, "openrouter_tts_voice", "flux-alexis-en")
     asyncio.run(tts_ai.synthesize("шаг"))
     assert seen["json"]["voice"] == "flux-alexis-en"

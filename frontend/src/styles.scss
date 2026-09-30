@@ -90,6 +90,8 @@
 
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --tabbar-h: 76px; /* высота таб-бара без safe-area (app.scss) */
+  --tts-panel-h: 72px; /* высота нижней панели озвучки (ew-tts-panel), без зазора 8px */
 }
 
 /* --- Тёмная тема: тёплая тёмная палитра, коралловый акцент сохраняем.
@@ -352,7 +354,9 @@ ul {
 }
 /* Триггер в строке — на «утопленной» пилюле (лежит внутри белой карточки) */
 .setting__row .msel {
-  flex-shrink: 0;
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 58%; /* длинное имя модели не сжимает подпись задачи слева */
 }
 .setting__row .msel__btn {
   background: var(--surface-sunk);
@@ -494,6 +498,18 @@ ul {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* Триггер с конкретной моделью под провайдером (ew-model-name, строки настроек): две строки,
+   длинный id переносится; скругление мягче пилюли, чтобы двухстрочная кнопка не была «таблеткой» */
+.msel__btn--full {
+  border-radius: 14px;
+  padding: 6px 10px 6px 12px;
+  text-align: left;
+}
+.msel__name--full {
+  min-width: 0;
+  white-space: normal;
+  overflow: visible;
 }
 .msel__chev {
   flex-shrink: 0;

@@ -31,7 +31,9 @@ router = APIRouter(prefix="/api/tts", tags=["tts"])
 logger = logging.getLogger("easy_week.tts")
 
 _locks: dict[str, asyncio.Lock] = {}
-_CACHE_HEADERS = {"Cache-Control": "private, max-age=2592000"}  # URL детерминирован по тексту
+# Ревалидация по ETag, а не max-age: URL — только текст, а голос/модель меняются в .env —
+# со сменой голоса другой файл → другой ETag → браузер сразу получит новое аудио (иначе 304).
+_CACHE_HEADERS = {"Cache-Control": "private, no-cache"}
 
 
 def cache_dir() -> Path:

@@ -1,7 +1,11 @@
 <div class="app">
-  <main class="app__main" [class.app__main--bare]="isLogin()">
+  <main class="app__main" [class.app__main--bare]="isLogin()" [class.app__main--player]="playerOn()">
     <router-outlet />
   </main>
+
+  @if (playerOn()) {
+    <ew-tts-panel />
+  }
 
   @if (!isLogin()) {
     <nav class="tabbar" aria-label="Основная навигация">

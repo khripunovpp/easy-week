@@ -4,10 +4,12 @@ import { NavigationEnd, Router, RouterOutlet, RouterLink, RouterLinkActive } fro
 import { filter, map } from 'rxjs';
 import { Preferences } from './services/preferences';
 import { PwaUpdate } from './services/pwa-update';
+import { TtsPanel } from './shared/tts-panel';
+import { TtsPlayer } from './shared/tts-player';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, TtsPanel],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
@@ -28,6 +30,9 @@ export class App {
   );
   // На экране входа таб-бар скрыт: вкладки всё равно увели бы обратно на /login.
   readonly isLogin = computed(() => this.url().startsWith('/login'));
+  // Нижняя панель озвучки шага — пока есть текущий шаг (не на экране входа).
+  private readonly tts = inject(TtsPlayer);
+  readonly playerOn = computed(() => this.tts.visible() && !this.isLogin());
   // Вкладка «Профиль» подсвечена и на его под-экранах (модели по умолчанию, предпочтения).
   readonly profileActive = computed(() =>
     ['/profile', '/settings', '/preferences'].some((p) => this.url().startsWith(p)),

@@ -64,9 +64,12 @@ class Settings(BaseSettings):
         return bool(self.openrouter_api_key)
 
     # Озвучка шагов (ai/tts.py, GET /api/tts): OpenRouter /audio/speech, бесплатная Fish Audio
-    # (русский, mp3). Кэш аудио — data/tts. Голос: Fish не требует; Deepgram Flux — flux-*-en.
+    # (русский, mp3). Кэш аудио — data/tts. Голос ОБЯЗАТЕЛЕН: без voice Fish каждый раз берёт
+    # случайного диктора (замер F0: 308/239/118 Гц на трёх прогонах). Из OpenAI-имён Fish через
+    # OpenRouter принимает только «alloy» — стабильный мужской голос (~100 Гц). Deepgram Flux —
+    # flux-*-en (только английский).
     openrouter_tts_model: str = "fish-audio/s2.1-pro-free:free"
-    openrouter_tts_voice: str = ""
+    openrouter_tts_voice: str = "alloy"
     tts_max_chars: int = 1200  # длиннее шага не бывает; защита от злоупотребления
 
     # Модель рецептов по умолчанию: deepseek | gemini | cloudflare | anthropic | openrouter

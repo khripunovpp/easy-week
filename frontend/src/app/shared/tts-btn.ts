@@ -1,11 +1,13 @@
 import { Component, computed, inject, input } from '@angular/core';
 import { TtsPlayer, ttsKey } from './tts-player';
+import { formatClock } from './tts-panel';
 
-// Кнопка озвучки шага 🔊 (GUIDEBOOK → «Озвучка шага»): круглая 28px на --surface-sunk.
-// Состояния: грузится (свой шаг или качается фоном в прогреве) — пульсирует; играет —
-// коралловая заливка, значок «стоп», по краю белое кольцо прогресса (пройдено), под кнопкой
-// остаток времени. Состояние общее (TtsPlayer): играет один шаг, тап по другому переключает.
-// [group] — все шаги рецепта/плана: первый тап греет остальные фоном (см. TtsPlayer.warm).
+// Кнопка озвучки шага 🔊 (GUIDEBOOK → «Озвучка шага»), круглая 28px. Состояния:
+// не загружен — серая (--surface-sunk); грузится (свой шаг или прогрев) — пульс;
+// готов — оранжевая подложка (--accent-soft, иконка --accent); играет — сплошная --accent,
+// значок «пауза», белое кольцо прогресса и остаток времени под кнопкой; на паузе — подложка
+// --accent-soft, кольцо --accent, значок «плей». Управление дублирует нижняя панель (ew-tts-panel).
+// [group] — все шаги экрана (прогрев и «Подряд»), [source] — подпись в панели (блюдо / план).
 const R = 12; // радиус кольца в viewBox 28×28 (внутри края кнопки)
 const CIRC = 2 * Math.PI * R;
 
@@ -15,13 +17,14 @@ const CIRC = 2 * Math.PI * R;
     <button
       type="button"
       class="tts"
+      [class.tts--ready]="ready()"
       [class.tts--on]="playing()"
+      [class.tts--paused]="paused()"
       [class.tts--busy]="loading() || warming()"
-      [attr.aria-label]="playing() ? 'Остановить озвучку' : 'Озвучить шаг'"
-      [attr.aria-pressed]="playing() || loading()"
-      [attr.title]="active() && player.error() ? player.error() : null"
-      (click)="player.toggle(text(), group())">
-      @if (playing()) {
+      [attr.aria-label]="playing() ? 'Пауза' : paused() ? 'Продолжить' : 'Озвучить шаг'"
+      [attr.aria-pressed]="playing() || paused()"
+      (click)="player.toggle(text(), group(), source())">
+      @if (playing() || paused()) {
         <svg class="tts__ring" viewBox="0 0 28 28" aria-hidden="true">
           <circle class="tts__ring-track" cx="14" cy="14" [attr.r]="r" />
           <circle
@@ -32,8 +35,15 @@ const CIRC = 2 * Math.PI * R;
             [attr.stroke-dasharray]="circ"
             [attr.stroke-dashoffset]="dashOffset()" />
         </svg>
+      }
+      @if (playing()) {
         <svg class="tts__ic" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <rect x="7" y="7" width="10" height="10" rx="2" />
+          <rect x="7.5" y="6.5" width="3" height="11" rx="1" />
+          <rect x="13.5" y="6.5" width="3" height="11" rx="1" />
+        </svg>
+      } @else if (paused()) {
+        <svg class="tts__ic" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M9 7.2v9.6a.8.8 0 0 0 1.2.7l7.6-4.8a.8.8 0 0 0 0-1.4l-7.6-4.8a.8.8 0 0 0-1.2.7z" />
         </svg>
       } @else {
         <svg class="tts__ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
@@ -42,8 +52,8 @@ const CIRC = 2 * Math.PI * R;
         </svg>
       }
     </button>
-    @if (playing() && remainingLabel()) {
-      <span class="tts__time" aria-live="off">−{{ remainingLabel() }}</span>
+    @if ((playing() || paused()) && remainingLabel()) {
+      <span class="tts__time" aria-hidden="true">−{{ remainingLabel() }}</span>
     }
   `,
   styles: `
@@ -69,6 +79,11 @@ const CIRC = 2 * Math.PI * R;
     .tts:active {
       transform: scale(0.92);
     }
+    .tts--ready,
+    .tts--paused {
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
     .tts--on {
       background: var(--accent);
       color: #fff;
@@ -80,7 +95,7 @@ const CIRC = 2 * Math.PI * R;
       width: 16px;
       height: 16px;
     }
-    /* Кольцо прогресса — по краю кнопки, растёт от 12 часов по часовой */
+    /* Кольцо прогресса — по краю кнопки, от 12 часов по часовой; цвет — currentColor */
     .tts__ring {
       position: absolute;
       inset: 0;
@@ -91,13 +106,13 @@ const CIRC = 2 * Math.PI * R;
     }
     .tts__ring circle {
       fill: none;
+      stroke: currentColor;
       stroke-width: 2;
     }
     .tts__ring-track {
-      stroke: rgba(255, 255, 255, 0.35);
+      opacity: 0.3;
     }
     .tts__ring-fill {
-      stroke: #fff;
       stroke-linecap: round;
       transition: stroke-dashoffset 0.25s linear;
     }
@@ -135,6 +150,7 @@ export class TtsBtn {
   readonly player = inject(TtsPlayer);
   readonly text = input.required<string>();
   readonly group = input<readonly string[]>([]);
+  readonly source = input('');
 
   readonly r = R;
   readonly circ = CIRC;
@@ -142,15 +158,14 @@ export class TtsBtn {
   private readonly key = computed(() => ttsKey(this.text()));
   readonly active = computed(() => this.player.current() === this.key());
   readonly playing = computed(() => this.active() && this.player.state() === 'playing');
+  readonly paused = computed(() => this.active() && this.player.state() === 'paused');
   readonly loading = computed(() => this.active() && this.player.state() === 'loading');
   // Шаг качается фоном (прогрев) — кнопка пульсирует, как при своей загрузке.
   readonly warming = computed(() => !this.active() && this.player.warming().has(this.key()));
+  readonly ready = computed(
+    () => !this.playing() && !this.loading() && this.player.readyKeys().has(this.key()),
+  );
 
-  readonly dashOffset = computed(() => CIRC * (1 - (this.playing() ? this.player.progress() : 0)));
-  readonly remainingLabel = computed(() => {
-    const s = this.player.remaining();
-    if (!Number.isFinite(s)) return '';
-    const total = Math.ceil(s);
-    return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
-  });
+  readonly dashOffset = computed(() => CIRC * (1 - this.player.progress()));
+  readonly remainingLabel = computed(() => formatClock(this.player.remaining()));
 }
