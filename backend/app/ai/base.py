@@ -10,6 +10,7 @@
 """
 
 import asyncio
+import copy
 import json
 import logging
 import time
@@ -65,6 +66,17 @@ class ModelGate(ABC):
     provider: str = ""
     supports_stream: bool = False
     supports_tools: bool = False
+    # Конкретная модель, выбранная в настройках (with_model); None — модель провайдера из .env.
+    _model_override: str | None = None
+
+    def with_model(self, model_id: str | None) -> "ModelGate":
+        """Тот же гейт с другой моделью по умолчанию (выбор в настройках: «провайдер:id»).
+        Копия — модульный синглтон не трогаем; все вызовы берут `model or self.default_model`."""
+        if not model_id or model_id == self.default_model:
+            return self
+        clone = copy.copy(self)
+        clone._model_override = model_id
+        return clone
 
     @property
     @abstractmethod

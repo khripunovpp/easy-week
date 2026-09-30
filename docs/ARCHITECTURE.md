@@ -210,6 +210,7 @@ backend/app/ai/
   observe.py     # log_ai_call (консоль + JSONL + Prometheus)
 backend/app/services/
   settings.py    # модели по умолчанию по задачам + карта TASK_MODELS (data/settings.json)
+  model_catalog.py # каталог конкретных моделей провайдеров, ссылки «провайдер[:id]»
   history.py     # «недавно ели или отвергли», отвергнутое в беседе, исходный запрос
   discussion.py  # реплики обсуждения цели: контекст перегенерации и мульти-тёрн
   regenerate.py  # (пере)генерация рецепта / плана готовки / покупок, бэкфилл деталей

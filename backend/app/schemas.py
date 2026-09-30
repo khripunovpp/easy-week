@@ -4,7 +4,6 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from pydantic.alias_generators import to_camel
 
-from .services.settings import ModelKey
 
 
 class CamelModel(BaseModel):
@@ -180,7 +179,9 @@ class ModelPrice(CamelModel):
 
 class PricesBody(CamelModel):
     # Цены по ключам моделей (deepseek/gemini/anthropic/cloudflare); неизвестные ключи — 422.
-    prices: dict[Literal["deepseek", "gemini", "anthropic", "cloudflare", "openrouter"], ModelPrice]
+    # Ключ — провайдер (цена по умолчанию) или «провайдер:id» (конкретная модель из каталога);
+    # неизвестный ключ — 422 (проверяет роутер).
+    prices: dict[str, ModelPrice]
 
 
 class ShoppingItem(CamelModel):
@@ -342,12 +343,14 @@ class ModelDefaults(CamelModel):
     # (и догенерация для PDF/покупок), shopping — нормализация покупок, cooking — план готовки,
     # prefs — фоновое извлечение предпочтений из чата, summary — фоновая сводка беседы.
     # Подходит ли модель задаче — проверяет роутер по карте services/settings.TASK_MODELS.
-    chat: ModelKey
-    recipe: ModelKey
-    shopping: ModelKey
-    cooking: ModelKey
-    prefs: ModelKey
-    summary: ModelKey
+    # Значение — ссылка на модель: «провайдер» или «провайдер:id» (services/model_catalog);
+    # проверяет роутер (неизвестный провайдер / модель / не для этой задачи → 422).
+    chat: str
+    recipe: str
+    shopping: str
+    cooking: str
+    prefs: str
+    summary: str
 
 
 class SettingsBody(CamelModel):
@@ -366,6 +369,9 @@ class SettingsOut(CamelModel):
     # Карта «задача → модели, которые можно выбрать» (services/settings.TASK_MODELS): фронт
     # строит по ней выпадашки — неподходящие модели (напр. Cloudflare для рецептов) не предлагает.
     task_models: dict[str, list[str]] = {}
+    # Каталог конкретных моделей по провайдерам: {провайдер: [{id, label, note}]} — группы в
+    # выпадашках настроек (services/model_catalog).
+    catalog: dict[str, list[dict[str, str]]] = {}
 
 
 # --- рецепты из принятых планов + избранное (режим «Рецепты» на странице планов) ---

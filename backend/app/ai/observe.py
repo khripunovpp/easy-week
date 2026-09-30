@@ -114,7 +114,7 @@ def _record_metrics(provider: str, model: str, label: str, usage: dict) -> float
         if val:
             _tokens.labels(provider, model, kind).inc(val)
     try:
-        cost = prices.cost_usd(_PROVIDER_KEY.get((provider or "").lower(), ""), u)
+        cost = prices.cost_usd(_PROVIDER_KEY.get((provider or "").lower(), ""), u, model)
     except Exception as exc:  # noqa: BLE001 — учёт затрат не должен ронять запрос
         logger.warning("не посчитали стоимость вызова: %s", str(exc)[:150])
         cost = 0.0

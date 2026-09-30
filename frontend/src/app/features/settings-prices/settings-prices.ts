@@ -1,6 +1,7 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { EasyWeekApi, ModelPrice } from '../../services/api';
+import { ModelSettings, splitRef } from '../../services/model-settings';
 import { MODEL_LABELS, RecipeModel } from '../../services/preferences';
 
 type PriceField = 'input' | 'cachedInput' | 'cacheWrite' | 'output' | 'per1KNeurons';
@@ -21,7 +22,16 @@ export class SettingsPricesPage {
   readonly status = signal<'idle' | 'saving' | 'saved' | 'error'>('idle');
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
 
-  readonly models: RecipeModel[] = ['deepseek', 'gemini', 'anthropic', 'cloudflare', 'openrouter'];
+  private readonly modelSettings = inject(ModelSettings);
+  private readonly providers: RecipeModel[] = ['deepseek', 'gemini', 'anthropic', 'cloudflare', 'openrouter'];
+  // Строки цен: провайдер (цена по умолчанию), под ним — модели со своей ценой («провайдер:id»).
+  readonly models = computed<string[]>(() => {
+    const keys = Object.keys(this.prices() ?? {});
+    return this.providers.flatMap((p) => [
+      ...(keys.includes(p) ? [p] : []),
+      ...keys.filter((k) => k.startsWith(p + ':')).sort(),
+    ]);
+  });
   readonly fields: { key: PriceField; label: string }[] = [
     { key: 'input', label: 'Вход' },
     { key: 'cachedInput', label: 'Вход из кэша' },
@@ -37,7 +47,11 @@ export class SettingsPricesPage {
   }
 
   label(m: string): string {
-    return MODEL_LABELS[m as RecipeModel] ?? m;
+    const [p, id] = splitRef(m);
+    const prov = MODEL_LABELS[p as RecipeModel] ?? p;
+    if (!id) return `${prov} · по умолчанию`;
+    const item = this.modelSettings.catalogFor(p).find((x) => x.id === id);
+    return item?.label ?? `${prov} · ${id}`;
   }
 
   value(m: string, f: PriceField): number | '' {

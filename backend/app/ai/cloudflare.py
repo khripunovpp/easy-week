@@ -29,7 +29,29 @@ class CloudflareGate(ModelGate):
 
     @property
     def default_model(self) -> str:
+        # Быстрая модель — спеки блюд в пайплайне; выбор в настройках её не меняет.
         return settings.cf_model
+
+    @property
+    def main_model(self) -> str:
+        """Главная модель (рецепты, покупки, правки, предпочтения, сводка, валидатор) —
+        выбранная в настройках или CF_MODEL_JUDGE."""
+        return self._model_override or settings.cf_model_judge
+
+    @property
+    def menu_model(self) -> str:
+        """Модель меню плана / одного блюда — выбранная в настройках или CF_MODEL_MENU."""
+        return self._model_override or settings.cf_model_menu
+
+    def with_model(self, model_id: str | None):
+        # У Cloudflare выбор меняет главную модель (default_model — спеки — остаётся).
+        if not model_id or model_id == settings.cf_model_judge:
+            return self
+        import copy
+
+        clone = copy.copy(self)
+        clone._model_override = model_id
+        return clone
 
     def _log_model(self, model: str) -> str:
         return model.split("/")[-1]

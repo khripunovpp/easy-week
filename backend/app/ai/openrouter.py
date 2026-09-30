@@ -44,7 +44,7 @@ class OpenRouterGate(ModelGate):
 
     @property
     def default_model(self) -> str:
-        return settings.openrouter_model
+        return self._model_override or settings.openrouter_model
 
     def _headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {settings.openrouter_api_key}", **_APP_HEADERS}

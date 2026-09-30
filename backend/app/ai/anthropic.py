@@ -33,6 +33,24 @@ _FIX_JSON = (
 )
 
 
+# Семейства, где размышление включено всегда (Opus 5.x, Sonnet 5.x, Fable, Mythos): оно тратит
+# max_tokens ответа. Для рецептного JSON — effort «low» (меньше размышлений) + запас токенов.
+_ALWAYS_THINKS = ("opus-5", "sonnet-5", "fable", "mythos")
+_THINK_HEADROOM = 6000
+
+
+def _thinking_kw(model: str, max_tokens: int) -> dict[str, Any]:
+    m = (model or "").lower()
+    if not any(tag in m for tag in _ALWAYS_THINKS):
+        return {"max_tokens": max_tokens}
+    return {"max_tokens": max_tokens + _THINK_HEADROOM, "output_config": {"effort": "low"}}
+
+
+def _timeout(model: str) -> float:
+    m = (model or "").lower()
+    return 180.0 if any(tag in m for tag in _ALWAYS_THINKS) else 90.0
+
+
 def _supports_prefill(model: str) -> bool:
     m = (model or "").lower()
     return not any(tag in m for tag in _NO_PREFILL)
@@ -121,14 +139,14 @@ class AnthropicGate(ModelGate):
 
     @property
     def default_model(self) -> str:
-        return settings.anthropic_model
+        return self._model_override or settings.anthropic_model
 
     def _headers(self) -> dict[str, str]:
         return {"x-api-key": settings.anthropic_api_key, "anthropic-version": _API_VERSION}
 
     async def _post(self, payload: dict[str, Any]) -> dict:
         url = f"{settings.anthropic_base_url}/v1/messages"
-        async with httpx.AsyncClient(timeout=90.0) as client:
+        async with httpx.AsyncClient(timeout=_timeout(payload.get("model", ""))) as client:
             resp = await client.post(url, json=payload, headers=self._headers())
         if resp.status_code != 200:
             raise AIError(f"Claude {resp.status_code}: {resp.text[:300]}")
@@ -144,7 +162,7 @@ class AnthropicGate(ModelGate):
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         system, conv = _to_system_and_messages(messages)
         conv, prefill = _with_prefill(conv, model)
-        payload: dict[str, Any] = {"model": model, "max_tokens": max_tokens, "messages": conv}
+        payload: dict[str, Any] = {"model": model, "messages": conv, **_thinking_kw(model, max_tokens)}
         if system:
             payload["system"] = system
         body = await self._post(payload)
@@ -203,9 +221,9 @@ class AnthropicGate(ModelGate):
         conv, prefill = _with_prefill(conv, model)
         payload: dict[str, Any] = {
             "model": model,
-            "max_tokens": max_tokens,
             "messages": conv,
             "stream": True,
+            **_thinking_kw(model, max_tokens),
         }
         if system:
             payload["system"] = system
@@ -217,7 +235,7 @@ class AnthropicGate(ModelGate):
         if prefill:
             full.append(prefill)
             yield prefill
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=max(120.0, _timeout(model))) as client:
             async with client.stream("POST", url, json=payload, headers=self._headers()) as resp:
                 if resp.status_code != 200:
                     body = await resp.aread()

@@ -62,7 +62,7 @@ def _extract_text(candidate: dict) -> str:
     return "".join(p.get("text", "") for p in parts if isinstance(p, dict))
 
 
-def _gen_config(temperature: float, max_tokens: int) -> dict[str, Any]:
+def _gen_config(temperature: float, max_tokens: int, model: str = "") -> dict[str, Any]:
     """generationConfig для JSON-задач.
 
     thinkingBudget=0 отключает «размышление» Gemini 3.x: рецептам оно не нужно, а иначе
@@ -71,7 +71,8 @@ def _gen_config(temperature: float, max_tokens: int) -> dict[str, Any]:
         "temperature": temperature,
         "maxOutputTokens": max_tokens,
         "responseMimeType": "application/json",  # схема — в промпте
-        "thinkingConfig": {"thinkingBudget": 0},
+        # flash-lite (3.5) отвергает thinkingConfig (400 INVALID_ARGUMENT) — ему не шлём.
+        **({} if "lite" in model else {"thinkingConfig": {"thinkingBudget": 0}}),
     }
 
 
@@ -94,7 +95,7 @@ class GeminiGate(ModelGate):
 
     @property
     def default_model(self) -> str:
-        return settings.gemini_model
+        return self._model_override or settings.gemini_model
 
     async def _request_json(
         self,
@@ -108,7 +109,7 @@ class GeminiGate(ModelGate):
         url = f"{settings.gemini_base_url}/models/{model}:generateContent"
         payload: dict[str, Any] = {
             "contents": contents,
-            "generationConfig": _gen_config(temperature, max_tokens),
+            "generationConfig": _gen_config(temperature, max_tokens, model),
         }
         if system:
             payload["systemInstruction"] = system
@@ -146,7 +147,7 @@ class GeminiGate(ModelGate):
         url = f"{settings.gemini_base_url}/models/{model}:streamGenerateContent?alt=sse"
         payload: dict[str, Any] = {
             "contents": contents,
-            "generationConfig": _gen_config(0.7 if temperature is None else temperature, max_tokens),
+            "generationConfig": _gen_config(0.7 if temperature is None else temperature, max_tokens, model),
         }
         if system:
             payload["systemInstruction"] = system

@@ -9,7 +9,7 @@ from typing import Any
 
 from ..config import settings
 from .base import AIError
-from .gates import cloudflare, gate_for
+from .gates import cf_main, cf_menu, cloudflare, gate_for
 from .limits import enforce_daily
 from .observe import set_ai_context
 from . import prefs as _prefs
@@ -41,6 +41,11 @@ from .stream_parse import PlanStreamParser
 from ..services.variants import with_detail
 
 logger = logging.getLogger("easy_week.planner")
+
+
+def _is_cf(gate) -> bool:
+    """Cloudflare-гейт, в т.ч. копия с моделью из настроек (сравнение по ключу, не по объекту)."""
+    return gate is cloudflare or getattr(gate, "key", "") == "cloudflare"
 
 _MONTHS_GEN = [
     "января", "февраля", "марта", "апреля", "мая", "июня",
@@ -223,15 +228,15 @@ async def _gen_dish(i: int, name: str, emoji: str, user_message: str) -> dict[st
     }
 
 
-async def _validate_and_fix(dishes: list[dict], user_message: str) -> None:
-    """Валидатор (mistral) даёт вердикты; плохие блюда перегенерирует спекер (8b)."""
+async def _validate_and_fix(dishes: list[dict], user_message: str, gate=None) -> None:
+    """Валидатор (главная модель CF) даёт вердикты; плохие блюда перегенерирует спекер (8b)."""
     if not dishes:
         return
     try:
         parsed, _ = await cloudflare.complete_json(
             build_validate_messages(dishes),
             schema=VALIDATE_SCHEMA,
-            model=settings.cf_model_judge,
+            model=cf_main(gate or cloudflare),
             max_tokens=500,
             label="валидатор блюд",
         )
@@ -312,10 +317,10 @@ async def generate_plan(
     if count_plan:
         enforce_daily(gate, "plan")  # дневной лимит на Claude (no-op для остальных)
     variety = _resolve_variety(avoid_titles, variety)
-    if gate is cloudflare:
+    if _is_cf(gate):
         return await _generate_plan_cloudflare(
             user_message, avoid_titles, count, gender,
-            in_plan=in_plan, context=context, variety=variety,
+            in_plan=in_plan, context=context, variety=variety, gate=gate,
         )
 
     parsed, _ = await gate.complete_json(
@@ -415,16 +420,18 @@ async def generate_plan_stream(
 
 async def _generate_plan_cloudflare(
     user_message: str, avoid_titles: list[str], count: int = 5, gender: str = "f", *,
-    in_plan: list[str] | None = None, context: str = "", variety: str = "",
+    in_plan: list[str] | None = None, context: str = "", variety: str = "", gate=None,
 ) -> dict[str, Any]:
-    """Пайплайн Cloudflare: меню (mistral) → спеки (8b, параллельно) → валидация (mistral)."""
+    """Пайплайн Cloudflare: меню (главная модель) → спеки (8b, параллельно) → валидация.
+    gate — Cloudflare-гейт с моделью из настроек (меню и валидатор идут ею)."""
+    gate = gate or cloudflare
     names, _ = await cloudflare.complete_json(
         build_names_messages(
             user_message, avoid_titles, count, gender,
             in_plan=in_plan, variety=variety, context=context, date_hint=_date_hint(),
         ),
         schema=NAMES_SCHEMA,
-        model=settings.cf_model_menu,
+        model=cf_menu(gate),
         max_tokens=120 + count * 110,
         label="меню",
     )
@@ -439,7 +446,7 @@ async def _generate_plan_cloudflare(
         )
     )
 
-    await _validate_and_fix(dishes, user_message)
+    await _validate_and_fix(dishes, user_message, gate)
 
     if not dishes:
         raise AIError("Cloudflare вернул пустой план")
@@ -477,9 +484,9 @@ async def generate_dish_detail(
         name, servings, change, dish=dish, request=request, mention=mention,
         discussion=discussion, current=current, regenerate=regenerate,
     )
-    if gate is cloudflare:
+    if _is_cf(gate):
         parsed, _ = await gate.complete_json(
-            messages, schema=DISH_DETAIL_SCHEMA, model=settings.cf_model_judge,
+            messages, schema=DISH_DETAIL_SCHEMA, model=cf_main(gate),
             max_tokens=3000, label=label,
         )
     else:
@@ -542,9 +549,9 @@ async def generate_cooking_plan(
     # План по всем блюдам длинный: 3000 токенов на 4 блюда обрезало JSON (Claude/DeepSeek).
     # Даём ~1500 на блюдо сверху базы, потолок 8000 (максимум вывода deepseek-chat — 8192).
     max_tokens = min(8000, 2000 + 1500 * len(dishes))
-    if gate is cloudflare:
+    if _is_cf(gate):
         parsed, _ = await gate.complete_json(
-            messages, schema=COOKPLAN_SCHEMA, model=settings.cf_model_judge,
+            messages, schema=COOKPLAN_SCHEMA, model=cf_main(gate),
             max_tokens=max_tokens, label=label,
         )
     else:
@@ -592,7 +599,7 @@ async def _edit_actions(
     parsed, _ = await gate.complete_json(
         build_edit_action_messages(title, _dish_names(dishes), user_message, context),
         schema=EDIT_ACTION_SCHEMA,
-        model=(settings.cf_model_judge if gate is cloudflare else None),
+        model=(cf_main(gate) if _is_cf(gate) else None),
         max_tokens=500,
         label="правка плана (actions)",
     )
@@ -671,9 +678,9 @@ async def generate_single_dish(
     label = (
         f"замена блюда: {old_dish.get('name')}" if old_dish else "добавление блюда"
     )
-    if gate is cloudflare:
+    if _is_cf(gate):
         parsed, _ = await gate.complete_json(
-            messages, schema=SINGLE_DISH_SCHEMA, model=settings.cf_model_menu,
+            messages, schema=SINGLE_DISH_SCHEMA, model=cf_menu(gate),
             max_tokens=400, label=label,
         )
     else:
@@ -925,7 +932,7 @@ async def normalize_shopping(
     gate = gate_for(model, "shopping")
     # У Cloudflare — отдельная модель (mistral) и схема; у остальных — дефолтная модель гейта.
     cf_kw = (
-        {"schema": SHOP_SCHEMA, "model": settings.cf_model_judge} if gate is cloudflare else {}
+        {"schema": SHOP_SCHEMA, "model": cf_main(gate)} if _is_cf(gate) else {}
     )
     chunks = _shop_chunks(items)
     results = await asyncio.gather(*(
@@ -994,7 +1001,7 @@ async def discuss_reply(
         parsed, _ = await gate.complete_json(
             build_discuss_messages(target, context, turns, question, gender),
             schema=DISCUSS_SCHEMA,
-            model=(settings.cf_model_judge if gate is cloudflare else None),
+            model=(cf_main(gate) if _is_cf(gate) else None),
             max_tokens=1200,
             label=label,
         )

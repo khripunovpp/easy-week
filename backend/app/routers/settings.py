@@ -11,7 +11,7 @@ GET/PUT /api/settings/prices — цены моделей для учёта за�
 from fastapi import APIRouter, HTTPException
 
 from ..schemas import ModelDefaults, ModelPrice, PricesBody, SettingsBody, SettingsOut
-from ..services import prices
+from ..services import model_catalog, prices
 from ..services import settings as app_settings
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
@@ -41,6 +41,7 @@ def _out() -> SettingsOut:
         initialized=app_settings.is_initialized(),
         model_names=_model_names(),
         task_models={t: list(m) for t, m in app_settings.TASK_MODELS.items()},
+        catalog=model_catalog.catalog(),
     )
 
 
@@ -52,7 +53,7 @@ async def get_settings() -> SettingsOut:
 @router.put("")
 async def put_settings(body: SettingsBody) -> SettingsOut:
     models = body.models.model_dump()
-    bad = [(t, m) for t, m in models.items() if not app_settings.allowed(t, m)]
+    bad = [(t, m) for t, m in models.items() if app_settings.valid_ref(t, m) is None]
     if bad:
         raise HTTPException(
             status_code=422,
@@ -75,5 +76,8 @@ async def get_prices() -> PricesBody:
 @router.put("/prices")
 async def put_prices(body: PricesBody) -> PricesBody:
     """Обновить цены — действует на новые вызовы (накопленные затраты не пересчитываются)."""
+    unknown = [k for k in body.prices if not prices.is_price_key(k)]
+    if unknown:
+        raise HTTPException(status_code=422, detail="Неизвестные модели: " + ", ".join(unknown))
     saved = prices.save({k: v.model_dump() for k, v in body.prices.items()})
     return PricesBody(prices={k: ModelPrice.model_validate(v) for k, v in saved.items()})

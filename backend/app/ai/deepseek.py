@@ -13,6 +13,13 @@ from .observe import log_ai_call
 logger = logging.getLogger("easy_week.deepseek")
 
 
+def _no_thinking(model: str) -> dict[str, Any]:
+    """deepseek-flash / deepseek-v4-pro — модели с размышлением: оно съедает max_tokens и рвёт
+    JSON (проверено: 200 токенов → пустой ответ). `thinking: disabled` даёт чистый JSON.
+    deepseek-chat размышления не имеет — параметр не шлём."""
+    return {} if model == "deepseek-chat" else {"thinking": {"type": "disabled"}}
+
+
 class DeepSeekGate(ModelGate):
     """DeepSeek (OpenAI-совместимый): план, деталь рецепта, стриминг, function calling."""
 
@@ -27,7 +34,7 @@ class DeepSeekGate(ModelGate):
 
     @property
     def default_model(self) -> str:
-        return settings.deepseek_model
+        return self._model_override or settings.deepseek_model
 
     async def _request_json(
         self,
@@ -42,6 +49,7 @@ class DeepSeekGate(ModelGate):
             "model": model,
             "messages": messages,
             "response_format": {"type": "json_object"},  # схема — в промпте
+            **_no_thinking(model),
             "max_tokens": max_tokens,
             "temperature": temperature,
         }
@@ -80,6 +88,7 @@ class DeepSeekGate(ModelGate):
             "temperature": 0.7 if temperature is None else temperature,
             "stream": True,
             "stream_options": {"include_usage": True},  # финальный чанк с usage (в т.ч. кэш)
+            **_no_thinking(model),
         }
         headers = {"Authorization": f"Bearer {settings.deepseek_api_key}"}
 
@@ -138,6 +147,7 @@ class DeepSeekGate(ModelGate):
             "messages": messages,
             "tools": tools,
             "tool_choice": "auto",
+            **_no_thinking(model),
             "max_tokens": max_tokens,
             "temperature": 0.3,
         }

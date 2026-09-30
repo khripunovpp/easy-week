@@ -33,7 +33,7 @@
                 [attr.aria-label]="'Модель: ' + t.label + ', ' + modelLabel(models.models()[t.task])"
                 (click)="toggleTask(t.task)">
                 <!-- как в пункте выпадашки: провайдер + конкретная модель мелко под ним -->
-                <span class="msel__name msel__name--full"><ew-model-name [model]="models.models()[t.task]" /></span>
+                <span class="msel__name msel__name--full"><ew-model-name [model]="models.refs()[t.task]" /></span>
                 <svg class="msel__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
@@ -41,17 +41,25 @@
 
               @if (openTask() === t.task) {
                 <div class="msel__backdrop" (click)="openTask.set(null)"></div>
-                <div class="msel__menu">
-                  @for (m of models.modelsFor(t.task); track m) {
-                    <button
-                      type="button"
-                      class="msel__opt"
-                      [class.msel__opt--active]="m === models.models()[t.task]"
-                      (click)="pickModel(t.task, m)">
-                      <span class="msel__mark msel__mark--ok">{{ m === models.models()[t.task] ? '✓' : '' }}</span>
-                      <span class="msel__opt-name"><ew-model-name [model]="m" /></span>
-                      @if (models.isFree(m)) { <span class="msel__tag">бесплатно</span> }
-                    </button>
+                <!-- Группы по провайдерам (GUIDEBOOK «Выпадашка» → .msel__group), внутри — модели -->
+                <div class="msel__menu msel__menu--wide">
+                  @for (prov of models.modelsFor(t.task); track prov) {
+                    <p class="msel__group">{{ modelLabel(prov) }}</p>
+                    @for (m of models.catalogFor(prov); track m.id) {
+                      <button
+                        type="button"
+                        class="msel__opt"
+                        [class.msel__opt--active]="isPicked(t.task, prov, m.id)"
+                        (click)="pickModel(t.task, prov, m.id)">
+                        <span class="msel__mark msel__mark--ok">{{ isPicked(t.task, prov, m.id) ? '✓' : '' }}</span>
+                        <span class="msel__opt-name"><ew-model-name [model]="prov + ':' + m.id" [labelOverride]="m.label" [sub]="optSub(m)" /></span>
+                      </button>
+                    } @empty {
+                      <button type="button" class="msel__opt" (click)="pickModel(t.task, prov, '')">
+                        <span class="msel__mark msel__mark--ok">{{ models.models()[t.task] === prov ? '✓' : '' }}</span>
+                        <span class="msel__opt-name"><ew-model-name [model]="prov" /></span>
+                      </button>
+                    }
                   }
                 </div>
               }

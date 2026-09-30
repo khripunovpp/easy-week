@@ -50,7 +50,7 @@
                     } @else {
                       <span class="msel__mark msel__mark--dl">↓</span>
                     }
-                    <span class="msel__opt-name"><ew-model-name [model]="m" /></span>
+                    <span class="msel__opt-name"><ew-model-name [model]="newRef(m)" /></span>
                     <span class="msel__tag">{{ generatingModel() === m ? 'собираю…' : 'собрать' }}</span>
                   </button>
                 }

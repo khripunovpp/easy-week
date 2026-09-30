@@ -210,7 +210,16 @@ export interface TtsStatus {
 // cooking — план готовки, prefs — фоновое извлечение предпочтений из чата, summary — фоновая
 // сводка беседы. initialized=false — ещё ни разу не сохраняли (встроенные дефолты).
 export type ModelTask = 'chat' | 'recipe' | 'shopping' | 'cooking' | 'prefs' | 'summary';
-export type ModelDefaults = Record<ModelTask, RecipeModel>;
+// Значение — ссылка на модель: «провайдер» (модель провайдера по умолчанию) или «провайдер:id»
+// (конкретная модель из каталога; id OpenRouter сам содержит «:» — режем по первому).
+export type ModelRef = string;
+export type ModelDefaults = Record<ModelTask, ModelRef>;
+// Конкретная модель провайдера (каталог с бэка, services/model_catalog).
+export interface CatalogModel {
+  id: string;
+  label: string;
+  note?: string;
+}
 // Карта «задача → модели, которые можно выбрать» (бэк: services/settings.TASK_MODELS).
 export type TaskModels = Record<ModelTask, RecipeModel[]>;
 export interface AppSettings {
@@ -218,6 +227,7 @@ export interface AppSettings {
   initialized: boolean;
   modelNames?: Record<string, string>; // ключ → конкретная модель (для подписей в выпадашках)
   taskModels?: Partial<Record<ModelTask, string[]>>;
+  catalog?: Record<string, CatalogModel[]>; // провайдер → модели (модель по умолчанию — первая)
 }
 
 export interface PlanSummary {

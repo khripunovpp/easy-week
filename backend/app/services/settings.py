@@ -19,6 +19,9 @@ Cloudflare (mistral/llama через json_schema) плохо пишет разв
 выпадашки по ней; PUT с неподходящей моделью → 422; `gates.resolve_key` неподходящую явную
 модель заменяет дефолтом задачи (с warning в лог) — это политика, а не фолбэк по сбою.
 
+Значение задачи — ссылка на модель (`services/model_catalog`): «провайдер» (модель провайдера
+из .env) или «провайдер:id» (конкретная модель из каталога). Карта задач — по провайдеру.
+
 Здесь только чтение/запись дефолтов и карта; выбор гейта — в `ai/gates.gate_for(model, task)`.
 Модуль не импортирует `ai/*` (иначе цикл импортов gates ↔ settings).
 """
@@ -31,6 +34,7 @@ from pathlib import Path
 from typing import Literal, get_args
 
 from ..config import settings as config
+from . import model_catalog
 
 logger = logging.getLogger("easy_week.settings")
 
@@ -105,32 +109,53 @@ def is_initialized() -> bool:
     return _read() is not None
 
 
+def valid_ref(task: str, ref: str) -> str | None:
+    """Нормальная ссылка «провайдер[:id]», если она годится для задачи, иначе None."""
+    key, mid = model_catalog.split_ref(ref)
+    if key not in MODEL_KEYS or not allowed(task, key):
+        return None
+    if mid and not model_catalog.is_known(key, mid):
+        return None
+    return model_catalog.make_ref(key, mid)
+
+
 def get_models() -> dict[str, str]:
-    """Модели по умолчанию для всех задач. Неизвестные/пустые/неподходящие задаче значения →
-    встроенный дефолт (напр. сохранённый раньше Cloudflare для рецептов)."""
+    """Ссылки на модели по умолчанию для всех задач. Неизвестные/пустые/неподходящие задаче
+    значения → встроенный дефолт (напр. сохранённый раньше Cloudflare для рецептов); модель,
+    которой больше нет в каталоге, → модель этого провайдера по умолчанию."""
     out = builtin_defaults()
     stored = (_read() or {}).get("models") or {}
     if isinstance(stored, dict):
         for task in TASKS:
-            val = str(stored.get(task) or "").lower()
-            if val in MODEL_KEYS and allowed(task, val):
-                out[task] = val
+            raw = str(stored.get(task) or "").strip()
+            ref = valid_ref(task, raw)
+            if ref is None and raw:
+                key, _ = model_catalog.split_ref(raw)
+                ref = valid_ref(task, key)  # модель пропала из каталога — провайдер остаётся
+            if ref:
+                out[task] = ref
     return out
 
 
-def default_model(task: str) -> str:
-    """Модель по умолчанию для задачи (неизвестная задача → chat)."""
+def default_ref(task: str) -> str:
+    """Ссылка на модель по умолчанию для задачи (неизвестная задача → chat)."""
     models = get_models()
     return models.get(task) or models["chat"]
+
+
+def default_model(task: str) -> str:
+    """Провайдер по умолчанию для задачи (неизвестная задача → chat)."""
+    return model_catalog.split_ref(default_ref(task))[0]
 
 
 def set_models(models: dict[str, str]) -> dict[str, str]:
     """Сохранить модели по умолчанию (атомарно). Пары «задача → неподходящая модель»
     молча пропускаются (роутер валидирует их раньше и отдаёт 422). Возвращает итог."""
-    merged = {
-        **get_models(),
-        **{t: m for t, m in models.items() if t in TASKS and m in MODEL_KEYS and allowed(t, m)},
-    }
+    merged = get_models()
+    for t, m in models.items():
+        ref = valid_ref(t, m) if t in TASKS else None
+        if ref:
+            merged[t] = ref
     data = {**(_read() or {}), "models": merged}
     f = _file()
     f.parent.mkdir(parents=True, exist_ok=True)

@@ -1,6 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { EasyWeekApi, LimitsStatus, ModelTask } from '../../services/api';
+import { CatalogModel, EasyWeekApi, LimitsStatus, ModelTask } from '../../services/api';
 import { ModelSettings } from '../../services/model-settings';
 import { MODEL_LABELS, RecipeModel } from '../../services/preferences';
 import { ModelName } from '../../shared/model-name';
@@ -48,8 +48,20 @@ export class SettingsModelsPage {
     this.openTask.update((cur) => (cur === task ? null : task));
   }
 
-  pickModel(task: ModelTask, model: RecipeModel): void {
+  /** Вторая строка пункта: id модели (без «@cf/…/») и пометка. */
+  optSub(m: CatalogModel): string {
+    const id = m.id.startsWith('@cf/') ? (m.id.split('/').pop() ?? m.id) : m.id;
+    return m.note ? `${id} · ${m.note}` : id;
+  }
+
+  /** Выбрана ли конкретная модель provider:id для задачи (модель по умолчанию — через fullRef). */
+  isPicked(task: ModelTask, provider: string, id: string): boolean {
+    return this.models.fullRef(this.models.refs()[task]) === `${provider}:${id}`;
+  }
+
+  pickModel(task: ModelTask, provider: string, id: string): void {
     this.openTask.set(null);
-    if (this.models.models()[task] !== model) this.models.set(task, model);
+    const ref = this.models.makeRef(provider, id);
+    if (this.models.refs()[task] !== ref) this.models.set(task, ref);
   }
 }

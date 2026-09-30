@@ -105,6 +105,11 @@ export class DishPage {
     return MODEL_LABELS[key as RecipeModel] ?? key;
   }
 
+  /** Конкретная модель, которой соберут новый вариант (модель задачи из настроек, если тот же провайдер). */
+  newRef(key: string): string {
+    return this.modelSettings.refFor('recipe', key);
+  }
+
   toggleModelMenu(): void {
     this.modelMenuOpen.update((v) => !v);
   }

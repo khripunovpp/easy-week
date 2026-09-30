@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 from sqlmodel import Session, select
 
 from ..ai.base import AIError
-from ..ai.gates import cloudflare, gate_for
+from ..ai.gates import cf_main, cloudflare, gate_for
 from ..ai.observe import set_ai_context
 from ..ai.prompt import (
     SUMMARY_MAX_CHARS,
@@ -122,7 +122,7 @@ async def summarize(conversation_id: str, session: Session | None = None) -> str
 
     set_ai_context(conversation_id=conversation_id, endpoint="chat_summary")
     gate = gate_for("", "summary")
-    cf_kw = {"schema": SUMMARY_SCHEMA, "model": settings.cf_model_judge} if gate is cloudflare else {}
+    cf_kw = {"schema": SUMMARY_SCHEMA, "model": cf_main(gate)} if (gate is cloudflare or getattr(gate, "key", "") == "cloudflare") else {}
     parsed, _ = await gate.complete_json(
         build_summary_messages(conv.summary or "", lines),
         **cf_kw,

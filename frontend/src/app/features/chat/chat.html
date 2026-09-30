@@ -72,7 +72,7 @@
                 type="button"
                 [class.count__opt--active]="o === store.recipeModel()"
                 (click)="pickModel(o)">
-                <ew-model-name [model]="o" />
+                <ew-model-name [model]="optRef(o)" />
               </button>
             }
           </div>

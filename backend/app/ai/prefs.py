@@ -28,7 +28,7 @@ import threading
 from pathlib import Path
 
 from ..config import settings
-from .gates import cloudflare, gate_for
+from .gates import cf_main, cloudflare, gate_for
 
 logger = logging.getLogger("easy_week.prefs")
 
@@ -380,7 +380,7 @@ async def extract_and_merge(message: str, context: str = "") -> None:
         final = msg
     messages.append({"role": "user", "content": final})
     gate = gate_for("", "prefs")
-    cf_kw = {"schema": PREFS_SCHEMA, "model": settings.cf_model_judge} if gate is cloudflare else {}
+    cf_kw = {"schema": PREFS_SCHEMA, "model": cf_main(gate)} if (gate is cloudflare or getattr(gate, "key", "") == "cloudflare") else {}
     try:
         parsed, _ = await gate.complete_json(
             messages, **cf_kw, max_tokens=250, temperature=0.1, label="извлечение предпочтений",

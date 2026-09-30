@@ -22,11 +22,12 @@
     <div class="settings">
       <p class="setting__hint prices__intro">
         Цены у провайдеров меняются — поправь тут. Новая цена действует на следующие вызовы,
-        уже накопленные затраты в Grafana не пересчитываются.
+        уже накопленные затраты в Grafana не пересчитываются. Модели без своей карточки
+        считаются по цене провайдера «по умолчанию».
       </p>
 
       @if (prices(); as p) {
-        @for (m of models; track m) {
+        @for (m of models(); track m) {
           <section class="card setting">
             <h2 class="setting__label">{{ label(m) }}</h2>
             <div class="prices__grid">

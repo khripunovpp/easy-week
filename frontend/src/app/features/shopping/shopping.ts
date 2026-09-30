@@ -300,6 +300,11 @@ export class Shopping {
     return MODEL_LABELS[key as RecipeModel] ?? key;
   }
 
+  /** Конкретная модель провайдера для нормализации (модель задачи «Список покупок», если тот же). */
+  optRef(key: string): string {
+    return this.modelSettings.refFor('shopping', key);
+  }
+
   toggleModelMenu(): void {
     this.modelMenuOpen.update((v) => !v);
   }

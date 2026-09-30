@@ -533,6 +533,10 @@ ul {
   z-index: 30;
   min-width: 250px;
   max-width: 82vw;
+  /* длинные меню (группы провайдеров в настройках) — скролл внутри, а не за экран */
+  max-height: min(64vh, 520px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 6px;
   background: var(--surface);
   border-radius: var(--r-md);
@@ -598,6 +602,22 @@ ul {
   border-radius: 0;
   margin-top: 2px;
   text-decoration: none;
+}
+/* Широкое меню (выбор модели в строке настроек): длинные имена моделей не жмутся */
+.msel__menu--wide {
+  min-width: min(310px, 86vw);
+}
+/* Заголовок группы в меню (провайдер в выборе модели): мелко, над первой — без линии */
+.msel__group {
+  margin: 0;
+  padding: 10px 10px 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-3);
+}
+.msel__group:not(:first-child) {
+  margin-top: 4px;
+  border-top: 1px solid var(--line);
 }
 /* Пояснение внизу меню (напр. «сработает по ↻») — мелко, под разделителем */
 .msel__hint {

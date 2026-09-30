@@ -253,6 +253,11 @@ export class Chat {
     return MODEL_LABELS[value] ?? value;
   }
 
+  /** Какой конкретной моделью ответит провайдер в чате (модель задачи «Чат и план», если тот же). */
+  optRef(value: RecipeModel): string {
+    return this.modelSettings.refFor('chat', value);
+  }
+
   toggleModelMenu(): void {
     this.modelMenuOpen.update((v) => !v);
   }
