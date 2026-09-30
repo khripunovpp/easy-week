@@ -11,6 +11,12 @@ def _now() -> datetime:
 class Conversation(SQLModel, table=True):
     id: str = Field(primary_key=True)
     created_at: datetime = Field(default_factory=_now)
+    # Сводка беседы (services/summary.py): одна, последняя — перезаписывается после каждой
+    # реплики пользователя (дебаунс 5 с); пусто на старте. summary_upto — id последнего
+    # сообщения, вошедшего в сводку (дальше — «новые реплики» для следующего обновления).
+    summary: str | None = Field(default=None)
+    summary_upto: str | None = Field(default=None)
+    summary_at: datetime | None = Field(default=None)
 
 
 class PlanRow(SQLModel, table=True):

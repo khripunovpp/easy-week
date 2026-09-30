@@ -12,6 +12,7 @@ from ..ai.base import AIError
 from ..ai.gates import resolve_key
 from ..ai.limits import LimitError, status as limits_status
 from ..ai.observe import record_conversation, record_plan, set_ai_context
+from ..ai.prompt import chat_memory_block
 from ..ai.planner import (
     _week_label,
     add_dish_direct,
@@ -34,6 +35,7 @@ from ..schemas import (
     PreferencesOut,
 )
 from ..services import appstate
+from ..services import summary as chat_summary
 from ..services.history import conversation_rejected, variety_avoid
 from ..services.mapping import to_week_plan
 
@@ -193,8 +195,11 @@ async def chat_stream(
     session.commit()
 
     prefs.learn_async(req.message)  # фоново запоминаем предпочтения из сообщения (CF, бесплатно)
+    chat_summary.schedule(conv.id)  # сводка беседы — фоном, дебаунс 5 с
     # «Недавно ели или отвергли» — свежие принятые, заменённые/удалённые, 👎, черновики.
     avoid = variety_avoid(session, exclude_conversation=conv.id)
+    # Память беседы: первое сообщение (если это не оно само) + последняя сводка.
+    memory = chat_summary.memory(session, conv.id, req.message)
     plan_id = uuid4().hex
     set_ai_context(conversation_id=conv.id, plan_id=plan_id, endpoint="chat_stream")
 
@@ -207,7 +212,7 @@ async def chat_stream(
     err_msg = ""
     try:
         async for kind, payload in generate_plan_stream(
-            req.message, avoid, req.dishes_count, req.gender, req.recipe_model
+            req.message, avoid, req.dishes_count, req.gender, req.recipe_model, context=memory
         ):
             if kind == "meta":
                 title, week, reply = payload["title"], payload["week_label"], payload["reply"]
@@ -290,12 +295,14 @@ async def chat(req: ChatRequest, session: SessionDep) -> ChatResponse:
     session.commit()
 
     prefs.learn_async(req.message)  # фоново запоминаем предпочтения из сообщения (CF, бесплатно)
+    chat_summary.schedule(conv.id)  # сводка беседы — фоном, дебаунс 5 с
     avoid = variety_avoid(session, exclude_conversation=conv.id)
+    memory = chat_summary.memory(session, conv.id, req.message)
     set_ai_context(conversation_id=conv.id, endpoint="chat")
 
     try:
         data = await generate_plan(
-            req.message, avoid, req.dishes_count, req.gender, req.recipe_model
+            req.message, avoid, req.dishes_count, req.gender, req.recipe_model, context=memory
         )
     except LimitError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
@@ -345,11 +352,11 @@ def _latest_plan(session: Session, conversation_id: str) -> PlanRow | None:
 
 
 def _edit_context(session: Session, conversation_id: str, current_text: str, max_recent: int = 2) -> str:
-    """Узкий контекст для правки плана: исходный запрос + последние реплики диалога.
+    """Узкий контекст для правки плана: первое сообщение + сводка беседы + последние реплики.
 
     Даёт модели понять, какое блюдо имеется в виду (напр. «один суп» → изначально куриный),
-    не пересобирая весь чат. Текущее сообщение (последняя user-реплика) в контекст не включаем —
-    оно уже приходит как «Просьба»."""
+    не пересобирая весь чат: давнее — в сводке (services/summary), свежее — последними репликами.
+    Текущее сообщение (последняя user-реплика) в контекст не включаем — оно уже «Просьба»."""
     msgs = session.exec(
         select(MessageRow)
         .where(MessageRow.conversation_id == conversation_id)
@@ -363,9 +370,9 @@ def _edit_context(session: Session, conversation_id: str, current_text: str, max
     # Хвост без текущей user-реплики (её текст == current_text).
     tail = msgs[:-1] if msgs[-1].role == "user" and msgs[-1].text == current_text else msgs
     recent = [m for m in tail[-max_recent:] if m is not original and m.text.strip()]
-    parts: list[str] = []
-    if original:
-        parts.append(f"Исходный запрос: {original.text.strip()}")
+    conv = session.get(Conversation, conversation_id)
+    memory = chat_memory_block(original.text if original else "", (conv.summary or "") if conv else "")
+    parts: list[str] = [memory] if memory else []
     if recent:
         hist = "\n".join(
             f"{'Пользователь' if m.role == 'user' else 'Ты'}: {m.text.strip()}" for m in recent
@@ -410,6 +417,7 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
             MessageRow(id=uuid4().hex, conversation_id=conv.id, role="user", text=user_text)
         )
         session.commit()
+        chat_summary.schedule(conv.id)  # сводка беседы — фоном, дебаунс 5 с
 
     context = _edit_context(session, conv.id, req.message)
     button = bool(req.remove_dish_id or req.replace_dish_id or req.add_dish)

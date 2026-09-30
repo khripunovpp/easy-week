@@ -22,6 +22,7 @@ from ..ai.limits import LimitError
 from ..ai.observe import set_ai_context
 from ..ai.planner import discuss_reply
 from ..ai.prompt import (
+    chat_memory_block,
     discuss_cooking_context,
     discuss_recipe_context,
     discuss_shopping_context,
@@ -29,6 +30,7 @@ from ..ai.prompt import (
 from ..db import get_session
 from ..models import Conversation, MessageRow, PlanRow
 from ..schemas import DiscussRequest, DiscussResponse
+from ..services import summary as chat_summary
 from ..services.discussion import TARGETS, discuss_turns
 from ..services.history import original_request
 from ..services.mapping import to_cook_plan, to_dish
@@ -55,7 +57,8 @@ _APPLIED = {
 
 
 def _context(session: Session, row: PlanRow, target: str, dish_id: str | None) -> str:
-    """Полный контекст цели для промпта: содержимое + другие блюда + исходный запрос."""
+    """Полный контекст цели для промпта: содержимое + другие блюда + исходный запрос
+    (+ сводка беседы — см. chat_discuss)."""
     dishes = list(row.dishes or [])
     names = [str(d.get("name", "")) for d in dishes if d.get("name")]
     request = original_request(session, row.conversation_id)
@@ -95,6 +98,10 @@ async def chat_discuss(req: DiscussRequest, session: SessionDep) -> DiscussRespo
     )
 
     context = _context(session, row, target, dish_id)
+    # Сводка беседы (services/summary): первое сообщение уже в _context как «исходный запрос».
+    conv_row = session.get(Conversation, conv_id)
+    if conv_row is not None and (conv_row.summary or "").strip():
+        context += "\n\n" + chat_memory_block("", conv_row.summary)
     # Прошлые реплики обсуждения этой цели — до сохранения текущей (она идёт вопросом).
     turns = discuss_turns(session, conv_id, target, dish_id)
     session.add(MessageRow(
@@ -102,6 +109,7 @@ async def chat_discuss(req: DiscussRequest, session: SessionDep) -> DiscussRespo
         discuss_target=target, dish_id=dish_id,
     ))
     session.commit()
+    chat_summary.schedule(conv_id)  # сводка беседы — фоном, дебаунс 5 с
 
     # Реплику пишет модель чата (пусто → дефолт «Чат и план»). Применение правки/пересборки —
     # той же явно выбранной моделью, а если модель не передана — дефолтом задачи цели

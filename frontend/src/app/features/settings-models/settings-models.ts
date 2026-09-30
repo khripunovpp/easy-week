@@ -32,6 +32,7 @@ export class SettingsModelsPage {
     { task: 'shopping', label: 'Список покупок', hint: 'сведение и чистка списка' },
     { task: 'cooking', label: 'План готовки', hint: 'порядок готовки всех блюд' },
     { task: 'prefs', label: 'Предпочтения из чата', hint: 'фоновое извлечение вкусов из сообщений' },
+    { task: 'summary', label: 'Сводка чата', hint: 'краткая память беседы для ответов в чате' },
   ];
 
   constructor() {

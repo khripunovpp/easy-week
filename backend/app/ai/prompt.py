@@ -989,3 +989,52 @@ def build_discuss_messages(
         else:
             msgs.append(dict(t))
     return msgs
+
+
+# --- Сводка беседы (services/summary.py) ---
+# Фоновый дешёвый вызов после реплик пользователя (дебаунс). Результат — ОДНА сводка на беседу,
+# она подмешивается в контекст всех генераций чата вместе с первым сообщением пользователя.
+
+SUMMARY_MAX_CHARS = 700
+
+SUMMARY_SYSTEM = (
+    "Ты ведёшь краткую память беседы пользователя с кулинарным ассистентом, который составляет "
+    "меню на неделю. По прошлой сводке (если есть) и новым репликам напиши ОБНОВЛЁННУЮ сводку "
+    "ВСЕЙ беседы: чего пользователь хочет от плана, явные условия и пожелания, что уже сделано "
+    "(какие блюда добавлены, убраны или заменены, что пользователь отверг или одобрил), "
+    "открытые вопросы. Только факты из реплик — ничего не выдумывай и не советуй. "
+    f"Кратко: 3–8 пунктов, каждый с «- », всего не больше {SUMMARY_MAX_CHARS} символов, на русском. "
+    'Верни СТРОГО JSON: {"summary": "- ...\\n- ..."}'
+)
+
+SUMMARY_SCHEMA = {
+    "type": "object",
+    "properties": {"summary": {"type": "string"}},
+    "required": ["summary"],
+}
+
+
+def build_summary_messages(previous: str, lines: list[str]) -> list[dict[str, str]]:
+    """previous — прошлая сводка (или пусто), lines — новые реплики «Пользователь: …»/«Ассистент: …»."""
+    content = ""
+    if previous.strip():
+        content += "Прошлая сводка:\n" + previous.strip() + "\n\n"
+    content += "Новые реплики:\n" + "\n".join(lines)
+    return [
+        {"role": "system", "content": SUMMARY_SYSTEM},
+        {"role": "user", "content": content},
+    ]
+
+
+def chat_memory_block(first_message: str, summary: str) -> str:
+    """Память беседы для генераций в чате: первое сообщение пользователя (всегда, если есть)
+    + последняя сводка беседы (если уже есть). Пусто — нечего добавить."""
+    parts: list[str] = []
+    if first_message.strip():
+        parts.append(f"Первое сообщение пользователя (с чего начался чат): {_clip(first_message, 400)}")
+    if summary.strip():
+        parts.append(
+            "Сводка беседы до этого момента (сжато, последние реплики могут в неё не войти):\n"
+            + summary.strip()[: SUMMARY_MAX_CHARS + 200]
+        )
+    return "\n".join(parts)

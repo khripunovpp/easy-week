@@ -16,7 +16,7 @@ from app.services import regenerate
 from app.services import settings as app_settings
 
 MODELS = {"chat": "gemini", "recipe": "anthropic", "shopping": "deepseek", "cooking": "deepseek",
-          "prefs": "openrouter"}
+          "prefs": "openrouter", "summary": "openrouter"}
 
 
 @pytest.fixture(autouse=True)
@@ -55,7 +55,7 @@ def test_get_defaults_when_missing():
     base = config.recipe_model_default
     # Покупки по умолчанию — Cloudflare (прежнее поведение), остальное — дефолт из .env.
     assert body["models"] == {"chat": base, "recipe": base, "shopping": "cloudflare",
-                              "cooking": base, "prefs": "cloudflare"}
+                              "cooking": base, "prefs": "cloudflare", "summary": "cloudflare"}
     # Карта задач едет фронту — он строит по ней выпадашки.
     assert body["taskModels"]["recipe"] == ["deepseek", "gemini", "anthropic"]
     assert "openrouter" in body["taskModels"]["shopping"]

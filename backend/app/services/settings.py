@@ -8,7 +8,8 @@ JSON-файл `settings.json` рядом с БД (как `app_state.json` / пр
 - recipe   — развёрнутый рецепт блюда (открыть/перегенерировать, догенерация для PDF/покупок);
 - shopping — нормализация списка покупок (по умолчанию Cloudflare — как было раньше);
 - cooking  — единый план готовки;
-- prefs    — фоновое извлечение предпочтений из сообщений чата (по умолчанию Cloudflare).
+- prefs    — фоновое извлечение предпочтений из сообщений чата (по умолчанию Cloudflare);
+- summary  — фоновая сводка беседы после реплик пользователя (по умолчанию Cloudflare).
 Озвучка шагов (ai/tts.py) в настройки не выведена: провайдер один — OpenRouter Fish Audio.
 
 Карта «задача → какие модели можно выбрать» — `TASK_MODELS`. Не всякая модель годится на всё:
@@ -38,7 +39,7 @@ ModelKey = Literal["deepseek", "gemini", "anthropic", "cloudflare", "openrouter"
 MODEL_KEYS: tuple[str, ...] = get_args(ModelKey)
 
 # Задачи, для которых в настройках задаётся модель по умолчанию.
-Task = Literal["chat", "recipe", "shopping", "cooking", "prefs"]
+Task = Literal["chat", "recipe", "shopping", "cooking", "prefs", "summary"]
 TASKS: tuple[str, ...] = get_args(Task)
 
 # «Большие» модели — годятся на всё.
@@ -58,6 +59,10 @@ TASK_MODELS: dict[str, tuple[str, ...]] = {
     # Извлечение предпочтений — крошечный фоновый вызов на каждое сообщение: только дешёвые
     # и DeepSeek/Gemini (Claude — дорогой и лимитированный, сюда не предлагаем).
     "prefs": ("cloudflare", "openrouter", "deepseek", "gemini"),
+    # Сводка беседы — фоновый вызов после каждой реплики: только дешёвые/бесплатные и
+    # DeepSeek/Gemini (Claude — дорогой и лимитированный). По умолчанию Cloudflare: у бесплатных
+    # моделей OpenRouter дневной лимит запросов, а сводка — самый частый вызов.
+    "summary": ("cloudflare", "openrouter", "deepseek", "gemini"),
 }
 
 # Дефолт задачи, если модель из .env (RECIPE_MODEL_DEFAULT) для неё не годится.
@@ -77,7 +82,7 @@ def builtin_defaults() -> dict[str, str]:
     """Дефолты, пока настройки не сохранены: рецептные задачи — модель из .env
     (RECIPE_MODEL_DEFAULT, если она годится для задачи), покупки и предпочтения — Cloudflare."""
     base = config.recipe_model_default if config.recipe_model_default in MODEL_KEYS else _FALLBACK_FULL
-    out = {"shopping": "cloudflare", "prefs": "cloudflare"}
+    out = {"shopping": "cloudflare", "prefs": "cloudflare", "summary": "cloudflare"}
     for task in ("chat", "recipe", "cooking"):
         out[task] = base if allowed(task, base) else _FALLBACK_FULL
     return out

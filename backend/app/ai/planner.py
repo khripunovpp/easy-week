@@ -342,13 +342,14 @@ async def generate_plan(
 
 async def generate_plan_stream(
     user_message: str, avoid_titles: list[str], count: int = 5, gender: str = "f",
-    model: str = "",
+    model: str = "", *, context: str = "",
 ) -> AsyncIterator[tuple[str, Any]]:
     """Потоковый план: yield ('meta', {reply,title,week_label,provider}) → ('dish', dish)…
 
     Стриминговые модели (DeepSeek/Gemini) отдают блюда по мере генерации; Cloudflare
     (без стрима) собирает план пайплайном и отдаёт теми же событиями. Без фолбэков —
-    падение модели пробрасывается наверх (роутер отдаёт event: error)."""
+    падение модели пробрасывается наверх (роутер отдаёт event: error).
+    context — память беседы (первое сообщение + сводка, services/summary.memory)."""
     week = _week_label()
     gate = gate_for(model)
     enforce_daily(gate, "plan")  # дневной лимит на Claude (no-op для остальных)
@@ -361,7 +362,7 @@ async def generate_plan_stream(
         async for delta in gate.stream_json(
             build_ds_plan_messages(
                 user_message, avoid_titles, count, gender,
-                variety=variety, date_hint=_date_hint(),
+                variety=variety, context=context, date_hint=_date_hint(),
             ),
             max_tokens=3000,
             temperature=_PLAN_TEMPERATURE,
@@ -399,7 +400,8 @@ async def generate_plan_stream(
     # Нестриминговые гейты (Cloudflare-пайплайн, Gemini — у него стрим JSON рвётся):
     # собираем план целиком и отдаём теми же событиями. count_plan=False — лимит уже учтён выше.
     data = await generate_plan(
-        user_message, avoid_titles, count, gender, model, count_plan=False, variety=variety
+        user_message, avoid_titles, count, gender, model, count_plan=False, variety=variety,
+        context=context,
     )
     yield "meta", {
         "reply": data["reply"],

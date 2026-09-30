@@ -335,13 +335,14 @@ class ModelDefaults(CamelModel):
     # Модель по умолчанию для каждой задачи. Ключи — как в реестре GATES (ai/gates.py);
     # неизвестный ключ → 422. chat — план/правки/обсуждение, recipe — рецепт блюда
     # (и догенерация для PDF/покупок), shopping — нормализация покупок, cooking — план готовки,
-    # prefs — фоновое извлечение предпочтений из чата. Подходит ли модель задаче — проверяет
-    # роутер по карте services/settings.TASK_MODELS (не подходит → 422).
+    # prefs — фоновое извлечение предпочтений из чата, summary — фоновая сводка беседы.
+    # Подходит ли модель задаче — проверяет роутер по карте services/settings.TASK_MODELS.
     chat: ModelKey
     recipe: ModelKey
     shopping: ModelKey
     cooking: ModelKey
     prefs: ModelKey
+    summary: ModelKey
 
 
 class SettingsBody(CamelModel):

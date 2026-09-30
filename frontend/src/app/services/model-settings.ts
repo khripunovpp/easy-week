@@ -16,6 +16,7 @@ const BUILTIN: ModelDefaults = {
   shopping: 'cloudflare',
   cooking: 'deepseek',
   prefs: 'cloudflare',
+  summary: 'cloudflare',
 };
 
 // Карта «задача → модели» как на бэке (services/settings.TASK_MODELS) — пока сервер не ответил.
@@ -27,6 +28,7 @@ const BUILTIN_TASKS: TaskModels = {
   shopping: [...FULL, 'cloudflare', 'openrouter'],
   cooking: FULL,
   prefs: ['cloudflare', 'openrouter', 'deepseek', 'gemini'],
+  summary: ['cloudflare', 'openrouter', 'deepseek', 'gemini'],
 };
 
 function isModel(v: unknown): v is RecipeModel {
@@ -171,6 +173,7 @@ export class ModelSettings {
       shopping: 'cloudflare',
       cooking: forTask('cooking'),
       prefs: 'cloudflare',
+      summary: 'cloudflare',
     };
     this.models.set(seeded);
     this.api.putSettings(seeded).subscribe({
