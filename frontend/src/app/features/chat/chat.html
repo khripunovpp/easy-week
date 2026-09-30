@@ -30,31 +30,6 @@
         </svg>
       </button>
 
-      <!-- Выбор количества блюд -->
-      <div class="count">
-        <button class="count__btn" type="button" (click)="toggleMenu()" [class.count__btn--open]="menuOpen()">
-          <span class="count__num">{{ store.dishCount() }}</span>
-          <span class="count__label">{{ dishWord(store.dishCount()) }}</span>
-          <svg class="count__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-        </button>
-
-        @if (menuOpen()) {
-          <div class="count__menu">
-            @for (n of countOptions; track n) {
-              <button
-                class="count__opt"
-                type="button"
-                [class.count__opt--active]="n === store.dishCount()"
-                (click)="pickCount(n)">
-                {{ n }} {{ dishWord(n) }}
-              </button>
-            }
-          </div>
-        }
-      </div>
-
       <!-- Выбор модели рецептов (только для этого чата) -->
       <div class="count">
         <button class="count__btn" type="button" (click)="toggleModelMenu()" [class.count__btn--open]="modelMenuOpen()">
@@ -291,6 +266,11 @@
         </section>
       }
     }
+  }
+
+  <!-- Быстрый выбор плана (новый чат): карточки → строка запроса; текст внизу — уточнение -->
+  @if (wizardOn()) {
+    <ew-plan-wizard (build)="store.send()" />
   }
 
   @if (store.loading() && !store.streamingMsgId()) {

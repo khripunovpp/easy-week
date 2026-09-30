@@ -1,4 +1,4 @@
-import { afterNextRender, Component, ElementRef, effect, inject, signal, viewChild } from '@angular/core';
+import { afterNextRender, Component, computed, effect, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { DiscussRef } from '../../models/plan.model';
@@ -11,10 +11,11 @@ import { dishColorClass } from '../../shared/dish-color';
 import { renderMarkdown } from '../../shared/markdown';
 import { Vote } from '../../shared/vote';
 import { ModelName } from '../../shared/model-name';
+import { PlanWizardCard } from './plan-wizard';
 
 @Component({
   selector: 'ew-chat',
-  imports: [FormsModule, RouterLink, CookingLoader, Vote, ModelName],
+  imports: [FormsModule, RouterLink, CookingLoader, Vote, ModelName, PlanWizardCard],
   templateUrl: './chat.html',
   styleUrl: './chat.scss',
 })
@@ -72,9 +73,9 @@ export class Chat {
     return role === 'user' ? 'Вы' : 'Бот';
   }
 
-  readonly menuOpen = signal(false);
   readonly modelMenuOpen = signal(false);
-  readonly countOptions = [2, 3, 4, 5, 6, 7, 8];
+  // Быстрый выбор плана — в новом чате, пока ничего не отправили и не идёт генерация.
+  readonly wizardOn = computed(() => this.store.fresh() && !this.store.loading() && !this.store.pending());
   // Модели, которые можно выбрать для чата/плана — по карте задач с сервера.
   readonly modelOptions = this.modelSettings.modelsForSignal('chat');
 
@@ -193,6 +194,9 @@ export class Chat {
   }
 
   composerPlaceholder(): string {
+    if (this.wizardOn()) {
+      return this.store.wizard.choice() ? 'Уточнение (важнее выбора)…' : 'Или просто напишите, чего хочется…';
+    }
     const p = this.store.pending();
     if (p?.kind === 'replace') return 'Пожелания к замене (необязательно)…';
     if (p?.kind === 'add') return 'Какое блюдо добавить?…';
@@ -240,14 +244,6 @@ export class Chat {
     this.store.newChat();
   }
 
-  toggleMenu(): void {
-    this.menuOpen.update((v) => !v);
-  }
-
-  pickCount(n: number): void {
-    this.store.setCount(n);
-    this.menuOpen.set(false);
-  }
 
   modelLabel(value: RecipeModel): string {
     return MODEL_LABELS[value] ?? value;

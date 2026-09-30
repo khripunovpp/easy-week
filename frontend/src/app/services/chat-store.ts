@@ -1,7 +1,8 @@
-import { Injectable, inject, linkedSignal, signal } from '@angular/core';
+import { Injectable, computed, inject, linkedSignal, signal } from '@angular/core';
 import { ChatMessage, DiscussTarget, WeekPlan } from '../models/plan.model';
 import { EasyWeekApi } from './api';
 import { ModelSettings } from './model-settings';
+import { PlanWizard, composeRequest } from '../shared/plan-wizard';
 import { ALL_MODELS, RecipeModel } from './preferences';
 
 // Действие, инициированное кнопкой карточки, — «висит» бейджем в композере до отправки.
@@ -25,7 +26,7 @@ export interface DiscussStart {
 const INTRO: ChatMessage = {
   id: 'intro',
   role: 'assistant',
-  text: 'Привет! Составлю меню на неделю под заморозку. Сколько ужинов и есть ли ограничения?',
+  text: 'Привет! Составлю меню на неделю под заморозку. Натыкайте варианты ниже или просто напишите, чего хочется.',
 };
 
 // Провайдер плана (человекочитаемый, из бэка) → ключ модели чата.
@@ -42,6 +43,8 @@ const PROVIDER_TO_MODEL: Record<string, RecipeModel> = {
 export class ChatStore {
   private readonly api = inject(EasyWeekApi);
   private readonly modelSettings = inject(ModelSettings);
+  // Быстрый выбор в новом чате: карточки → строка запроса (текст пользователя — уточнение, важнее).
+  readonly wizard = inject(PlanWizard);
 
   readonly messages = signal<ChatMessage[]>([INTRO]);
   readonly draft = signal('');
@@ -72,6 +75,7 @@ export class ChatStore {
   // Начать новый чат (сбрасываем переписку, но сохраняем выбор количества).
   // Модель чата пере-сеиваем из актуальной настройки «Чат и план».
   newChat(): void {
+    this.wizard.reset();
     this.messages.set([INTRO]);
     this.conversationId = null;
     this.draft.set('');
@@ -158,10 +162,23 @@ export class ChatStore {
     this.pending.set(null);
   }
 
+  /** Новый чат: ещё ничего не отправляли (только приветствие) — показываем быстрый выбор. */
+  readonly fresh = computed(() => {
+    const list = this.messages();
+    return list.length === 1 && list[0].id === INTRO.id;
+  });
+
   send(): void {
     const pending = this.pending();
-    const text = this.draft().trim();
+    let text = this.draft().trim();
+    // Первое сообщение нового чата: выбор на карточках + уточнение текстом (оно важнее выбора).
+    if (!this.conversationId && !pending && this.fresh() && this.wizard.choice()) {
+      text = composeRequest(this.wizard.choice(), text);
+      const n = this.wizard.count();
+      if (n) this.dishCount.set(n); // явное число в тексте всё равно важнее (промпт плана)
+    }
     if ((!text && !pending) || this.loading()) return;
+    this.wizard.reset();
 
     // Режим «Обсуждение» — ДО ветки правки плана: версий плана не создаём, бейдж остаётся.
     if (pending?.kind === 'discuss') {
