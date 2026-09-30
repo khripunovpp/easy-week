@@ -282,6 +282,8 @@ class PreferencesBody(CamelModel):
     likes: PrefList | None = None
     dislikes: PrefList | None = None
     suggested_allergies: PrefList | None = None
+    suggested_dislikes: PrefList | None = None
+    suggested_likes: PrefList | None = None
     macros: MacrosPatch | None = None
     diet_note: Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)] | None = None
 
@@ -293,6 +295,9 @@ class PreferencesOut(CamelModel):
     likes: list[str] = []
     dislikes: list[str] = []
     suggested_allergies: list[str] = []
+    # «Похоже на вкус» из чата — подсказки «Добавить?»: в dislikes/likes переносит пользователь.
+    suggested_dislikes: list[str] = []
+    suggested_likes: list[str] = []
     macros: Macros = Macros()
     diet_note: str = ""
 

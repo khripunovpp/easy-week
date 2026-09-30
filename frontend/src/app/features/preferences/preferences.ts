@@ -21,6 +21,8 @@ const EMPTY: FoodPreferences = {
   likes: [],
   dislikes: [],
   suggestedAllergies: [],
+  suggestedDislikes: [],
+  suggestedLikes: [],
   macros: { protein: 'normal', fat: 'normal', carbs: 'normal' },
   dietNote: '',
 };
@@ -121,6 +123,9 @@ export class PreferencesPage {
     } else {
       next.likes = without(cur.likes, v);
     }
+    // Решил сам — подсказки про этот продукт больше не нужны.
+    next.suggestedDislikes = without(cur.suggestedDislikes ?? [], v);
+    next.suggestedLikes = without(cur.suggestedLikes ?? [], v);
     this.patch(next);
   }
 
@@ -136,6 +141,17 @@ export class PreferencesPage {
   /** «Добавить в аллергии?» → нет (просто убираем подсказку). */
   dismissSuggestion(item: string): void {
     this.patch({ suggestedAllergies: this.prefs().suggestedAllergies.filter((x) => x !== item) });
+  }
+
+  /** «Похоже, не любите / любите» → да: переносим в «не нравится» / «нравится». */
+  acceptTaste(kind: 'dislikes' | 'likes', item: string): void {
+    this.addItem(kind, item);
+  }
+
+  /** «Похоже…» → нет: просто убираем подсказку (это было разовое, не вкус). */
+  dismissTaste(kind: 'dislikes' | 'likes', item: string): void {
+    const key = kind === 'dislikes' ? 'suggestedDislikes' : 'suggestedLikes';
+    this.patch({ [key]: (this.prefs()[key] ?? []).filter((x) => x !== item) });
   }
 
   setMacro(key: keyof Macros, level: MacroLevel): void {

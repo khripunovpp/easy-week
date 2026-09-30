@@ -97,3 +97,11 @@
   font-size: 12.5px;
   padding: 4px 0;
 }
+
+/* Подзаголовок группы подсказок («Не предлагать больше?» / «Любите?») */
+.prefs__sub {
+  margin: 10px 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+}

@@ -2,14 +2,20 @@
 
 Одно глобальное хранилище (авторизации нет): JSON-файл рядом с БД.
 - авто-извлечение из сообщений чата моделью задачи `prefs` из настроек (по умолчанию
-  Cloudflare; фоновая вспом. задача): дописывает likes/dislikes, а подозрения на аллергию
+  Cloudflare; фоновая вспом. задача). Три уровня уверенности: СТОПРОЦЕНТНОЕ и постоянное
+  («не ем», «терпеть не могу», «никогда не предлагай», общее «люблю X») → сразу в
+  likes/dislikes; ПОХОЖЕ на вкус, но не наверняка → в suggested_dislikes/suggested_likes
+  (подсказка «Добавить?» на /preferences, решает пользователь); РАЗОВОЕ («на этой неделе без
+  рыбы», «убери суп») → никуда (внутри чата его учитывает память беседы). Страховки без модели:
+  зовём экстрактор только при словах про вкус, разовые маркеры без слов про постоянство
+  понижают уверенность до подсказки, продукт должен встречаться в тексте. Подозрения на аллергию
   кладёт в suggested_allergies —
   сами аллергии экстрактор НИКОГДА не трогает (только ручная правка на /preferences);
 - инъекция в промпты генерации (см. prompt.py → as_hint);
 - просмотр/правка на экране /preferences (API в routers/chat.py).
 
-Формат файла (snake_case): {allergies, likes, dislikes, suggested_allergies,
-macros: {protein, fat, carbs: low|normal|high}, diet_note}. Старый файл (только likes/dislikes)
+Формат файла (snake_case): {allergies, likes, dislikes, suggested_allergies, suggested_dislikes,
+suggested_likes, macros: {protein, fat, carbs: low|normal|high}, diet_note}. Старый файл (только likes/dislikes)
 читается как есть — недостающие поля получают дефолты.
 """
 
@@ -17,6 +23,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import threading
 from pathlib import Path
 
@@ -30,64 +37,133 @@ MAX_ITEM_LEN = 40  # длина одного пункта (длиннее — м
 MAX_NOTE_LEN = 200  # заметка о питании
 MACRO_KEYS = ("protein", "fat", "carbs")
 MACRO_LEVELS = ("low", "normal", "high")
-LIST_KEYS = ("allergies", "likes", "dislikes", "suggested_allergies")
+LIST_KEYS = (
+    "allergies", "likes", "dislikes", "suggested_allergies", "suggested_dislikes", "suggested_likes",
+)
 
 # Один процесс — один лок: read-modify-write из merge (фон) и PUT не перетирают друг друга.
 _lock = threading.Lock()
 
+_ARR = {"type": "array", "items": {"type": "string"}}
 PREFS_SCHEMA = {
     "type": "object",
     "properties": {
-        "dislikes": {"type": "array", "items": {"type": "string"}},
-        "likes": {"type": "array", "items": {"type": "string"}},
-        "allergies": {"type": "array", "items": {"type": "string"}},
+        "dislikes": _ARR, "likes": _ARR, "maybe_dislikes": _ARR, "maybe_likes": _ARR,
+        "allergies": _ARR,
     },
-    "required": ["dislikes", "likes", "allergies"],
+    "required": ["dislikes", "likes", "maybe_dislikes", "maybe_likes", "allergies"],
 }
 
 _EXTRACT_SYSTEM = (
-    "Ты извлекаешь ТОЛЬКО ЯВНО названные устойчивые пищевые предпочтения из сообщения. "
-    "dislikes — что пользователь ЯВНО не любит / просит избегать / не ест "
-    "(маркеры: «не люблю», «терпеть не могу», «без …», «убери …», «не ем …»). "
-    "allergies — ТОЛЬКО явная аллергия/непереносимость (маркеры: «аллергия на …», "
-    "«непереносимость …»); аллергию клади в allergies, НЕ в dislikes. "
-    "likes — что пользователь ЯВНО любит / хочет чаще "
-    "(маркеры: «люблю», «обожаю», «нравится», «побольше …»). "
-    "СТРОГИЕ ПРАВИЛА:\n"
-    "1) НИЧЕГО не придумывай и не додумывай — только то, что прямо сказано этими словами.\n"
-    "2) НЕ балансируй списки: если сказано только про нелюбимое — likes ПУСТОЙ (и наоборот). "
-    "Заполнять списки на каждое сообщение НЕЛЬЗЯ.\n"
-    "3) Простое упоминание еды в запросе плана («план с курицей», «5 ужинов», «рыбное на пару») "
-    "— это НЕ предпочтение, НЕ добавляй.\n"
-    "4) Разовые пожелания к конкретному плану/дню («сегодня хочу», «на этой неделе», «побыстрее») "
-    "— НЕ предпочтения.\n"
-    "5) ОПЕРАЦИИ НАД ТЕКУЩИМ ПЛАНОМ — это НЕ предпочтения, верни пусто: «убери/замени/добавь "
-    "<конкретное блюдо>», «замени X на не-суп», «где суп?!», «верни курицу». Здесь пользователь "
-    "правит план, а не рассказывает о вкусах. Особенно когда в контексте сказано, что это правка.\n"
-    "6) Контекст (если дан) — ТОЛЬКО чтобы понять, вкус это или разовая правка. Извлекай СТРОГО "
-    "из последнего сообщения, из контекста ничего не бери.\n"
-    "7) Если ЯВНЫХ предпочтений нет — верни ВСЕ списки пустыми.\n"
-    "Названия — короткие, на русском."
+    "Ты ведёшь профиль вкусов пользователя. dislikes — это список «БОЛЬШЕ НИКОГДА НЕ "
+    "ПРЕДЛАГАТЬ», likes — «любит всегда». Ошибка здесь дорогая: блюдо навсегда пропадёт из "
+    "меню. Поэтому раскладывай ТОЛЬКО то, что прямо сказано в последнем сообщении, по трём "
+    "уровням уверенности:\n"
+    "1) dislikes / likes — ТОЛЬКО стопроцентное и ПОСТОЯННОЕ: «не ем», «мы не едим», «терпеть "
+    "не могу», «ненавижу», «никогда не предлагай», «вообще не люблю», общее «не люблю X» / "
+    "«люблю X» / «обожаю X» без привязки к неделе или плану.\n"
+    "2) maybe_dislikes / maybe_likes — похоже на вкус, но НЕ наверняка: «не очень люблю», "
+    "«что-то не нравится», «кажется, не люблю», «понравилось это блюдо», «было вкусно», вкус, "
+    "упомянутый вместе со словами «на этой неделе» / «в этот раз».\n"
+    "3) Никуда (пустые списки) — РАЗОВОЕ и ОПЕРАЦИИ С ПЛАНОМ: «на этой неделе без рыбы», "
+    "«в этот раз не хочу супов», «давай без свинины», «убери / замени / добавь X», «сделай "
+    "побыстрее», «надоела курица», «хочу план с курицей», просто упоминание еды в запросе. "
+    "Слова «без …», «убери …», «не хочу» САМИ ПО СЕБЕ — это разовое, не вкус.\n"
+    "allergies — ТОЛЬКО явная аллергия/непереносимость («аллергия на …», «непереносимость …»); "
+    "аллергию клади в allergies, НЕ в dislikes.\n"
+    "Правила: ничего не додумывай; не балансируй списки (заполнять их на каждое сообщение "
+    "НЕЛЬЗЯ); контекст (если дан) — только чтобы понять, вкус это или разовая правка, извлекай "
+    "СТРОГО из последнего сообщения; сомневаешься между 1 и 2 — выбирай 2, между 2 и 3 — выбирай 3. "
+    "Названия — короткие, на русском, как в сообщении."
 )
 
 
-def _shot(dislikes=(), likes=(), allergies=()) -> dict:
-    return {"dislikes": list(dislikes), "likes": list(likes), "allergies": list(allergies)}
+def _shot(dislikes=(), likes=(), allergies=(), maybe_dislikes=(), maybe_likes=()) -> dict:
+    return {
+        "dislikes": list(dislikes), "likes": list(likes),
+        "maybe_dislikes": list(maybe_dislikes), "maybe_likes": list(maybe_likes),
+        "allergies": list(allergies),
+    }
 
 
 # few-shot: маленькая модель иначе «услужливо» заполняет списки на каждое сообщение
 _EXTRACT_SHOTS = [
     ("не люблю чечевицу", _shot(dislikes=["чечевица"])),
     ("сделай 5 ужинов побыстрее", _shot()),
-    ("обожаю острое, только без грибов", _shot(dislikes=["грибы"], likes=["острое"])),
+    # разовое: неделя/план — не вкус (главный источник ложных «не люблю»)
+    ("в эту неделю давай без рыбы", _shot()),
+    ("на этой неделе не хочу супов, остальное как обычно", _shot()),
+    ("обожаю острое, только без грибов", _shot(likes=["острое"])),
+    ("мы вообще не едим свинину, никогда её не предлагай", _shot(dislikes=["свинина"])),
+    ("печень терпеть не могу", _shot(dislikes=["печень"])),
+    # похоже на вкус, но не наверняка — только подсказка пользователю
+    ("баклажаны что-то не очень люблю", _shot(maybe_dislikes=["баклажаны"])),
+    ("солянка прошлая очень понравилась", _shot(maybe_likes=["солянка"])),
     # аллергия — отдельно: в профиль попадёт только как подсказка «Добавить в аллергии?»
     ("у меня аллергия на арахис", _shot(allergies=["арахис"])),
     ("хочу план с курицей и рыбой на неделю", _shot()),
-    # операции над планом — не предпочтения (частый источник ложных срабатываний)
+    # операции над планом — не предпочтения
     ("замени том ям на блюдо не суп", _shot()),
+    ("убери грибы из рецепта", _shot()),
     ("где куриный суп?! я просил один суп", _shot()),
-    ("верни куриный, добавь суп в меню", _shot()),
+    ("надоела курица, давай в этот раз говядину", _shot()),
+    ("что-то сейчас не хочется рыбы", _shot()),
+    ("я люблю солянку, давай добавим к ней пару блюд", _shot(likes=["солянка"])),
 ]
+
+# --- Страховки без модели (детерминированно, до и после вызова) ---
+# Слова про вкус: без них экстрактор не зовём вовсе (запросы плана и правки — мимо).
+_TASTE_MARKERS = (
+    "любл", "люби", "обожа", "нравит", "нравл", "понрав", "ненавиж", "терпеть не", "не ем",
+    "не едим", "не ест ", "не перенош", "не выношу", "аллерг", "непереносим", "никогда",
+    "противн", "мерзк", "отвратит", "не перевар", "вкусн", "не очень",
+)
+# Постоянство: с ними разовые маркеры не понижают уверенность.
+_PERMANENT_MARKERS = (
+    "вообще", "никогда", "всегда", "терпеть не", "ненавиж", "не ем", "не едим", "аллерг",
+    "непереносим", "в принципе", "совсем не", "с детства", "по жизни",
+)
+# Разовое: неделя/план/сейчас — без слов про постоянство вкус максимум «похоже».
+_TEMPORARY_MARKERS = (
+    "на этой неделе", "на эту неделю", "в эту неделю", "этой недели", "на следующей неделе",
+    "на следующую неделю", "в этот раз", "на этот раз", "в этом плане", "в этот план", "сегодня",
+    "сейчас", "пока что", "на неделю",
+)
+
+
+def _norm_text(s: str) -> str:
+    return " ".join((s or "").lower().replace("ё", "е").split())
+
+
+def has_taste_marker(message: str) -> bool:
+    t = _norm_text(message)
+    return any(m in t for m in _TASTE_MARKERS)
+
+
+def _is_temporary(message: str) -> bool:
+    t = _norm_text(message)
+    return any(m in t for m in _TEMPORARY_MARKERS) and not any(m in t for m in _PERMANENT_MARKERS)
+
+
+def _is_review(message: str) -> bool:
+    """«Понравилось / было вкусно» без «люблю / обожаю» — отзыв о конкретном блюде, не
+    устойчивый вкус: максимум подсказка."""
+    t = _norm_text(message)
+    return any(m in t for m in ("понрав", "вкусн")) and not any(m in t for m in ("любл", "обожа"))
+
+
+def _grounded(items, message: str) -> list[str]:
+    """Только продукты, которые реально есть в тексте (основа слова ≥3 букв) — модель не
+    должна додумывать «картошка с бабами» из «картошка ой»."""
+    t = _norm_text(message)
+    out: list[str] = []
+    for x in items or []:
+        if not isinstance(x, str):
+            continue
+        words = [w for w in re.findall(r"[а-яa-z]+", _norm_text(x)) if len(w) >= 3]
+        if words and any(w[: max(3, len(w) - 2)] in t for w in words):
+            out.append(x)
+    return out
 
 
 def _file() -> Path:
@@ -128,6 +204,13 @@ def normalize(data: dict | None) -> dict:
     # предложенное, что уже стало аллергией, больше не предлагаем
     out["suggested_allergies"] = [
         x for x in out["suggested_allergies"] if not _has(out["allergies"], x)
+    ]
+    # подсказки вкусов — только то, что ещё не решено пользователем
+    decided = out["allergies"] + out["dislikes"] + out["likes"]
+    out["suggested_dislikes"] = [x for x in out["suggested_dislikes"] if not _has(decided, x)]
+    out["suggested_likes"] = [
+        x for x in out["suggested_likes"]
+        if not _has(decided, x) and not _has(out["suggested_dislikes"], x)
     ]
     return out
 
@@ -182,7 +265,8 @@ def set_lists(dislikes: list[str], likes: list[str]) -> dict:
 
 
 def merge(
-    new_dislikes: list[str], new_likes: list[str], new_allergies: list[str] | None = None
+    new_dislikes: list[str], new_likes: list[str], new_allergies: list[str] | None = None,
+    maybe_dislikes: list[str] | None = None, maybe_likes: list[str] | None = None,
 ) -> dict:
     """Слить извлечённое из чата с накопленным.
 
@@ -207,7 +291,13 @@ def merge(
                 continue  # конфликт с ограничением — ограничение важнее, лайк не пишем
             if not _has(lik, l):
                 lik.append(l)
-        out = normalize({**data, "dislikes": dis, "likes": lik, "suggested_allergies": sug})
+        # «Похоже на вкус» — только подсказки «Добавить?»: в dislikes/likes их переносит пользователь.
+        sd = _dedup_add(list(data["suggested_dislikes"]), maybe_dislikes)
+        sl = _dedup_add(list(data["suggested_likes"]), maybe_likes)
+        out = normalize({
+            **data, "dislikes": dis, "likes": lik, "suggested_allergies": sug,
+            "suggested_dislikes": sd, "suggested_likes": sl,
+        })
         _save(out)
         return out
 
@@ -267,7 +357,8 @@ def avoid_all() -> list[str]:
 
 async def extract_and_merge(message: str, context: str = "") -> None:
     """Извлечь предпочтения из сообщения моделью задачи `prefs` (настройки; по умолчанию
-    Cloudflare) и слить в профиль.
+    Cloudflare) и слить в профиль: стопроцентное — в likes/dislikes, «похоже» — в подсказки,
+    разовое — никуда.
 
     context — фон для оценки «вкус или разовая правка плана» (напр. «Это правка плана» +
     пара реплик). Извлечение идёт СТРОГО из message; из контекста ничего не берём.
@@ -276,6 +367,8 @@ async def extract_and_merge(message: str, context: str = "") -> None:
     msg = (message or "").strip()
     if len(msg) < 3:
         return
+    if not has_taste_marker(msg):
+        return  # запрос плана / правка без слов про вкус — модель не зовём (и не ошибётся)
     messages: list[dict[str, str]] = [{"role": "system", "content": _EXTRACT_SYSTEM}]
     for shot_in, shot_out in _EXTRACT_SHOTS:
         messages.append({"role": "user", "content": shot_in})
@@ -290,14 +383,25 @@ async def extract_and_merge(message: str, context: str = "") -> None:
     cf_kw = {"schema": PREFS_SCHEMA, "model": settings.cf_model_judge} if gate is cloudflare else {}
     try:
         parsed, _ = await gate.complete_json(
-            messages, **cf_kw, max_tokens=200, label="извлечение предпочтений",
+            messages, **cf_kw, max_tokens=250, temperature=0.1, label="извлечение предпочтений",
         )
-        d = parsed.get("dislikes") or []
-        l = parsed.get("likes") or []
-        a = parsed.get("allergies") or []  # → только suggested_allergies, не в аллергии
-        if d or l or a:
-            merge(d, l, a)
-            logger.info("prefs learned: +dislikes=%s +likes=%s ?allergies=%s", d, l, a)
+        got = {k: _grounded(parsed.get(k), msg) for k in PREFS_SCHEMA["properties"]}
+        d, l, a = got["dislikes"], got["likes"], got["allergies"]
+        md, ml = got["maybe_dislikes"], got["maybe_likes"]
+        if _is_temporary(msg):
+            # «на этой неделе…» без слов про постоянство — максимум подсказка, не «никогда».
+            md, ml, d, l = md + d, ml + l, [], []
+        if _is_review(msg):
+            ml, l = ml + l, []
+        # уже уверенное не дублируем подсказкой
+        md = [x for x in md if not _has(d, x)]
+        ml = [x for x in ml if not _has(l, x)]
+        if d or l or a or md or ml:
+            merge(d, l, a, md, ml)
+            logger.info(
+                "prefs learned: +dislikes=%s +likes=%s ?dislikes=%s ?likes=%s ?allergies=%s",
+                d, l, md, ml, a,
+            )
     except Exception as exc:  # noqa: BLE001 — вспомогательная задача, не критично
         logger.warning("prefs extract skipped: %s", str(exc)[:150])
 

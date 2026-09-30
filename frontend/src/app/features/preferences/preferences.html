@@ -56,6 +56,52 @@
           </section>
         }
 
+        <!-- «Похоже на вкус» из чата, но не наверняка: в профиль переносит только пользователь -->
+        @if (prefs().suggestedDislikes.length || prefs().suggestedLikes.length) {
+          <section class="card prefs__card prefs__card--suggest">
+            <h2 class="prefs__label">Это ваш вкус?</h2>
+            <p class="prefs__hint">Из сообщений в чате, но не наверняка. Тап — запомнить навсегда, ✕ — это было разово</p>
+            @if (prefs().suggestedDislikes.length) {
+              <p class="prefs__sub">Не предлагать больше?</p>
+              <div class="chip-editor">
+                @for (x of prefs().suggestedDislikes; track x) {
+                  <span class="prefs__sugg">
+                    <button class="chip chip--suggest" type="button" (click)="acceptTaste('dislikes', x)">
+                      {{ x }}
+                    </button>
+                    <button
+                      class="prefs__sugg-x"
+                      type="button"
+                      [attr.aria-label]="'Это было разово: ' + x"
+                      (click)="dismissTaste('dislikes', x)">
+                      ✕
+                    </button>
+                  </span>
+                }
+              </div>
+            }
+            @if (prefs().suggestedLikes.length) {
+              <p class="prefs__sub">Любите?</p>
+              <div class="chip-editor">
+                @for (x of prefs().suggestedLikes; track x) {
+                  <span class="prefs__sugg">
+                    <button class="chip chip--suggest" type="button" (click)="acceptTaste('likes', x)">
+                      {{ x }}
+                    </button>
+                    <button
+                      class="prefs__sugg-x"
+                      type="button"
+                      [attr.aria-label]="'Не запоминать: ' + x"
+                      (click)="dismissTaste('likes', x)">
+                      ✕
+                    </button>
+                  </span>
+                }
+              </div>
+            }
+          </section>
+        }
+
         <section class="card prefs__card">
           <h2 class="prefs__label">⚠️ Аллергии</h2>
           <p class="prefs__hint">Исключаем строго — вместе со следами, соусами и заправками</p>

@@ -173,10 +173,14 @@ export interface Macros {
 }
 
 /** Полные предпочтения (экран /preferences). Аллергии — жёсткое ограничение, правятся только
- *  вручную; suggestedAllergies — подозрения из чата («Добавить в аллергии?»). */
+ *  вручную; suggestedAllergies — подозрения из чата («Добавить в аллергии?»);
+ *  suggestedDislikes/suggestedLikes — «похоже на вкус» из чата (не наверняка): в «не люблю» /
+ *  «люблю» их переносит только пользователь. */
 export interface FoodPreferences extends FoodPrefs {
   allergies: string[];
   suggestedAllergies: string[];
+  suggestedDislikes: string[];
+  suggestedLikes: string[];
   macros: Macros;
   dietNote: string;
 }

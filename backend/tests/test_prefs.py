@@ -172,5 +172,78 @@ def test_extract_cloudflare_passes_schema(pfile, monkeypatch):
     monkeypatch.setattr(prefs, "gate_for", lambda m, task="chat": gate)
     import asyncio
 
-    asyncio.run(prefs.extract_and_merge("сделай 5 ужинов"))
+    asyncio.run(prefs.extract_and_merge("терпеть не могу печень"))
     assert gate.kw["schema"] is prefs.PREFS_SCHEMA and gate.kw["model"] == config.cf_model_judge
+
+
+
+# --- три уровня уверенности и страховки без модели ---
+
+def _run(monkeypatch, message, parsed):
+    gate = _FakeGate({"dislikes": [], "likes": [], "maybe_dislikes": [], "maybe_likes": [],
+                      "allergies": [], **parsed})
+    monkeypatch.setattr(prefs, "gate_for", lambda m, task="chat": gate)
+    import asyncio
+
+    asyncio.run(prefs.extract_and_merge(message))
+    return gate
+
+
+def test_no_taste_words_no_model_call(pfile, monkeypatch):
+    for msg in ("в эту неделю давай без рыбы", "убери грибы", "сделай 5 ужинов побыстрее"):
+        gate = _run(monkeypatch, msg, {"dislikes": ["рыба"]})
+        assert gate.kw is None, msg  # модель не звали — ложному «не люблю» неоткуда взяться
+    assert prefs.load()["dislikes"] == []
+
+
+def test_temporary_wish_becomes_only_suggestion(pfile, monkeypatch):
+    _run(monkeypatch, "на этой неделе хочу то, что люблю — курицу", {"likes": ["курица"]})
+    data = prefs.load()
+    assert data["likes"] == [] and data["suggested_likes"] == ["курица"]
+
+
+def test_permanent_words_beat_week_marker(pfile, monkeypatch):
+    _run(monkeypatch, "на этой неделе без свинины, мы её вообще не едим", {"dislikes": ["свинина"]})
+    assert prefs.load()["dislikes"] == ["свинина"]
+
+
+def test_maybe_goes_to_suggestions_and_hallucinations_dropped(pfile, monkeypatch):
+    _run(monkeypatch, "баклажаны что-то не очень люблю",
+         {"maybe_dislikes": ["баклажаны"], "dislikes": ["бобы"]})  # «бобы» в тексте нет
+    data = prefs.load()
+    assert data["dislikes"] == [] and data["suggested_dislikes"] == ["баклажаны"]
+
+
+def test_confirming_suggestion_clears_it(pfile):
+    prefs.merge([], [], [], ["баклажаны"], ["солянка"])
+    out = prefs.update({"dislikes": ["Баклажаны"], "likes": ["солянка"]})
+    assert out["suggested_dislikes"] == [] and out["suggested_likes"] == []
+    assert out["dislikes"] == ["Баклажаны"]
+
+
+def test_suggestions_not_in_prompt_hint(pfile):
+    prefs.merge([], [], [], ["баклажаны"], ["солянка"])
+    hint = prefs.as_hint()
+    assert "баклажаны" not in hint and "солянка" not in hint  # неподтверждённое — не ограничение
+
+
+def test_put_accepts_suggestion_fields(pfile):
+    from fastapi.testclient import TestClient
+
+    from app.config import settings as config
+    from app.main import app
+
+    config_pw = config.app_password
+    config.app_password = ""
+    try:
+        prefs.merge([], [], [], ["баклажаны"], [])
+        r = TestClient(app).put("/api/preferences", json={"suggestedDislikes": []})
+        assert r.status_code == 200 and r.json()["suggestedDislikes"] == []
+    finally:
+        config.app_password = config_pw
+
+
+def test_review_of_dish_is_only_suggestion(pfile, monkeypatch):
+    _run(monkeypatch, "прошлая солянка очень понравилась", {"likes": ["солянка"]})
+    data = prefs.load()
+    assert data["likes"] == [] and data["suggested_likes"] == ["солянка"]
