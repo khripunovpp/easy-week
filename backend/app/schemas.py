@@ -361,3 +361,35 @@ class SettingsOut(CamelModel):
     # Карта «задача → модели, которые можно выбрать» (services/settings.TASK_MODELS): фронт
     # строит по ней выпадашки — неподходящие модели (напр. Cloudflare для рецептов) не предлагает.
     task_models: dict[str, list[str]] = {}
+
+
+# --- рецепты из принятых планов + избранное (режим «Рецепты» на странице планов) ---
+
+
+class RecipeItem(CamelModel):
+    key: str  # нормализованное название — ключ избранного и дедупликации на фронте
+    plan_id: str
+    plan_title: str
+    week_label: str
+    plan_decided_at: datetime | None = None
+    dish_id: str
+    name: str
+    emoji: str = "🍽️"
+    tags: list[str] = []
+    prep_min: int = 0
+    cook_min: int = 0
+    servings: int = 4
+    has_recipe: bool = False  # развёрнутый рецепт уже сгенерирован (есть шаги)
+    favorite: bool = False
+
+
+class FavoriteBody(CamelModel):
+    name: str = Field(min_length=1, max_length=120)
+    favorite: bool
+    plan_id: str | None = None
+    dish_id: str | None = None
+
+
+class FavoriteOut(CamelModel):
+    key: str
+    favorite: bool

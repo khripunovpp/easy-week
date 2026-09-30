@@ -8,7 +8,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from . import auth
 from .config import settings
 from .db import init_db
-from .routers import chat, discuss, plans, ratings, tts
+from .routers import chat, discuss, plans, ratings, recipes, tts
 from .routers import settings as settings_router
 
 # Логи приложения (plan via DeepSeek, валидатор, ошибки провайдеров) видны в контейнере.
@@ -46,6 +46,7 @@ app.include_router(plans.router)
 app.include_router(ratings.router)
 app.include_router(settings_router.router)
 app.include_router(tts.router)
+app.include_router(recipes.router)
 
 # Prometheus: HTTP-метрики (кол-во/задержка/статусы) + свои счётчики токенов (observe.py).
 # /metrics слушается только локально (Prometheus на том же хосте скрапит 127.0.0.1:8010).

@@ -15,16 +15,82 @@
         <p class="muted">Планов пока нет.</p>
       </div>
     } @else {
+      <!-- Режим страницы: планы / рецепты из принятых планов (GUIDEBOOK «Планы: режим Рецепты») -->
+      <div class="seg pl__mode" role="group" aria-label="Режим списка">
+        <button class="seg__opt" type="button" [class.seg__opt--on]="mode() === 'plans'"
+                [attr.aria-pressed]="mode() === 'plans'" (click)="setMode('plans')">Планы</button>
+        <button class="seg__opt" type="button" [class.seg__opt--on]="mode() === 'recipes'"
+                [attr.aria-pressed]="mode() === 'recipes'" (click)="setMode('recipes')">Рецепты</button>
+      </div>
+
       <div class="pl__search">
         <input
           class="search-field"
           type="search"
-          placeholder="Поиск по названию и блюдам"
+          [placeholder]="mode() === 'plans' ? 'Поиск по названию и блюдам' : 'Поиск по рецептам'"
           [value]="query()"
           (input)="onSearch($any($event.target).value)" />
       </div>
 
-      @if (searchActive()) {
+      @if (mode() === 'recipes') {
+        @if (recipesLoading()) {
+          <div class="pl__state pl__state--sm"><ew-cooking /></div>
+        } @else if (recipesError()) {
+          <div class="pl__state pl__state--sm">
+            <p class="muted">Не удалось загрузить рецепты.</p>
+            <button class="link-btn" type="button" (click)="loadRecipes(true)">Повторить</button>
+          </div>
+        } @else if (!recipes().length) {
+          <div class="pl__state pl__state--sm">
+            <span class="pl__emoji">🍲</span>
+            <p class="muted">Рецептов пока нет. Примите план — его блюда появятся здесь.</p>
+          </div>
+        } @else {
+          <div class="seg pl__group" role="group" aria-label="Группировка рецептов">
+            <button class="seg__opt" type="button" [class.seg__opt--on]="group() === 'plans'"
+                    [attr.aria-pressed]="group() === 'plans'" (click)="setGroup('plans')">По планам</button>
+            <button class="seg__opt" type="button" [class.seg__opt--on]="group() === 'favorites'"
+                    [attr.aria-pressed]="group() === 'favorites'" (click)="setGroup('favorites')">Избранное</button>
+          </div>
+
+          @for (sec of recipeSections(); track sec.id) {
+            <p class="pl__label">{{ sec.label }}</p>
+            @for (r of sec.items; track r.planId + ':' + r.dishId; let i = $index) {
+              <div class="prow">
+                <a class="prow__link" [routerLink]="['/plan', r.planId, 'dish', r.dishId]">
+                  <span class="emoji-badge" [class]="pastel(i)">{{ r.emoji }}</span>
+                  <span class="prow__body">
+                    <span class="prow__title">{{ r.name }}</span>
+                    <span class="prow__sub prow__sub--clip muted">
+                      @if (recipeTime(r); as t) { ~{{ t }} }
+                      @if (sec.showPlan) { @if (recipeTime(r)) { · }{{ r.planTitle }} }
+                    </span>
+                  </span>
+                </a>
+                <button
+                  class="prow__fav"
+                  type="button"
+                  [class.prow__fav--on]="r.favorite"
+                  [attr.aria-pressed]="r.favorite"
+                  [attr.aria-label]="r.favorite ? 'Убрать из избранного' : 'В избранное'"
+                  (click)="toggleFavorite(r)">
+                  <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" [attr.fill]="r.favorite ? 'currentColor' : 'none'">
+                    <path d="M12 3.8l2.5 5.1 5.6.8-4 3.9.9 5.6-5-2.6-5 2.6.9-5.6-4-3.9 5.6-.8z" stroke-linejoin="round" />
+                  </svg>
+                </button>
+              </div>
+            }
+            @if (sec.hint) {
+              <p class="pl__hint muted">{{ sec.hint }}</p>
+            }
+          } @empty {
+            <div class="pl__state pl__state--sm">
+              <span class="pl__emoji">🔍</span>
+              <p class="muted">Ничего не найдено.</p>
+            </div>
+          }
+        }
+      } @else if (searchActive()) {
         @for (r of results(); track r.plan.id; let i = $index) {
           <ng-container *ngTemplateOutlet="prow; context: { $implicit: r.plan, i: i }" />
           @if (r.dishes.length) {

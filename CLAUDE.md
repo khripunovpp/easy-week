@@ -172,6 +172,9 @@ ssh pi5 'cd ~/easy-week && bash deploy/update.sh'
 - Полное описание (первичная настройка, Tailscale/Cloudflare) — `deploy/README.md`.
 
 ## Прочее
+- **Рецепты и избранное** (режим «Рецепты» на странице «Планы»): `GET /api/recipes` — блюда только
+  принятых планов, `PUT /api/recipes/favorite` — звезда (`routers/recipes.py`, таблица
+  `FavoriteRecipe`, ключ — `history.norm_name(название)`, общая для семьи, переживает правки плана).
 - **Вход по общему паролю:** `APP_PASSWORD` (+ опц. `APP_SECRET`) в `backend/.env`, не в репо; пусто — вход выключен. Бэк — `backend/app/auth.py` (middleware на `/api/*`), фронт — `/login` + `services/auth*.ts`. Подробно — `deploy/README.md`.
 - Бэклог и хотелки — в `ROADMAP.md`. Мониторинг — в `monitoring/README.md`. Docker — в `docker/README.md`.
 - Единицы ингредиентов задаём у источника: только `г` / `мл`, `шт` — редко (штучное).

@@ -79,3 +79,17 @@ class RatingRow(SQLModel, table=True):
     dish_id: str | None = Field(default=None)
     conversation_id: str | None = Field(default=None)
     created_at: datetime = Field(default_factory=_now)
+
+
+class FavoriteRecipe(SQLModel, table=True):
+    """Избранный рецепт (звезда в режиме «Рецепты» на странице планов) — общий для семьи.
+
+    Ключ — нормализованное название блюда (history.norm_name): правка плана создаёт новую
+    версию с новым id, а звезда остаётся на блюде. plan_id/dish_id — откуда отметили (для
+    справки), рецепт открывается из свежего принятого плана с этим блюдом."""
+
+    key: str = Field(primary_key=True)
+    name: str
+    plan_id: str | None = None
+    dish_id: str | None = None
+    created_at: datetime = Field(default_factory=_now)

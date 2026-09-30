@@ -134,3 +134,44 @@
   font-size: 13px;
   margin-top: 2px;
 }
+
+/* Режим страницы «Планы / Рецепты» и группировка рецептов — глобальный .seg, только отступы */
+.pl__mode {
+  margin-bottom: 12px;
+}
+.pl__group {
+  margin: 0 0 4px;
+}
+
+/* Подсказка пустой секции (напр. «Избранное» без звёзд) */
+.pl__hint {
+  margin: -2px 2px 12px;
+  font-size: 13px;
+}
+
+/* Звезда «избранное» справа в строке рецепта — как кнопка удаления у плана */
+.prow__fav {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  color: var(--ink-3);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.prow__fav svg {
+  width: 20px;
+  height: 20px;
+}
+.prow__fav--on {
+  color: var(--accent);
+}
+.prow__fav:active {
+  background: var(--accent-soft);
+}
+
+/* Подпись строки рецепта — в одну строку (длинное название плана — многоточием) */
+.prow__sub--clip {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

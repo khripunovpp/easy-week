@@ -220,6 +220,25 @@ export interface PlanSummary {
   createdAt?: string | null; // когда создан план (ISO)
 }
 
+// Рецепт из принятого плана (режим «Рецепты» на странице планов). key — нормализованное
+// название: ключ избранного (общего для семьи, переживает правки плана) и дедупликации.
+export interface RecipeItem {
+  key: string;
+  planId: string;
+  planTitle: string;
+  weekLabel: string;
+  planDecidedAt?: string | null;
+  dishId: string;
+  name: string;
+  emoji: string;
+  tags: string[];
+  prepMin: number;
+  cookMin: number;
+  servings: number;
+  hasRecipe: boolean;
+  favorite: boolean;
+}
+
 export interface ShoppingGroup {
   category: string;
   items: { name: string; qty: number; unit: string; category: string }[];
@@ -398,6 +417,19 @@ export class EasyWeekApi {
 
   listPlans(): Observable<PlanSummary[]> {
     return this.http.get<PlanSummary[]>(`${API_BASE}/plans`);
+  }
+
+  // Блюда всех принятых планов (свежие планы первыми) с флагом избранного.
+  listRecipes(): Observable<RecipeItem[]> {
+    return this.http.get<RecipeItem[]>(`${API_BASE}/recipes`);
+  }
+  setFavorite(r: Pick<RecipeItem, 'name' | 'planId' | 'dishId'>, favorite: boolean): Observable<{ key: string; favorite: boolean }> {
+    return this.http.put<{ key: string; favorite: boolean }>(`${API_BASE}/recipes/favorite`, {
+      name: r.name,
+      favorite,
+      planId: r.planId,
+      dishId: r.dishId,
+    });
   }
 
   // Выбранный «текущий» план (общий для покупок/готовки, хранится на сервере).
