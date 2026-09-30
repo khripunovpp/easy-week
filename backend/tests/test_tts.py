@@ -64,55 +64,6 @@ def test_speak_validation_and_ai_error(monkeypatch):
     assert not list(tts_router.cache_dir().glob("*"))  # при ошибке ничего не кэшируем
 
 
-def test_warm_generates_missing_in_background(monkeypatch):
-    calls = []
-    monkeypatch.setattr(tts_router.tts_ai, "synthesize", _fake_synth(calls))
-    with TestClient(app) as c:
-        # Первый шаг уже озвучен обычным GET.
-        assert c.get("/api/tts", params={"text": "шаг 1"}).status_code == 200
-        r = c.post("/api/tts/warm", json={"texts": ["шаг 2", " шаг  2 ", "шаг 3", "шаг 1", ""]})
-        assert r.status_code == 200 and r.json() == {"queued": 2, "cached": 1}
-        # Фоновые задачи доходят до конца до выхода из приложения.
-        with c.portal.wrap_async_context_manager(_drain()):
-            pass
-    assert calls == ["шаг 1", "шаг 2", "шаг 3"]  # дубли и пустые — отброшены
-    assert len(list(tts_router.cache_dir().glob("*.mp3"))) == 3
-
-
-def test_warm_validation_and_failure_isolated(monkeypatch):
-    calls = []
-
-    async def flaky(text):
-        calls.append(text)
-        if text == "плохой":
-            raise AIError("квота")
-        return b"mp3"
-
-    monkeypatch.setattr(tts_router.tts_ai, "synthesize", flaky)
-    with TestClient(app) as c:
-        too_many = {"texts": [f"шаг {i}" for i in range(tts_router.WARM_MAX_TEXTS + 1)]}
-        assert c.post("/api/tts/warm", json=too_many).status_code == 422
-        long = {"texts": ["х" * (config.tts_max_chars + 1)]}
-        assert c.post("/api/tts/warm", json=long).status_code == 422
-        r = c.post("/api/tts/warm", json={"texts": ["плохой", "хороший"]})
-        assert r.json() == {"queued": 2, "cached": 0}
-        with c.portal.wrap_async_context_manager(_drain()):
-            pass
-    assert sorted(calls) == ["плохой", "хороший"]
-    assert len(list(tts_router.cache_dir().glob("*.mp3"))) == 1  # сбой одного не мешает другому
-
-
-class _drain:
-    """Дождаться фоновых задач прогрева внутри event loop TestClient."""
-
-    async def __aenter__(self):
-        while tts_router._warm_tasks:
-            await asyncio.gather(*list(tts_router._warm_tasks), return_exceptions=True)
-
-    async def __aexit__(self, *a):
-        return False
-
-
 def test_concurrent_same_text_single_flight(monkeypatch):
     calls = []
 

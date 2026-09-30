@@ -1,5 +1,4 @@
-"""Озвучка шага: GET /api/tts?text=… → mp3 (OpenRouter Fish Audio, см. ai/tts.py);
-POST /api/tts/warm {texts} → фоновая догенерация остальных шагов рецепта/плана готовки.
+"""Озвучка шага: GET /api/tts?text=… → mp3 (OpenRouter Fish Audio, см. ai/tts.py).
 
 Почему GET с текстом в query: кнопка 🔊 на фронте ставит `audio.src` и зовёт `play()` прямо в
 обработчике тапа — iOS разрешает воспроизведение только из жеста пользователя, а асинхронный
@@ -7,11 +6,9 @@ POST → play() блокирует. Кука сессии уезжает сам�
 
 Кэш: `data/tts/<sha1(модель·голос|текст)>.mp3` — один и тот же шаг озвучиваем один раз;
 параллельные запросы одного шага склеиваются (lock по ключу). Кэш не бэкапим (восстановим).
-
-Прогрев: при первом тапе в рецепте фронт шлёт остальные шаги в /warm (по порядку от нажатого,
-по кругу) — бэк генерит их фоном по WARM_PARALLEL штук (бесплатная модель, не душим её),
-и следующие тапы играют мгновенно. Уже закэшированное пропускается; шаг, который как раз
-греется, обычный GET просто дожидается через тот же lock.
+Прогрев остальных шагов рецепта делает фронт (shared/tts-player: тянет их этим же GET по два
+параллельно и держит аудио в памяти) — так он точно знает, какой шаг уже готов, и подсвечивает
+кнопки; тап по шагу, который как раз генерится, дожидается его через тот же lock.
 """
 
 import asyncio
@@ -24,7 +21,6 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
 
 from ..ai import tts as tts_ai
 from ..ai.base import AIError
@@ -36,10 +32,6 @@ logger = logging.getLogger("easy_week.tts")
 
 _locks: dict[str, asyncio.Lock] = {}
 _CACHE_HEADERS = {"Cache-Control": "private, max-age=2592000"}  # URL детерминирован по тексту
-
-WARM_MAX_TEXTS = 40  # рецепт/план готовки длиннее не бывает
-WARM_PARALLEL = 2  # одновременных синтезов в прогреве (free-tier: ~20 запр./мин)
-_warm_tasks: set[asyncio.Task] = set()
 
 
 def cache_dir() -> Path:
@@ -103,54 +95,3 @@ async def speak(
     except AIError as exc:
         raise HTTPException(status_code=502, detail=f"Не удалось озвучить: {exc}") from exc
     return FileResponse(f, media_type="audio/mpeg", headers=_CACHE_HEADERS)
-
-
-class WarmBody(BaseModel):
-    # Тексты шагов в порядке прогрева (фронт ставит первыми те, что после нажатого).
-    texts: list[Annotated[str, Field(max_length=settings.tts_max_chars)]] = Field(
-        max_length=WARM_MAX_TEXTS
-    )
-
-
-class WarmOut(BaseModel):
-    queued: int  # поставлено в фоновую генерацию
-    cached: int  # уже было в кэше (или греется)
-
-
-async def _warm(texts: list[str]) -> None:
-    """Фон: синтез по WARM_PARALLEL штук, порядок — как прислали. Сбой одного шага не мешает
-    остальным (следующий тап по нему просто повторит попытку обычным GET)."""
-    sem = asyncio.Semaphore(WARM_PARALLEL)
-
-    async def one(t: str) -> None:
-        async with sem:
-            try:
-                await ensure_audio(t)
-            except AIError as exc:
-                logger.warning("tts warm skipped «%s…»: %s", t[:30], str(exc)[:150])
-
-    await asyncio.gather(*(one(t) for t in texts))
-    logger.info("tts warm done: %d шагов", len(texts))
-
-
-@router.post("/warm")
-async def warm(body: WarmBody) -> WarmOut:
-    set_ai_context(endpoint="tts_warm")
-    seen: set[str] = set()
-    todo: list[str] = []
-    cached = 0
-    for raw in body.texts:
-        t = clean_text(raw)
-        h = cache_key(t) if t else ""
-        if not t or h in seen:
-            continue
-        seen.add(h)
-        if _cached(h) is not None or h in _locks:
-            cached += 1  # уже есть или прямо сейчас греется/играет
-        else:
-            todo.append(t)
-    if todo:
-        task = asyncio.create_task(_warm(todo))
-        _warm_tasks.add(task)
-        task.add_done_callback(_warm_tasks.discard)
-    return WarmOut(queued=len(todo), cached=cached)

@@ -369,10 +369,13 @@ export class EasyWeekApi {
     return this.http.get<LimitsStatus>(`${API_BASE}/limits`);
   }
 
-  // Озвучка: фоновая догенерация остальных шагов рецепта/плана готовки (порядок — как передан).
-  // Само аудио шага фронт берёт напрямую как <audio src="/api/tts?text=…"> (см. shared/tts-player).
-  ttsWarm(texts: string[]): Observable<{ queued: number; cached: number }> {
-    return this.http.post<{ queued: number; cached: number }>(`${API_BASE}/tts/warm`, { texts });
+  /** URL озвучки шага — для <audio src> (играть прямо из тапа, см. shared/tts-player). */
+  ttsUrl(text: string): string {
+    return `${API_BASE}/tts?text=${encodeURIComponent(text)}`;
+  }
+  /** Аудио шага блобом — фоновый прогрев остальных шагов рецепта (тот же GET, тот же кэш). */
+  ttsAudio(text: string): Observable<Blob> {
+    return this.http.get(`${API_BASE}/tts`, { params: { text }, responseType: 'blob' });
   }
 
   getPreferences(): Observable<FoodPreferences> {
