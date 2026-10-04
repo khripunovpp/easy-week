@@ -31,6 +31,7 @@ from ..schemas import (
     RecipeTextBody,
     RecipeTextOut,
 )
+from ..services import planstore
 from ..services.history import norm_name
 from ..services.recipebook import LIBRARY_STATUS, library_row
 from ..services.variants import with_detail
@@ -125,20 +126,26 @@ async def improve_recipe(body: RecipeTextBody) -> RecipeTextOut:
 async def create_custom_recipe(body: RecipeTextBody, session: SessionDep) -> CustomRecipeOut:
     set_ai_context(endpoint="custom_recipe", action="create")
     try:
-        head, detail, model_key = await generate_custom_recipe(body.text, body.recipe_model)
+        head, detail, _ = await generate_custom_recipe(body.text, body.recipe_model)
     except (LimitError, AIError) as exc:
         raise _ai_http(exc, "Не удалось собрать рецепт") from exc
     row = library_row(session)
-    dishes = list(row.dishes or [])
-    ids = {d.get("id") for d in dishes}
-    base = f"own-{len(dishes)}-" + head["id"].split("-", 2)[-1]
-    dish_id, k = base[:48], len(dishes)
-    while dish_id in ids:
-        k += 1
-        dish_id = (f"own-{k}-" + head["id"].split("-", 2)[-1])[:48]
-    # source — текст пользователя: перегенерация и другие модели держатся его (prompt._source_block).
-    dish = with_detail({**head, "id": dish_id, "source": body.text.strip()}, model_key, detail)
-    row.dishes = [*dishes, dish]
-    session.add(row)
-    session.commit()
-    return CustomRecipeOut(plan_id=row.id, dish_id=dish_id)
+    slug = head["id"].split("-", 2)[-1]
+    made: dict[str, str] = {}
+
+    def add(dishes: list[dict]) -> list[dict]:
+        # id — по СВЕЖЕМУ списку «Моих рецептов» (planstore перечитывает его перед записью):
+        # два своих рецепта, собранных одновременно, не затирают друг друга и не делят id.
+        ids = {d.get("id") for d in dishes}
+        dish_id, k = f"own-{len(dishes)}-{slug}"[:48], len(dishes)
+        while dish_id in ids:
+            k += 1
+            dish_id = f"own-{k}-{slug}"[:48]
+        made["id"] = dish_id
+        # source — текст пользователя: перегенерация и другие модели держатся его
+        # (prompt._source_block).
+        head_dish = {**head, "id": dish_id, "source": body.text.strip()}
+        return [with_detail(head_dish, detail["model"], detail, kind="custom")]
+
+    planstore.patch_dishes(session, row.id, append=add)
+    return CustomRecipeOut(plan_id=row.id, dish_id=made["id"])

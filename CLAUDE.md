@@ -172,6 +172,8 @@ GET с текстом в query, а не POST. TTS-модели OpenRouter в о�
 (`gate_for(model_key, task)` — пустой ключ → дефолт задачи). `ai/planner.py` роутит по выбранной модели, без `try/except → другой провайдер`.
 - DeepSeek/Gemini/Claude — план одним запросом; Cloudflare — пайплайн меню→спеки→валидатор.
 - Правки: DeepSeek — function calling; Gemini/Claude/Cloudflare — structured actions.
+  `edit_dish` (правка рецепта в чате) кладёт вариант под ключ модели, РЕАЛЬНО писавшей рецепт
+  (`detail["model"]`, гейт задачи `recipe`), а не модели чата.
 - Gemini: `thinkingBudget=0` (рецептам reasoning не нужен, иначе обрывает JSON).
 - Claude: system — отдельным полем; температуру не шлём (Opus 4.8/4.7 её отвергают); JSON-режима
   нет — просим строгий JSON в промпте и лениво парсим (снимаем ```-ограждение).
@@ -182,6 +184,26 @@ GET с текстом в query, а не POST. TTS-модели OpenRouter в о�
   при 200 — проверяем `error`. Бесплатные модели: ~20 запр./мин и дневной лимит, upstream-429
   бывает часто — это `AIError`, а не повод для фолбэка. `respan/span-01-lite:free` — модель
   «decisions» (скоринг), chat/completions не умеет — для генерации не годится.
+
+### Хранение рецептов в плане (запись — только `services/planstore.py`)
+- `planrow.dishes` и `cooking_plan` пишет **только** `services/planstore`: `patch_dishes(session,
+  plan_id, changes={dish_id: fn} | append=…)` перечитывает строку из БД прямо перед записью (мимо
+  identity map, без await между чтением и записью), меняет только свои блюда по id и пишет UPDATE
+  с CAS по `planrow.dishes_version` (3 попытки → `PlanConflict` → 409; `PlanNotFound` → 404,
+  обработчики в `main.py`); `new_row` — новая строка плана; `carry_current` — версия после
+  правки в чате берёт нетронутые правкой блюда из родителя НА МОМЕНТ записи; `patch_cooking` —
+  вариант плана готовки вливается в свежий кэш. `row.dishes = …` / `PlanRow(dishes=…)` вне
+  planstore запрещены тестом (`tests/test_planstore.py::test_no_direct_plan_writes`).
+- Каждый НОВЫЙ вариант рецепта (`services/variants.with_detail` / `variant_from_detail`, `kind`
+  обязателен) несёт метаданные: `model_ref` (точная «провайдер:id», `gates.model_ref`), `kind`
+  (generate | regenerate | chat_edit | discuss_edit | backfill | custom), `change` (уточнение
+  «Что учесть?» / правка), `parent_id` (ключ варианта, от которого шли), `ctx_uses` (остатки
+  плана при генерации), `gen_id` (id генерации; он же в AI-логе — `observe.ai_scope`). Деталь
+  модели (`generate_dish_detail` / `generate_custom_recipe`) отдаёт `model`/`model_ref`/`gen_id`.
+  Догенерация (покупки/PDF/готовка) — тоже вариант (`kind backfill`), плоских «ничьих» деталей нет.
+- «Мои рецепты» (план/беседа `library`) — не план недели: DELETE/PATCH/status → 409, правка в
+  чате служебный план не берёт (`_latest_plan`), `/chat/edit` в беседе `library` без черновика
+  плана → 409; `history.original_request('library')` → `''`.
 
 ## Дизайн (обязательно)
 
@@ -200,7 +222,8 @@ GET с текстом в query, а не POST. TTS-модели OpenRouter в о�
   2) строку JSONL в файл-за-день `backend/data/ai-logs/ai-YYYY-MM-DD.jsonl` — для анализа.
      Поля: ts, provider, model, label, `ok` (true/false), `duration_ms`, usage/кэш, messages,
      response (на успехе) либо `error`+`attempt` (на неудачной попытке), плюс корреляция запроса —
-     `conversation_id`/`plan_id`/`dish_id`/`endpoint`/`action`. Контекст корреляции выставляет
+     `conversation_id`/`plan_id`/`dish_id`/`endpoint`/`action` (+ `gen_id` генерации рецепта —
+     он же в варианте рецепта; `recipe_id` — задел). Контекст корреляции выставляет
      роутер через `observe.set_ai_context(...)` (contextvars, без протаскивания через гейты);
   3) Prometheus-счётчики `easyweek_ai_calls_total` / `easyweek_ai_tokens_total{kind=…}` /
      `easyweek_ai_errors_total`.
@@ -238,8 +261,11 @@ ssh pi5 'cd ~/easy-week && bash deploy/update.sh'
 
 - SSH-хост — алиас **`pi5`** (пользователь `pashtitto`, каталог `~/easy-week`), ключ настроен —
   пароль не нужен. Прямой `pashtitto@192.168.1.230` без ключа не пускает — используем `pi5`.
-- `deploy/update.sh` делает всё: `git pull --ff-only` → пересборка бэка (venv+pip) и фронта
-  (`npm ci && npm run build`) → `systemctl restart easy-week-backend` + `nginx reload`.
+- `deploy/update.sh` делает всё: бэкап (`deploy/backup.sh` → `easy-week-predeploy-*`, ротация
+  отдельно от ночных; упал — деплой стоп, осознанно без него — `EW_SKIP_BACKUP=1`) →
+  `git pull --ff-only` → пересборка бэка (venv+pip) и фронта (`npm ci && npm run build`) →
+  `systemctl restart easy-week-backend` + `nginx reload`.
+  Копия бэкапа вне Пая, учебное восстановление и уровни отката — `deploy/README.md` → «Откат».
 - Локально в сети: `http://192.168.1.230:8080`. Логи: `ssh pi5 'journalctl -u easy-week-backend -f'`.
 - **HTTPS/офлайн PWA:** service worker не регистрируется по LAN-http → офлайн не работает. Решение —
   **Tailscale Funnel**, поднят: `https://pashtitto.tail36c191.ts.net` → `127.0.0.1:8080`

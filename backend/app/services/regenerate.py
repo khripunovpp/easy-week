@@ -3,7 +3,8 @@
 Общая логика для роутера плана (кнопка «↻ Перегенерировать», ленивые детали) и обсуждения
 в чате (явная просьба «поменяй» → правка/пересборка). Здесь нет HTTP: ошибки модели
 (AIError/LimitError) пробрасываются, роутер превращает их в 502/429. Пишем в БД ТОЛЬКО после
-успешной генерации — при ошибке старый вариант остаётся нетронутым.
+успешной генерации — при ошибке старый вариант остаётся нетронутым. Пишем через
+services/planstore: только своё блюдо в свежепрочитанный план (параллельные записи целы).
 """
 
 import asyncio
@@ -18,6 +19,7 @@ from ..ai.gates import gate_for
 from ..ai.planner import generate_cooking_plan, generate_dish_detail, normalize_shopping
 from ..models import PlanRow
 from ..services.mapping import to_week_plan
+from . import planstore
 from .discussion import discussion_text
 from .history import original_request, reply_mention
 from .shopping import aggregate_ingredients, sync_uses
@@ -30,57 +32,54 @@ class DishNotFound(LookupError):
     """Блюда с таким id в плане нет (роутер → 404)."""
 
 
-def merge_detail(dish: dict, detail: dict) -> dict:
-    """Вливает ленивую деталь (ингредиенты/шаги/советы/note) в блюдо (плоские поля)."""
-    d = {
-        **dish,
-        "ingredients": detail.get("ingredients") or [],
-        "steps": detail.get("steps") or [],
-        "tips": detail.get("tips") or [],
-        "detail_provider": detail.get("provider") or "",
-        "detail_generated_at": now_iso(),
-    }
-    if detail.get("note"):
-        d["storage"] = {**(dish.get("storage") or {}), "note": detail["note"]}
-    return d
-
-
 async def backfill_all(
     session: Session, row: PlanRow, need_steps: bool = False, model: str = ""
 ) -> list[dict]:
-    """Догенерить детали для блюд, у которых их нет, параллельно. Кэш в row.dishes.
+    """Догенерить детали для блюд, у которых их нет, параллельно. Кэш — вариантом рецепта
+    (kind backfill) в блюде плана, как при открытии рецепта.
     need_steps=False (покупки: нужны только ингредиенты), True (PDF/готовка: нужны и шаги).
     model — выбранная модель рецептов (пусто → модель рецептов по умолчанию из настроек)."""
+
+    def lacks(d: dict) -> bool:
+        return not d.get("ingredients") or (need_steps and not d.get("steps"))
+
     dishes = list(row.dishes or [])
-    missing = [
-        (i, d)
-        for i, d in enumerate(dishes)
-        if not d.get("ingredients") or (need_steps and not d.get("steps"))
-    ]
+    missing = [d for d in dishes if d.get("id") and lacks(d)]
     if not missing:
         return dishes
     request = original_request(session, row.conversation_id)  # фон: исходный запрос беседы
+    leftovers = row.leftovers
     results = await asyncio.gather(
         *(
             generate_dish_detail(
                 d.get("name", ""), d.get("servings", 4), model=model, dish=d, request=request,
-                mention=reply_mention(session, row.id, d.get("name", "")), leftovers=row.leftovers,
+                mention=reply_mention(session, row.id, d.get("name", "")), leftovers=leftovers,
             )
-            for _, d in missing
+            for d in missing
         ),
         return_exceptions=True,
     )
-    changed = False
-    for (i, d), det in zip(missing, results):
-        if isinstance(det, dict):
-            dishes[i] = sync_uses(merge_detail(d, det), row.leftovers)
-            changed = True
-    if changed:
-        row.dishes = dishes
-        session.add(row)
-        session.commit()
-        session.refresh(row)
-    return list(row.dishes or [])
+    changes: dict[str, planstore.DishFn] = {}
+    for d, det in zip(missing, results):
+        if not isinstance(det, dict):
+            logger.warning("backfill: «%s» без рецепта: %s", d.get("name"), str(det)[:150])
+            continue
+
+        def fill(cur: dict, d=d, det=det) -> dict | None:
+            # Пока генерили, рецепт могли открыть или перегенерить — свежий не перетираем.
+            if not lacks(cur):
+                return None
+            # Пустой note модели не стирает заметку о хранении из плана (спека пайплайна
+            # Cloudflare; её печатает PDF «Хранение: …») — догенерация её всегда сохраняла.
+            note = det.get("note") or (cur.get("storage") or {}).get("note") or ""
+            # Слот варианта — модель, реально писавшая рецепт (detail["model"]).
+            new = with_detail(cur, det["model"], {**det, "note": note}, kind="backfill", basis=d)
+            return sync_uses(new, leftovers)
+
+        changes[d["id"]] = fill
+    if not changes:
+        return dishes
+    return planstore.patch_dishes(session, row.id, changes)
 
 
 def cook_sig(row: PlanRow) -> str:
@@ -112,11 +111,10 @@ async def regenerate_dish(
     regenerate=True — кнопка «↻»: есть пожелания — применить, нет — заметно другой вариант.
     change — явная правка (из обсуждения). Пишем variants[модель] + active_model только после
     успеха; при AIError блюдо в БД не трогаем. Возвращает обновлённое блюдо (dict)."""
-    dishes = list(row.dishes or [])
-    idx = next((i for i, d in enumerate(dishes) if d.get("id") == dish_id), None)
-    if idx is None:
+    dish = next((d for d in (row.dishes or []) if d.get("id") == dish_id), None)
+    if dish is None:
         raise DishNotFound(dish_id)
-    dish = dishes[idx]
+    plan_id, leftovers = row.id, row.leftovers
     key = gate_for(model, "recipe").key
     name = str(dish.get("name", ""))
     request = original_request(session, row.conversation_id)
@@ -127,22 +125,31 @@ async def regenerate_dish(
     current = dish_variants(dish).get(key) or dish
     detail = await generate_dish_detail(
         name, dish.get("servings", 4), change, key,
-        dish=dish, request=request, mention=reply_mention(session, row.id, name),
+        dish=dish, request=request, mention=reply_mention(session, plan_id, name),
         discussion=discussion, current=variant_summary(current), regenerate=regenerate,
-        leftovers=row.leftovers,
+        leftovers=leftovers,
     )
-    new = sync_uses(with_detail(dish, key, detail), row.leftovers)
-    # Свой рецепт: уточнение («соус на сливках») — часть рецепта, дописываем к тексту пользователя,
-    # чтобы следующие перегенерации и другие модели его не теряли (prompt._source_block).
-    if change and new.get("source"):
-        new["source"] = f"{new['source'].rstrip()}\n\nУточнение: {change}"
-    dishes[idx] = new
-    row.dishes = dishes
-    session.add(row)
-    session.commit()
-    session.refresh(row)
-    logger.info("dish regenerated: plan=%s dish=%s model=%s change=%s", row.id, dish_id, key,
-                bool(change))
+    key = detail["model"]  # слот — модель, реально писавшая рецепт
+    # ↻ (в т.ч. с уточнением «Что учесть?») или правка из обсуждения — в метаданные варианта.
+    kind = "regenerate" if regenerate else "discuss_edit"
+
+    def apply(cur: dict) -> dict:
+        new = sync_uses(
+            with_detail(cur, key, detail, kind=kind, change=change, basis=dish), leftovers
+        )
+        # Свой рецепт: уточнение («соус на сливках») — часть рецепта, дописываем к тексту
+        # пользователя, чтобы следующие перегенерации и другие модели его не теряли
+        # (prompt._source_block).
+        if change and new.get("source"):
+            new["source"] = f"{new['source'].rstrip()}\n\nУточнение: {change}"
+        return new
+
+    dishes = planstore.patch_dishes(session, plan_id, {dish_id: apply})
+    new = next((d for d in dishes if d.get("id") == dish_id), None)
+    if new is None:
+        raise DishNotFound(dish_id)
+    logger.info("dish regenerated: plan=%s dish=%s model=%s kind=%s change=%s", plan_id, dish_id,
+                key, kind, bool(change))
     return new
 
 
@@ -163,17 +170,12 @@ async def regenerate_cooking(
         list(row.dishes or []), key, discussion=discussion, regenerate=regenerate
     )
     sig = cook_sig(row)
-    cp = dict(row.cooking_plan or {})
-    variants = dict(cp.get("variants") or {}) if cp.get("sig") == sig else {}
-    variants[key] = {
+    planstore.patch_cooking(session, row.id, sig, key, {
         "steps": detail.get("steps") or [],
         "note": detail.get("note") or "",
         "provider": detail.get("provider") or "",
         "generated_at": now_iso(),
-    }
-    row.cooking_plan = {"variants": variants, "active_model": key, "sig": sig}
-    session.add(row)
-    session.commit()
+    })
     session.refresh(row)
     logger.info("cooking regenerated: plan=%s model=%s", row.id, key)
 

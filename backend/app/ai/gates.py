@@ -88,7 +88,17 @@ def cf_menu(gate) -> str:
     return getattr(gate, "menu_model", None) or settings.cf_model_menu
 
 
+def model_ref(gate) -> str:
+    """Точная модель, которой ответил гейт: «провайдер:id» (выбор в настройках или модель
+    провайдера из .env). У Cloudflare — главная модель (ею пишутся рецепты), не модель спеков.
+    Ключ варианта рецепта остаётся провайдером (gate.key) — model_ref пишем рядом, чтобы в
+    истории версий было видно Haiku это или Sonnet. Гейт без модели (заглушки) → просто ключ."""
+    key = getattr(gate, "key", "") or ""
+    mid = cf_main(gate) if is_cloudflare(gate) else (getattr(gate, "default_model", "") or "")
+    return f"{key}:{mid}" if mid else key
+
+
 __all__ = [
     "AIError", "GATES", "anthropic", "cf_main", "cf_menu", "cloudflare", "deepseek", "gate_for",
-    "gemini", "is_cloudflare", "openrouter", "resolve_key", "resolve_ref",
+    "gemini", "is_cloudflare", "model_ref", "openrouter", "resolve_key", "resolve_ref",
 ]

@@ -198,3 +198,74 @@ def test_dishes_word():
     assert [planner._dishes_word(n) for n in (1, 2, 5, 11, 21)] == [
         "1 блюдо", "2 блюда", "5 блюд", "11 блюд", "21 блюдо",
     ]
+
+
+def test_edit_dish_variant_goes_under_recipe_model_not_chat_model(monkeypatch):
+    """Правка блюда в чате: план правит модель чата (Cloudflare), а рецепт пишет модель задачи
+    «Рецепты» (Cloudflare для рецептов запрещён → дефолт DeepSeek). Вариант — под ключом той,
+    что реально писала рецепт; раньше он ложился под ключ модели чата («cloudflare»)."""
+    from app.ai import gates
+    from app.services import settings as app_settings
+
+    monkeypatch.setattr(app_settings, "default_ref", lambda task: "deepseek")
+    cf_calls, ds_calls = [], []
+
+    async def cf_complete(messages, **kw):  # правка плана: structured actions
+        cf_calls.append(kw.get("label"))
+        return {"actions": [{"op": "edit", "name": "Гуляш", "change": "без перца"}]}, {}
+
+    async def ds_complete(messages, **kw):  # рецепт
+        ds_calls.append(kw.get("label"))
+        return {"ingredients": [{"name": "говядина", "qty": 500, "unit": "г",
+                                 "category": "Мясо и птица"}],
+                "steps": ["Нарежь", "Туши"], "tips": [], "note": "Разогрей"}, {}
+
+    monkeypatch.setattr(gates.cloudflare, "complete_json", cf_complete)
+    monkeypatch.setattr(gates.deepseek, "complete_json", ds_complete)
+    dishes = [{"id": "g", "name": "Гуляш", "servings": 4, "uses": ["перец"],
+               "storage": {"shelf_life_days": 60},
+               "variants": {"gemini": {"ingredients": [], "steps": ["старый"], "tips": [],
+                                       "note": "", "provider": "Gemini"}},
+               "active_model": "gemini", "steps": ["старый"]}]
+    res = asyncio.run(planner.edit_plan(dishes, "План", "Гуляш без перца", model="cloudflare"))
+    assert cf_calls == ["правка плана (actions)"] and len(ds_calls) == 1
+    d = res["dishes"][0]
+    assert set(d["variants"]) == {"gemini", "deepseek"} and d["active_model"] == "deepseek"
+    assert d["detail_provider"] == "DeepSeek" and d["steps"] == ["Нарежь", "Туши"]
+    v = d["variants"]["deepseek"]
+    assert v["kind"] == "chat_edit" and v["change"] == "без перца"
+    assert v["model_ref"] == f"deepseek:{gates.deepseek.default_model}"
+    assert v["parent_id"] == "gemini" and v["ctx_uses"] == ["перец"] and v["gen_id"]
+    assert res["provider"] == gates.cloudflare.provider  # план правила модель чата
+
+
+def test_detail_carries_model_ref_and_scoped_gen_id(monkeypatch):
+    """Деталь рецепта знает, кто её написал (model/model_ref), а gen_id виден в AI-контексте
+    только на время самого вызова (строка лога ↔ вариант рецепта)."""
+    from app.ai import observe
+
+    seen = []
+
+    class RecipeGate(FakeGate):
+        key = "gemini"
+        provider = "Gemini"
+        default_model = "gemini-flash-lite-latest"
+
+        async def complete_json(self, messages, **kw):
+            seen.append(dict(observe._ctx.get()))
+            return await super().complete_json(messages, **kw)
+
+    gate = RecipeGate({"ingredients": [{"name": "лук"}], "steps": ["шаг"], "tips": []})
+    monkeypatch.setattr(planner, "gate_for", lambda m, task="chat": gate)
+
+    async def run():
+        observe.set_ai_context(endpoint="dish_details")
+        det = await planner.generate_dish_detail("Суп", 4, model="gemini")
+        return det, dict(observe._ctx.get())
+
+    det, after = asyncio.run(run())
+    assert det["model"] == "gemini" and det["model_ref"] == "gemini:gemini-flash-lite-latest"
+    assert det["provider"] == "Gemini" and len(det["gen_id"]) == 32
+    assert seen[0]["gen_id"] == det["gen_id"] and seen[0]["endpoint"] == "dish_details"
+    # после вызова gen_id из контекста запроса ушёл (следующий AI-вызов его не унесёт)
+    assert after == {"endpoint": "dish_details"}

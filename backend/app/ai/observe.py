@@ -7,6 +7,8 @@
 import contextvars
 import json
 import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -21,7 +23,12 @@ logger = logging.getLogger("easy_week.ai")
 # Роутер выставляет его раз на запрос — подмешивается в каждую AI-запись без протаскивания
 # через сигнатуры гейтов. contextvars изолирован по задаче-запросу, между запросами не течёт.
 # variety — серверное «зерно разнообразия» плана (кухня/способы/белки), для анализа повторов.
-_CTX_KEYS = ("conversation_id", "plan_id", "dish_id", "endpoint", "action", "variety")
+# gen_id — id одной генерации рецепта (он же пишется в вариант рецепта): строка AI-лога ↔
+# версия рецепта; recipe_id — рецепт (таблицы рецептов, следующие фазы). Только корреляция.
+_CTX_KEYS = (
+    "conversation_id", "plan_id", "dish_id", "endpoint", "action", "variety", "recipe_id",
+    "gen_id",
+)
 _ctx: contextvars.ContextVar[dict] = contextvars.ContextVar("ai_ctx", default={})
 
 
@@ -32,6 +39,20 @@ def set_ai_context(**fields) -> None:
         if v is not None:
             cur[k] = v
     _ctx.set(cur)
+
+
+@contextmanager
+def ai_scope(**fields) -> Iterator[None]:
+    """Дополнить контекст только на время одного вызова (напр. gen_id генерации рецепта):
+    после выхода — прежний контекст, чтобы следующий AI-вызов того же запроса (план готовки
+    после догенерации рецептов) не унёс чужой gen_id в свою строку лога."""
+    cur = dict(_ctx.get())
+    cur.update({k: v for k, v in fields.items() if v is not None})
+    token = _ctx.set(cur)
+    try:
+        yield
+    finally:
+        _ctx.reset(token)
 
 
 def clear_ai_context() -> None:

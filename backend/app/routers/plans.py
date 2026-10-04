@@ -25,9 +25,11 @@ from ..schemas import (
     StatusRequest,
     WeekPlan,
 )
+from ..services import planstore
 from ..services.export_pdf import build_plan_pdf
 from ..services.history import original_request, reply_mention
 from ..services.mapping import to_cook_plan, to_dish, to_summary, to_week_plan
+from ..services.recipebook import LIBRARY_ID, LIBRARY_STATUS
 from ..services.regenerate import (
     DishNotFound,
     backfill_all,
@@ -38,7 +40,7 @@ from ..services.regenerate import (
     shopping_base,
 )
 from ..services.shopping import aggregate_ingredients, group_items, sync_uses
-from ..services.variants import apply_variant, now_iso, variant_from_detail
+from ..services.variants import apply_variant, now_iso, parent_key, variant_from_detail
 from ..services.variants import dish_variants as variants_of  # имя dish_variants занято роутом
 
 import logging
@@ -57,6 +59,13 @@ def _get_plan(session: Session, plan_id: str) -> PlanRow:
     if row is None:
         raise HTTPException(status_code=404, detail="План не найден")
     return row
+
+
+def _not_library(row: PlanRow) -> None:
+    """«Мои рецепты» — служебный план, а не план недели: удалить/переименовать/принять его
+    нельзя (удаление стёрло бы все свои рецепты разом)."""
+    if row.id == LIBRARY_ID or row.status == LIBRARY_STATUS:
+        raise HTTPException(status_code=409, detail="«Мои рецепты» — не план недели")
 
 
 @router.get("")
@@ -84,6 +93,7 @@ async def get_plan(plan_id: str, session: SessionDep) -> WeekPlan:
 @router.delete("/{plan_id}", status_code=204)
 async def delete_plan(plan_id: str, session: SessionDep) -> None:
     row = _get_plan(session, plan_id)
+    _not_library(row)
     session.delete(row)
     session.commit()
 
@@ -95,6 +105,7 @@ async def rename_plan(plan_id: str, req: RenameRequest, session: SessionDep) -> 
     if not title:
         raise HTTPException(status_code=422, detail="Пустое название")
     row = _get_plan(session, plan_id)
+    _not_library(row)
     row.title = title
     session.add(row)
     session.commit()
@@ -107,6 +118,7 @@ async def set_status(plan_id: str, req: StatusRequest, session: SessionDep) -> W
     if req.status not in _VALID_STATUS:
         raise HTTPException(status_code=422, detail="Недопустимый статус")
     row = _get_plan(session, plan_id)
+    _not_library(row)
     row.status = req.status
     row.decided_at = datetime.now(timezone.utc) if req.status != "draft" else None
     session.add(row)
@@ -261,12 +273,11 @@ async def _resolve_dish_detail(
     plan_id: str, dish_id: str, req: DetailRequest, action: str, session: SessionDep
 ) -> Dish:
     row = _get_plan(session, plan_id)
-    dishes = list(row.dishes or [])
-    idx = next((i for i, d in enumerate(dishes) if d.get("id") == dish_id), None)
-    if idx is None:
+    dish = next((d for d in (row.dishes or []) if d.get("id") == dish_id), None)
+    if dish is None:
         raise HTTPException(status_code=404, detail="Блюдо не найдено")
+    leftovers = row.leftovers
 
-    dish = dishes[idx]
     variants = variants_of(dish)
     explicit = (req.recipe_model or "").strip().lower()
     # Реальный ключ: явная модель, если годится для рецептов (карта TASK_MODELS), иначе дефолт.
@@ -294,27 +305,47 @@ async def _resolve_dish_detail(
         active = dish.get("active_model") or next(iter(variants), "")
         target = active if active in variants else resolved
 
+    fresh = None
     if target not in variants:  # этого варианта ещё нет — генерим (один раз на модель)
         try:
             detail = await generate_dish_detail(
                 dish.get("name", ""), dish.get("servings", 4), model=target,
                 dish=dish, request=original_request(session, row.conversation_id),
                 mention=reply_mention(session, row.id, dish.get("name", "")),
-                leftovers=row.leftovers,
+                leftovers=leftovers,
             )
         except LimitError as exc:
             raise HTTPException(status_code=429, detail=str(exc)) from exc
         except AIError as exc:
             raise HTTPException(status_code=502, detail=f"Не удалось получить рецепт: {exc}") from exc
-        variants[target] = variant_from_detail(detail)
+        target = detail["model"]  # слот — модель, реально писавшая рецепт
+        fresh = variant_from_detail(
+            detail, kind="generate", parent_id=parent_key(dish, target), ctx_uses=dish.get("uses"),
+        )
 
-    # uses — по фактическим ингредиентам варианта (карточка плана показывает правду).
-    dish = sync_uses(apply_variant(dish, target, variants), row.leftovers)
-    dishes[idx] = dish
-    row.dishes = dishes
-    session.add(row)
-    session.commit()
+    kept = {"meanwhile": False}
 
+    def apply(cur: dict) -> dict | None:
+        # Свежее блюдо из БД: за время генерации у него могли появиться другие варианты.
+        cur_variants = variants_of(cur)
+        # Генерим, только если слота не было в снимке, — значит, слот в свежем блюде появился,
+        # пока ждали модель (↻ с «Что учесть?», правка из обсуждения, догенерация). Он
+        # побеждает: одной моделью рецепт не генерим дважды, а явный ↻ пользователя не теряем.
+        kept["meanwhile"] = fresh is not None and target in cur_variants
+        if target not in cur_variants:
+            if fresh is None:
+                return None
+            cur_variants[target] = fresh
+        # uses — по фактическим ингредиентам варианта (карточка плана показывает правду).
+        return sync_uses(apply_variant(cur, target, cur_variants), leftovers)
+
+    dishes = planstore.patch_dishes(session, plan_id, {dish_id: apply})
+    if kept["meanwhile"]:
+        logger.info("рецепт %s/%s: вариант %s записали, пока генерили, — свой не пишем",
+                    plan_id, dish_id, target)
+    dish = next((d for d in dishes if d.get("id") == dish_id), None)
+    if dish is None:
+        raise HTTPException(status_code=404, detail="Блюдо не найдено")
     return to_dish(dish)
 
 
@@ -384,6 +415,7 @@ async def _resolve_cooking_plan(
         active = cp.get("active_model") or next(iter(variants), "")
         active = active if active in variants else target
 
+    fresh = None
     if active not in variants:  # этого варианта ещё нет — генерим (один раз на модель)
         try:
             detail = await generate_cooking_plan(list(row.dishes or []), active)
@@ -393,16 +425,15 @@ async def _resolve_cooking_plan(
             raise HTTPException(
                 status_code=502, detail=f"Не удалось собрать план готовки: {exc}"
             ) from exc
-        variants[active] = {
+        fresh = {
             "steps": detail.get("steps") or [],
             "note": detail.get("note") or "",
             "provider": detail.get("provider") or "",
             "generated_at": now_iso(),
         }
 
-    row.cooking_plan = {"variants": variants, "active_model": active, "sig": sig}
-    session.add(row)
-    session.commit()
+    # Вливаем в свежепрочитанный кэш: вариант другой модели, собранный параллельно, цел.
+    planstore.patch_cooking(session, plan_id, sig, active, fresh)
     session.refresh(row)
 
     return to_cook_plan(row)

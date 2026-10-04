@@ -92,3 +92,16 @@ def test_original_request_and_reply_mention(session):
     assert history.original_request(session, "c") == "Русская кухня"
     assert "горчиц" in history.reply_mention(session, "p", "Шницель куриный")
     assert history.reply_mention(session, "p", "Плов") == ""
+
+
+def test_original_request_is_empty_for_library(session):
+    """Беседа «Моих рецептов»: там только реплики обсуждения своих рецептов — первая из них
+    не «исходный запрос плана» и не должна уходить в каждый рецепт."""
+    from app.services.recipebook import LIBRARY_ID, library_row
+
+    library_row(session)
+    session.add(MessageRow(id="l1", conversation_id=LIBRARY_ID, role="user",
+                           text="Можно сырники без сахара?", discuss_target="recipe",
+                           dish_id="own-0-syrniki"))
+    session.commit()
+    assert history.original_request(session, LIBRARY_ID) == ""

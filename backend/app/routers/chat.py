@@ -1,3 +1,4 @@
+import copy
 from collections.abc import AsyncIterable
 from datetime import datetime, timezone
 from typing import Annotated
@@ -34,10 +35,17 @@ from ..schemas import (
     PreferencesBody,
     PreferencesOut,
 )
-from ..services import appstate
+from ..services import appstate, planstore
 from ..services import summary as chat_summary
 from ..services.history import conversation_rejected, variety_avoid
-from ..services.recipebook import attach, attach_all, book_index, book_names
+from ..services.recipebook import (
+    LIBRARY_ID,
+    LIBRARY_STATUS,
+    attach,
+    attach_all,
+    book_index,
+    book_names,
+)
 from ..services.shopping import sync_uses
 from ..services.mapping import to_week_plan
 
@@ -163,8 +171,12 @@ async def conversation_messages(
     ).all()
     out: list[ChatMessageOut] = []
     # Реплики обсуждения ссылаются на последнюю версию плана беседы (id блюд между версиями
-    # сохраняются) — для ссылки «Открыть рецепт/план готовки/покупки».
-    latest = _latest_plan(session, conversation_id) if any(m.discuss_target for m in rows) else None
+    # сохраняются) — для ссылки «Открыть рецепт/план готовки/покупки». В беседе «Моих
+    # рецептов» обсуждают свои рецепты — ссылка ведёт в служебный план library.
+    latest = (
+        _latest_plan(session, conversation_id, with_library=True)
+        if any(m.discuss_target for m in rows) else None
+    )
     for m in rows:
         plan = None
         if m.plan_id:
@@ -257,7 +269,8 @@ async def chat_stream(
         )
         return
 
-    plan_row = PlanRow(
+    planstore.new_row(
+        session,
         id=plan_id,
         conversation_id=conv.id,
         title=title,
@@ -268,7 +281,6 @@ async def chat_stream(
         dishes=[sync_uses(d, leftovers) for d in dishes],
         leftovers=leftovers or None,
     )
-    session.add(plan_row)
     msg_id = uuid4().hex
     session.add(
         MessageRow(
@@ -326,7 +338,8 @@ async def chat(req: ChatRequest, session: SessionDep) -> ChatResponse:
     except AIError as exc:
         raise HTTPException(status_code=502, detail=f"Генерация недоступна: {exc}") from exc
 
-    plan_row = PlanRow(
+    plan_row = planstore.new_row(
+        session,
         id=uuid4().hex,
         conversation_id=conv.id,
         title=data["title"],
@@ -336,7 +349,6 @@ async def chat(req: ChatRequest, session: SessionDep) -> ChatResponse:
         dishes=[sync_uses(d, data.get("leftovers")) for d in attach_all(data["dishes"], book)],
         leftovers=data.get("leftovers") or None,
     )
-    session.add(plan_row)
     chat_msg_id = uuid4().hex
     session.add(
         MessageRow(
@@ -361,12 +373,15 @@ async def chat(req: ChatRequest, session: SessionDep) -> ChatResponse:
     )
 
 
-def _latest_plan(session: Session, conversation_id: str) -> PlanRow | None:
-    return session.exec(
-        select(PlanRow)
-        .where(PlanRow.conversation_id == conversation_id)
-        .order_by(PlanRow.created_at.desc())
-    ).first()
+def _latest_plan(
+    session: Session, conversation_id: str, *, with_library: bool = False
+) -> PlanRow | None:
+    """Последняя версия плана беседы. Служебный план «Мои рецепты» (status library) — не план
+    недели: правка в чате его не берёт (with_library — только для ссылок обсуждения)."""
+    q = select(PlanRow).where(PlanRow.conversation_id == conversation_id)
+    if not with_library:
+        q = q.where(PlanRow.status != LIBRARY_STATUS)
+    return session.exec(q.order_by(PlanRow.created_at.desc())).first()
 
 
 def _edit_context(session: Session, conversation_id: str, current_text: str, max_recent: int = 2) -> str:
@@ -408,7 +423,12 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
     if conv is None:
         raise HTTPException(status_code=404, detail="Диалог не найден")
 
-    row = _latest_plan(session, conv.id)
+    row = _latest_plan(session, conv.id)  # служебный план «Мои рецепты» правка не берёт
+    if conv.id == LIBRARY_ID and row is None:
+        # Беседа «Моих рецептов» — обсуждения своих рецептов, плана недели в ней нет: ниже
+        # правка собрала бы тут новый план (напр. «Заменить блюдо» из обсуждения своего
+        # рецепта). Черновик, составленный в этой беседе обычным сообщением, правится как любой.
+        raise HTTPException(status_code=409, detail="«Мои рецепты» — не план недели")
     button = bool(req.remove_dish_id or req.replace_dish_id or req.add_dish)
     # Плана ещё нет или последний отклонён пользователем (правка отклоняет только родителя,
     # самая свежая версия — никогда) — вести себя как обычное создание нового плана.
@@ -457,26 +477,31 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
     # Книга рецептов (в т.ч. свои рецепты): «добавь мой рецепт X» → блюдо с тем же названием,
     # attach_all ниже подставит готовый рецепт.
     book = book_names(session) if not req.remove_dish_id else []
+    # Снимок блюд родителя ДО вызова модели: по нему узнаем блюда, которые правка не тронула
+    # (их в новую версию берём из родителя на момент записи — planstore.carry_current).
+    parent_id = row.id
+    dishes = list(row.dishes or [])
+    snapshot = copy.deepcopy(dishes)
     try:
         if req.remove_dish_id:
             # Крестик — детерминированное удаление, вообще без модели.
-            result = remove_dish_by_id(row.dishes or [], row.title, req.remove_dish_id)
+            result = remove_dish_by_id(dishes, row.title, req.remove_dish_id)
         elif req.replace_dish_id:
             # Точечная замена по кнопке — минуя тул-коллинг (выбор функции).
             result = await replace_dish_by_id(
-                row.dishes or [], row.title, req.replace_dish_id, req.message,
+                dishes, row.title, req.replace_dish_id, req.message,
                 req.gender, req.recipe_model,
                 context=context, rejected=rejected, avoid=avoid, leftovers=leftovers, book=book,
             )
         elif req.add_dish:
             # Добавление по кнопке — минуя тул-коллинг.
             result = await add_dish_direct(
-                row.dishes or [], row.title, req.message, req.gender, req.recipe_model,
+                dishes, row.title, req.message, req.gender, req.recipe_model,
                 context=context, rejected=rejected, avoid=avoid, leftovers=leftovers, book=book,
             )
         else:
             result = await edit_plan(
-                row.dishes or [], row.title, req.message, req.gender, req.recipe_model, context,
+                dishes, row.title, req.message, req.gender, req.recipe_model, context,
                 avoid=avoid, rejected=rejected, leftovers=leftovers, book=book,
             )
     except LimitError as exc:
@@ -508,8 +533,14 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
         )
 
     new_leftovers = result.get("leftovers") or leftovers
+    index = book_index(session)
+    # Родитель — СЕЙЧАС (дальше до коммита нет await): нетронутые правкой блюда берём отсюда,
+    # иначе рецепт, догенерённый в родителе, пока модель правила план, терялся в новой версии.
+    parent_now, _ = planstore.read_dishes(session, parent_id)
+    carried = planstore.carry_current(snapshot, result["dishes"], parent_now)
     # Правка создаёт НОВУЮ версию плана (копию), исходный план остаётся доступен по ссылке.
-    new_plan = PlanRow(
+    new_plan = planstore.new_row(
+        session,
         id=uuid4().hex,
         conversation_id=conv.id,
         title=result["title"],
@@ -519,15 +550,11 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
         status="accepted" if row.status == "accepted" else "draft",
         decided_at=row.decided_at if row.status == "accepted" else None,
         provider=result.get("provider") or row.provider,
-        parent_id=row.id,
+        parent_id=parent_id,
         # Новые блюда, совпавшие по названию с книгой рецептов, — сразу с готовым рецептом.
-        dishes=[
-            sync_uses(d, new_leftovers)
-            for d in attach_all(result["dishes"], book_index(session))
-        ],
+        dishes=[sync_uses(d, new_leftovers) for d in attach_all(carried, index)],
         leftovers=new_leftovers or None,
     )
-    session.add(new_plan)
     # Исходная версия заменена новой — сразу отменяем её (остаётся доступной по ссылке,
     # в истории/при перезагрузке чата свернётся как «отменён»).
     row.status = "rejected"

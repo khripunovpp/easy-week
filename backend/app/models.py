@@ -24,14 +24,19 @@ class PlanRow(SQLModel, table=True):
     conversation_id: str = Field(index=True, foreign_key="conversation.id")
     title: str
     week_label: str
-    status: str = Field(default="draft", index=True)  # draft | accepted | rejected
+    # draft | accepted | rejected; library — служебный план «Мои рецепты» (services/recipebook).
+    status: str = Field(default="draft", index=True)
     # Какой моделью составлен план (DeepSeek | Cloudflare) — для показа смены модели в чате.
     provider: str = Field(default="")
     # Правка в чате создаёт КОПИЮ плана (новый id), исходный остаётся доступен по ссылке.
     # parent_id указывает на план-предшественник этой версии.
     parent_id: str | None = Field(default=None, index=True)
-    # Полный список блюд плана — как JSON (snake_case, см. schemas.Dish).
+    # Полный список блюд плана — как JSON (snake_case, см. schemas.Dish). Пишется ТОЛЬКО через
+    # services/planstore: точечно по id блюда, с перечитыванием строки прямо перед записью.
     dishes: list = Field(default_factory=list, sa_column=Column(JSON))
+    # Счётчик записей dishes для compare-and-swap (planstore.patch_dishes): запись проходит,
+    # только если с момента чтения его никто не сдвинул. NULL у старых строк = 0.
+    dishes_version: int | None = Field(default=None)
     # Остатки, которые пользователь просил пристроить («остался порей, сельдерей…») — модель
     # плана выделяет их из запроса; у блюда — dish["uses"]. В покупках такие продукты уходят
     # в группу «Есть дома». Правки плана переносят список в новую версию.
@@ -44,7 +49,8 @@ class PlanRow(SQLModel, table=True):
     # Какая модель нормализовала закэшированный список (ключ) — для оценки 👍/👎 покупок.
     shopping_model: str = ""
     # Кэш единого плана готовки: {"variants": {model: {steps, note, provider}},
-    # "active_model": str, "sig": str}. Варианты по моделям — для сравнения.
+    # "active_model": str, "sig": str}. Варианты по моделям — для сравнения. Пишется через
+    # planstore.patch_cooking (вариант модели вливается в свежепрочитанный кэш).
     cooking_plan: dict = Field(default_factory=dict, sa_column=Column(JSON))
     created_at: datetime = Field(default_factory=_now)
     decided_at: datetime | None = None

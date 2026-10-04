@@ -32,6 +32,7 @@ from ..models import Conversation, MessageRow, PlanRow
 from ..schemas import DiscussRequest, DiscussResponse
 from ..services import summary as chat_summary
 from ..services.discussion import TARGETS, discuss_turns
+from ..services.planstore import PlanConflict
 from ..services.history import original_request
 from ..services.mapping import to_cook_plan, to_dish
 from ..services.regenerate import (
@@ -149,7 +150,7 @@ async def chat_discuss(req: DiscussRequest, session: SessionDep) -> DiscussRespo
             out.replace_query = res["query"]
         if op in ("edit", "regenerate"):
             reply = (reply + "\n\n" if reply else "") + _APPLIED[target]
-    except (LimitError, AIError) as exc:
+    except (LimitError, AIError, PlanConflict) as exc:
         logger.warning("discuss apply %s failed: %s", op, str(exc)[:150])
         out.apply_error = str(exc)
         reply = (reply + "\n\n" if reply else "") + f"⚠️ Не удалось применить изменение: {exc}"

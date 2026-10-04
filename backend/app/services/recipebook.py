@@ -16,6 +16,7 @@ import difflib
 from sqlmodel import Session, select
 
 from ..models import Conversation, FavoriteRecipe, PlanRow
+from . import planstore
 from .history import norm_name
 from .variants import dish_variants
 
@@ -36,9 +37,9 @@ def library_row(session: Session) -> PlanRow:
     if row is None:
         if session.get(Conversation, LIBRARY_ID) is None:
             session.add(Conversation(id=LIBRARY_ID))
-        row = PlanRow(id=LIBRARY_ID, conversation_id=LIBRARY_ID, title="Мои рецепты",
-                      week_label="", status=LIBRARY_STATUS, dishes=[])
-        session.add(row)
+        row = planstore.new_row(session, id=LIBRARY_ID, conversation_id=LIBRARY_ID,
+                                title="Мои рецепты", week_label="", status=LIBRARY_STATUS,
+                                dishes=[])
         session.commit()
         session.refresh(row)
     return row

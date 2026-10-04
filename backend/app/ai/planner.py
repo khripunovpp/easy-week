@@ -6,12 +6,13 @@ import re
 from collections.abc import AsyncIterator
 from datetime import date, timedelta
 from typing import Any
+from uuid import uuid4
 
 from ..config import settings
 from .base import AIError
-from .gates import cf_main, cf_menu, cloudflare, gate_for
+from .gates import cf_main, cf_menu, cloudflare, gate_for, model_ref
 from .limits import enforce_daily
-from .observe import set_ai_context
+from .observe import ai_scope, set_ai_context
 from . import prefs as _prefs
 from .prompt import (
     COOKPLAN_SCHEMA,
@@ -519,7 +520,8 @@ async def generate_dish_detail(
     leftovers — остатки плана: в рецепт идут только те, что в dish["uses"].
 
     Генерит выбранная модель; пусто → модель рецептов по умолчанию из настроек.
-    Без фолбэков — падение пробрасывается наверх."""
+    Без фолбэков — падение пробрасывается наверх. В ответе — model (ключ провайдера: под ним
+    вариант), model_ref (точная модель) и gen_id (этот вызов в AI-логе)."""
     gate = gate_for(model, "recipe")
     enforce_daily(gate, "recipe")  # дневной лимит на Claude (no-op для остальных)
     label = (
@@ -530,14 +532,18 @@ async def generate_dish_detail(
         name, servings, change, dish=dish, request=request, mention=mention,
         discussion=discussion, current=current, regenerate=regenerate, leftovers=leftovers,
     )
-    if _is_cf(gate):
-        parsed, _ = await gate.complete_json(
-            messages, schema=DISH_DETAIL_SCHEMA, model=cf_main(gate),
-            max_tokens=3000, label=label,
-        )
-    else:
-        parsed, _ = await gate.complete_json(messages, max_tokens=3000, label=label)
-    return _clean_detail(parsed, gate.provider)
+    # Свой gen_id на каждую генерацию (в т.ч. параллельные в догенерации): строка AI-лога
+    # и вариант рецепта связываются по нему.
+    gen_id = uuid4().hex
+    with ai_scope(gen_id=gen_id):
+        if _is_cf(gate):
+            parsed, _ = await gate.complete_json(
+                messages, schema=DISH_DETAIL_SCHEMA, model=cf_main(gate),
+                max_tokens=3000, label=label,
+            )
+        else:
+            parsed, _ = await gate.complete_json(messages, max_tokens=3000, label=label)
+    return _clean_detail(parsed, gate, gen_id)
 
 
 async def improve_recipe_text(text: str, model: str = "") -> str:
@@ -557,13 +563,17 @@ async def improve_recipe_text(text: str, model: str = "") -> str:
 async def generate_custom_recipe(text: str, model: str = "") -> tuple[dict, dict, str]:
     """«Дальше»: полный рецепт по тексту пользователя → (шапка блюда, деталь, ключ модели).
     Шапку (название, эмодзи, задумка, порции, тайминги, теги, срок) модель даёт сама —
-    плана у своего рецепта нет."""
+    плана у своего рецепта нет. Шапка — без тела рецепта: ингредиенты/шаги/советы живут
+    только в детали (→ вариант), иначе в блюде оказалась бы их вторая, «ничья» копия."""
     gate = gate_for(model, "recipe")
     enforce_daily(gate, "recipe")
-    parsed, _ = await gate.complete_json(
-        build_custom_recipe_messages(text), max_tokens=3500, label="свой рецепт: полный рецепт"
-    )
-    detail = _clean_detail(parsed, gate.provider)
+    gen_id = uuid4().hex
+    with ai_scope(gen_id=gen_id):
+        parsed, _ = await gate.complete_json(
+            build_custom_recipe_messages(text), max_tokens=3500,
+            label="свой рецепт: полный рецепт",
+        )
+    detail = _clean_detail(parsed, gate, gen_id)
     if not detail["ingredients"] or not detail["steps"]:
         raise AIError(f"{gate.provider} вернул рецепт без ингредиентов или шагов")
     try:
@@ -573,16 +583,26 @@ async def generate_custom_recipe(text: str, model: str = "") -> tuple[dict, dict
     head = _clean_dish(0, {**parsed, "storage": {
         "vacuum": True, "freeze": True, "shelf_life_days": max(7, min(shelf, 180)), "note": "",
     }})
+    head = {k: v for k, v in head.items() if k not in _DETAIL_BODY}
     return head, detail, gate.key
 
 
-def _clean_detail(parsed: dict, provider: str = "") -> dict:
+# Тело рецепта в детали модели — в шапку блюда его не кладём (плоские поля = активный вариант).
+_DETAIL_BODY = ("ingredients", "steps", "tips")
+
+
+def _clean_detail(parsed: dict, gate, gen_id: str = "") -> dict:
+    """Деталь рецепта + кто её сделал: model — ключ провайдера (слот варианта), model_ref —
+    точная модель, gen_id — вызов в AI-логе."""
     return {
         "ingredients": parsed.get("ingredients") or [],
         "steps": parsed.get("steps") or [],
         "tips": parsed.get("tips") or [],
         "note": (parsed.get("note") or "").strip(),
-        "provider": provider,
+        "provider": getattr(gate, "provider", "") or "",
+        "model": getattr(gate, "key", "") or "",
+        "model_ref": model_ref(gate),
+        "gen_id": gen_id,
     }
 
 
@@ -882,8 +902,13 @@ async def edit_plan(
                 )
                 # Пишем в варианты (variants[модель] + active_model), а не только в плоские
                 # поля: иначе при следующем открытии рецепт брался из старого варианта и
-                # правка «терялась».
-                work[idx] = sync_uses(with_detail(dish, gate.key, detail), leftovers)
+                # правка «терялась». Слот — модель, которая РЕАЛЬНО писала рецепт
+                # (detail["model"], гейт задачи «Рецепты»), а не гейт чата: модель чата может
+                # не годиться для рецептов (Cloudflare) и тогда рецепт писал дефолт задачи.
+                work[idx] = sync_uses(
+                    with_detail(dish, detail["model"], detail, kind="chat_edit", change=change),
+                    leftovers,
+                )
                 changed.append(f"рецепт «{dish.get('name')}» обновлён ({change})")
         elif op == "create_plan":
             # Пересборка — новое меню: исходный запрос (в context) и история avoid сохраняются,

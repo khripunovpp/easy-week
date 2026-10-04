@@ -123,3 +123,25 @@ def test_regenerate_note_is_change_and_sticks_to_own_recipe(session, monkeypatch
     assert "изменение рецепта ниже" in user  # правило перегенерации не требует «заметно другого»
     dish = recipebook.library_row(session).dishes[0]
     assert dish["source"].endswith("Уточнение: соус на сливках")
+    # ↻ с уточнением — в метаданных варианта: kind regenerate + change, от прежнего варианта
+    v = dish["variants"]["fake"]
+    assert v["kind"] == "regenerate" and v["change"] == "соус на сливках"
+    assert v["parent_id"] == "fake" and v["gen_id"]
+
+
+def test_custom_head_has_no_body_and_variant_is_custom(session, monkeypatch):
+    """Шапка своего рецепта — без тела (ингредиенты/шаги/советы живут только в детали →
+    варианте); вариант помечен kind custom, с точной моделью и gen_id."""
+    gate = FakeGate(RECIPE)
+    monkeypatch.setattr(planner, "gate_for", lambda m, task="chat": gate)
+    head, detail, key = asyncio.run(planner.generate_custom_recipe(TEXT))
+    assert not {"ingredients", "steps", "tips"} & set(head)
+    assert head["name"] == "Сырники" and head["desc"] and head["storage"]["shelf_life_days"] == 60
+    assert key == detail["model"] == "fake" and detail["model_ref"] == "fake"
+    assert detail["steps"] == RECIPE["steps"] and len(detail["gen_id"]) == 32
+    out = asyncio.run(recipes_router.create_custom_recipe(RecipeTextBody(text=TEXT), session))
+    dish = recipebook.library_row(session).dishes[0]
+    assert dish["id"] == out.dish_id and dish["steps"] == RECIPE["steps"]  # плоские = вариант
+    v = dish["variants"]["fake"]
+    assert v["kind"] == "custom" and v["change"] == "" and v["parent_id"] is None
+    assert v["ctx_uses"] == [] and v["model_ref"] == "fake" and v["gen_id"]

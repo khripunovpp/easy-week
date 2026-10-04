@@ -6,9 +6,19 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_DIR"
 
-# Бэкап перед обновлением — на случай неудачной миграции/деплоя.
+# Бэкап перед обновлением — на случай неудачной миграции/деплоя. Без свежего бэкапа НЕ
+# катим: это точка отката (deploy/README.md → «Откат»). Осознанно без бэкапа (кончилось место,
+# сломан python3 и т.п.) — EW_SKIP_BACKUP=1 bash deploy/update.sh.
 echo "→ backup"
-bash "$REPO_DIR/deploy/backup.sh" || echo "⚠️ бэкап не удался, продолжаем"
+if ! EW_BACKUP_TAG=predeploy bash "$REPO_DIR/deploy/backup.sh"; then
+  if [ "${EW_SKIP_BACKUP:-0}" = "1" ]; then
+    echo "⚠️ бэкап не удался — EW_SKIP_BACKUP=1, продолжаем без бэкапа"
+  else
+    echo "❌ бэкап не удался — деплой остановлен (код и сервис не тронуты)." >&2
+    echo "   Починить бэкап или осознанно: EW_SKIP_BACKUP=1 bash deploy/update.sh" >&2
+    exit 1
+  fi
+fi
 
 echo "→ git pull"
 git pull --ff-only

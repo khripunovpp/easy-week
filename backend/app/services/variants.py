@@ -2,7 +2,21 @@
 
 Плоские поля блюда (ingredients/steps/tips/detail_provider/storage.note) — зеркало активного
 варианта (их читают покупки/PDF/план готовки). Хелперы общие для роутера деталей
-(routers/plans.py), правки рецепта в чате (ai/planner.edit_plan → edit_dish) и обсуждения.
+(routers/plans.py), правки рецепта в чате (ai/planner.edit_plan → edit_dish), обсуждения,
+догенерации (services/regenerate.backfill_all) и своего рецепта.
+
+Каждый НОВЫЙ вариант несёт метаданные (кто и как сделал этот текст) — для истории версий
+и переноса рецептов в отдельные таблицы (без них миграция ставит kind=migrated). Старый код
+их не читает (pydantic отбрасывает лишние ключи):
+- model_ref — точная модель «провайдер:id» (gates.model_ref); ключ варианта — провайдер;
+- kind — VARIANT_KINDS: generate (первое открытие/выбор модели), regenerate («↻», в т.ч.
+  с «Что учесть?»), chat_edit (правка блюда в чате), discuss_edit (правка из обсуждения),
+  backfill (догенерация для покупок/PDF/готовки), custom (свой рецепт);
+- change — уточнение «Что учесть?» / правка из чата или обсуждения (пусто — без правки);
+- parent_id — ключ варианта, от которого шли (прежний вариант этой модели, иначе активный;
+  None — рецепта ещё не было);
+- ctx_uses — остатки плана, под которые писали (dish.uses на момент генерации);
+- gen_id — id вызова модели в AI-логе (ai-*.jsonl), см. ai/observe.
 """
 
 from datetime import datetime, timezone
@@ -18,8 +32,29 @@ def now_iso() -> str:
 _PROVIDER_KEY = {g.provider: g.key for g in GATES.values()}
 
 
-def variant_from_detail(detail: dict) -> dict:
-    """Деталь модели → вариант рецепта (ингредиенты/шаги/советы/note/провайдер)."""
+VARIANT_KINDS = ("generate", "regenerate", "chat_edit", "discuss_edit", "backfill", "custom")
+
+
+def parent_key(dish: dict, model: str) -> str | None:
+    """От какого варианта строится новый вариант model: прежний вариант этой модели (↻/правка),
+    иначе активный; None — рецепта у блюда ещё не было."""
+    variants = dish_variants(dish)
+    if model in variants:
+        return model
+    active = dish.get("active_model")
+    if active in variants:
+        return active
+    return next(iter(variants), None)
+
+
+def variant_from_detail(
+    detail: dict, *, kind: str, change: str = "", parent_id: str | None = None,
+    ctx_uses: list | None = None,
+) -> dict:
+    """Деталь модели → вариант рецепта (ингредиенты/шаги/советы/note/провайдер) + метаданные
+    генерации (см. docstring модуля). kind обязателен — каждая точка записи называет себя."""
+    if kind not in VARIANT_KINDS:
+        raise ValueError(f"неизвестный kind варианта: {kind}")
     return {
         "ingredients": detail.get("ingredients") or [],
         "steps": detail.get("steps") or [],
@@ -27,6 +62,12 @@ def variant_from_detail(detail: dict) -> dict:
         "note": detail.get("note") or "",
         "provider": detail.get("provider") or "",
         "generated_at": now_iso(),
+        "model_ref": detail.get("model_ref") or "",
+        "kind": kind,
+        "change": (change or "").strip(),
+        "parent_id": parent_id,
+        "ctx_uses": [str(u) for u in (ctx_uses or []) if u],
+        "gen_id": detail.get("gen_id") or "",
     }
 
 
@@ -63,10 +104,21 @@ def apply_variant(dish: dict, model: str, variants: dict) -> dict:
     }
 
 
-def with_detail(dish: dict, model: str, detail: dict) -> dict:
-    """Записать свежую деталь как вариант model и сделать его активным (одной операцией)."""
+def with_detail(
+    dish: dict, model: str, detail: dict, *, kind: str, change: str = "",
+    basis: dict | None = None,
+) -> dict:
+    """Записать свежую деталь как вариант model и сделать его активным (одной операцией).
+
+    dish — блюдо, В КОТОРОЕ пишем (при записи — свежее из БД, services/planstore), basis —
+    блюдо, ПО КОТОРОМУ генерили (снимок до вызова модели): от него parent_id и ctx_uses.
+    Пусто — то же dish."""
+    base = dish if basis is None else basis
     variants = dish_variants(dish)
-    variants[model] = variant_from_detail(detail)
+    variants[model] = variant_from_detail(
+        detail, kind=kind, change=change, parent_id=parent_key(base, model),
+        ctx_uses=base.get("uses"),
+    )
     return apply_variant(dish, model, variants)
 
 

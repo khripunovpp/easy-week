@@ -14,7 +14,7 @@ from app.models import Conversation, MessageRow, PlanRow
 from app.routers import discuss as discuss_router
 from app.routers import plans as plans_router
 from app.schemas import DetailRequest, DiscussRequest
-from app.services import discussion, regenerate
+from app.services import discussion, planstore, regenerate
 
 DETAIL = {
     "ingredients": [{"name": "говядина", "qty": 500, "unit": "г", "category": "Мясо и птица"}],
@@ -129,6 +129,10 @@ def test_discuss_edit_updates_variant_in_place(session, monkeypatch):
     detail_msgs = gate.calls[1]
     assert detail_msgs[0]["content"] == DISH_DETAIL_SYSTEM
     assert "говядина" in detail_msgs[1]["content"] and "Сделай на говядине" in detail_msgs[1]["content"]
+    # правка из обсуждения — в метаданных варианта (от активного DeepSeek)
+    v = d["variants"]["fake"]
+    assert v["kind"] == "discuss_edit" and v["change"] == "говядина"
+    assert v["parent_id"] == "deepseek"
 
 
 def test_discuss_replace_suggests_and_disallowed_op_ignored(session, monkeypatch):
@@ -140,6 +144,25 @@ def test_discuss_replace_suggests_and_disallowed_op_ignored(session, monkeypatch
     _use(monkeypatch, FakeGate([{"reply": "Ок", "action": {"op": "edit", "change": "x"}}]))
     res2 = _discuss(session, target="cooking", message="Что сначала?", dish_id=None)
     assert res2.op == "none" and res2.cooking is None
+
+
+def test_discuss_edit_plan_conflict_is_apply_error(session, monkeypatch):
+    """План всё время переписывают параллельно (PlanConflict): реплика обсуждения всё равно
+    сохраняется, сбой применения — в ней и в apply_error, а не 409 без ответа ассистента."""
+    _seed(session)
+    gate = FakeGate([DETAIL], tools=[{"name": "update_recipe", "args": {"change": "говядина"}}])
+    _use(monkeypatch, gate)
+
+    def busy(*a, **kw):
+        raise planstore.PlanConflict("план p1 одновременно меняется в другом месте")
+
+    monkeypatch.setattr(planstore, "patch_dishes", busy)
+    res = _discuss(session, message="Сделай на говядине")
+    assert res.op == "none" and res.dish is None and "одновременно" in res.apply_error
+    assert "⚠️ Не удалось применить" in res.reply
+    saved = session.exec(select(MessageRow).where(MessageRow.role == "assistant")).all()
+    assert [m.id for m in saved] == [res.message_id] and saved[0].text == res.reply
+    assert set(session.get(PlanRow, "p1").dishes[0]["variants"]) == {"deepseek"}  # не тронуто
 
 
 def test_discuss_ai_error_is_502(session, monkeypatch):
@@ -178,6 +201,30 @@ def test_regenerate_writes_variant_only_on_success(session, monkeypatch):
     gate2 = FakeGate([{**DETAIL, "steps": ["Новый шаг"]}])
     _use(monkeypatch, gate2)
     assert _regen(session).steps == ["Новый шаг"]
+    session.expire_all()
+    v = session.get(PlanRow, "p1").dishes[0]["variants"]["fake"]
+    assert v["kind"] == "regenerate" and v["change"] == "" and v["parent_id"] == "fake"
+
+
+def test_open_generates_variant_with_metadata(session, monkeypatch):
+    """Первое открытие рецепта: вариант kind generate (остатки плана — в ctx_uses), а
+    повторное открытие отдаёт его же без записи (версия плана не растёт)."""
+    _seed(session)
+    gate = FakeGate([DETAIL])
+    _use(monkeypatch, gate)
+    req = DetailRequest(recipe_model="fake", action="open")
+    dish = asyncio.run(plans_router.dish_details("p1", "borsch", req, session))
+    assert dish.active_model == "fake" and dish.steps == ["Нарежь", "Туши"]
+    session.expire_all()
+    row = session.get(PlanRow, "p1")
+    v = row.dishes[1]["variants"]["fake"]
+    assert v["kind"] == "generate" and v["change"] == "" and v["parent_id"] is None
+    assert v["model_ref"] == "fake" and v["ctx_uses"] == [] and v["gen_id"]
+    assert row.dishes[0]["active_model"] == "deepseek" and row.dishes_version == 1
+    again = asyncio.run(plans_router.dish_details("p1", "borsch", req, session))
+    assert again.steps == dish.steps and len(gate.calls) == 1
+    session.expire_all()
+    assert session.get(PlanRow, "p1").dishes_version == 1
 
 
 def test_edit_dish_in_chat_writes_variants(monkeypatch):

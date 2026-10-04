@@ -164,7 +164,11 @@ cloudflared tunnel --url http://localhost:8080
 cd /home/pashtitto/easy-week
 bash deploy/update.sh
 ```
-(git pull → пересборка бэка и фронта → рестарт сервиса + reload nginx)
+(бэкап → git pull → пересборка бэка и фронта → рестарт сервиса + reload nginx)
+
+**Бэкап обязателен:** если `deploy/backup.sh` упал, `update.sh` останавливается ДО `git pull` —
+код, база и сервис не тронуты. Починить причину (место на карте, python3) и повторить; осознанно
+катить без бэкапа — `EW_SKIP_BACKUP=1 bash deploy/update.sh`.
 
 ⚠️ `update.sh` не копирует конфиг nginx. Если менялся `deploy/nginx-easy-week.conf` —
 повтори шаг 5 (`sudo cp … && sudo nginx -t && sudo systemctl reload nginx`).
@@ -180,12 +184,105 @@ bash deploy/backup.sh                       # бэкап вручную (БД + 
 ### Бэкапы
 
 `deploy/backup.sh` делает консистентную копию SQLite (online-backup API, не `cp` живой базы)
-+ `preferences.json`/`app_state.json`/`usage-limits.json`/`settings.json` в `~/easy-week-backups/easy-week-<дата>.tar.gz`,
-хранит 14 последних (`EW_BACKUP_KEEP`, каталог — `EW_BACKUP_DIR`). Запускается:
-- ночью из cron: `crontab -e` → `15 4 * * * bash ~/easy-week/deploy/backup.sh >> ~/easy-week-backups/backup.log 2>&1`;
-- автоматически в начале `deploy/update.sh`.
++ `preferences.json`/`app_state.json`/`usage-limits.json`/`settings.json` в `~/easy-week-backups/`
+(каталог — `EW_BACKUP_DIR`). Запускается:
+- ночью из cron: `crontab -e` → `15 4 * * * bash ~/easy-week/deploy/backup.sh >> ~/easy-week-backups/backup.log 2>&1`
+  → `easy-week-<дата>.tar.gz`, хранит 14 последних (`EW_BACKUP_KEEP`);
+- автоматически в начале `deploy/update.sh` → `easy-week-predeploy-<дата>.tar.gz`, хранит 10
+  последних (`EW_BACKUP_KEEP_PREDEPLOY`).
 
-Восстановление: остановить сервис, распаковать архив в `backend/data/`, запустить.
+Ротация у ночных и предеплойных архивов раздельная: день с десятком деплоев не вытесняет ночные
+точки отката (окно — две недели). Архивы с другим именем (ручные, напр. `pre-recipes-*`)
+ротация не трогает.
+
+Восстановление: остановить сервис, распаковать архив в `backend/data/`, запустить
+(подробно — «Откат и восстановление» ниже).
+
+---
+
+## Откат и восстановление (runbook)
+
+Все бэкапы `backup.sh` лежат на той же SD-карте, что и база: карта умрёт — уйдут все точки
+отката. Поэтому перед рискованными шагами (перенос рецептов в таблицы — фаза 1, «похудение»
+планов — фаза 3) делаем копию **вне Пая** и **учебное восстановление**.
+
+### Копия вне Пая (с ноутбука, через Tailscale)
+
+```bash
+# на ноутбуке; pi5 — ssh-алиас Пая (пользователь pashtitto)
+mkdir -p ~/easy-week-offsite
+rsync -av pi5:easy-week-backups/ ~/easy-week-offsite/     # все архивы (ночные + перед деплоем)
+ls -lt ~/easy-week-offsite | head -3                        # свежий архив на месте
+```
+
+Нужен архив посвежее — сначала `ssh pi5 'bash ~/easy-week/deploy/backup.sh'`.
+
+### Учебное восстановление (restore drill) — на Пае, рабочую базу не трогает
+
+```bash
+LATEST="$(ls -1t ~/easy-week-backups/easy-week-*.tar.gz | head -1)"
+DRILL="$(mktemp -d ~/ew-drill-XXXX)"
+tar -xzf "$LATEST" -C "$DRILL"
+# 1) база цела и читается (read-only)
+python3 - "$DRILL/easy_week.db" <<'PY'
+import sqlite3, sys
+c = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True)
+print(c.execute("PRAGMA integrity_check").fetchone()[0])            # ok
+print(c.execute("SELECT count(*) FROM planrow").fetchone()[0], "планов")
+PY
+# 2) приложение поднимается на копии: свой порт, cwd без .env → нет ключей моделей
+#    (никаких AI-вызовов) и нет пароля; все data-файлы — из $DRILL (DB_PATH)
+cd "$DRILL" && DB_PATH="$DRILL/easy_week.db" \
+  ~/easy-week/backend/.venv/bin/uvicorn --app-dir ~/easy-week/backend app.main:app \
+  --host 127.0.0.1 --port 8099 &
+sleep 5
+curl -s 127.0.0.1:8099/api/health
+curl -s 127.0.0.1:8099/api/plans | python3 -c 'import json,sys; print(len(json.load(sys.stdin)), "планов в списке")'
+curl -s 127.0.0.1:8099/api/recipes | python3 -c 'import json,sys; print(len(json.load(sys.stdin)), "рецептов")'
+PID="$(curl -s 127.0.0.1:8099/api/plans | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["id"])')"
+curl -s "127.0.0.1:8099/api/plans/$PID" | head -c 300; echo
+# 3) убрать за собой
+kill %1; cd ~ && rm -rf "$DRILL"
+```
+
+Числа должны совпасть с рабочим приложением (`/api/plans`, `/api/recipes`). Покупки, план
+готовки и PDF на копии не открывать — они догенерируют рецепты (ключей нет — просто ошибка).
+
+### Уровни отката
+
+- **L0 — автоматически.** Упал бэкап — `update.sh` остановился до `git pull`, ничего не
+  поменялось. Сбой модели ничего не пишет (вариант рецепта — только после успеха). Запись блюд
+  плана идёт через `services/planstore` с проверкой версии (`planrow.dishes_version`): если план
+  трижды подряд переписали параллельно — 409, записанное раньше цело.
+- **L1 — только чтение рецептов из JSON** (`EW_RECIPE_STORE=json` в `backend/.env` + рестарт) —
+  появится с фазы 2 (чтение из таблиц рецептов). Сейчас всё читается из JSON планов — нечего
+  переключать.
+- **L2 — откат кода** (фазы 0a/0b и дальше до 2b): `git revert <коммиты фазы>` → `git push` →
+  `bash deploy/update.sh`. Старый код игнорирует новые ключи вариантов (`model_ref`, `kind`,
+  `change`, `parent_id`, `ctx_uses`, `gen_id`) и колонку `dishes_version` (nullable, остаётся —
+  безвредна). Без `git reset` в скриптах: откат — обычный коммит.
+- **L3 — снять миграцию рецептов** (`python -m app.migrations strip/drop --live`) — с фазы 1;
+  до неё переносить нечего.
+- **L4 — катастрофа** (файл базы битый). Всё, записанное после бэкапа, теряется.
+  Битую базу откладываем ВМЕСТЕ с её журналом (`easy_week.db-journal`, при WAL — `-wal`/`-shm`):
+  SQLite применяет оставшийся рядом журнал к любому файлу с именем `easy_week.db` — журнал битой
+  базы «откатил» бы свои страницы прямо в восстановленную копию и молча её испортил.
+
+  ```bash
+  sudo systemctl stop easy-week-backend
+  cd ~/easy-week
+  B=~/ew-broken-$(date +%F) && mkdir -p "$B" && mv backend/data/easy_week.db* "$B"/
+  ls backend/data/easy_week.db* 2>/dev/null                 # пусто — рядом ни базы, ни журнала
+  tar -xzf "$(ls -1t ~/easy-week-backups/easy-week-*.tar.gz | head -1)" -C backend/data/
+  # только чтение: чужой журнал рядом не применится, а всплывёт ошибкой
+  python3 -c 'import sqlite3, sys; c = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True); print(c.execute("PRAGMA integrity_check").fetchone()[0])' backend/data/easy_week.db   # ok
+  sudo systemctl start easy-week-backend
+  ```
+
+  Архив — из `~/easy-week-backups` (свежий любого вида) или из копии вне Пая. Пока проверка не
+  напечатала `ok`, сервис не запускать. «attempt to write a readonly database» — рядом с файлом
+  всё ещё чужой журнал: убрать его (`mv backend/data/easy_week.db* "$B"/`) и распаковать архив
+  заново; иная ошибка — битый сам архив, берём предыдущий (`ls -1t ~/easy-week-backups`).
 
 ---
 

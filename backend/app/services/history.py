@@ -174,8 +174,13 @@ def conversation_rejected(session: Session, conversation_id: str) -> list[str]:
 
 
 def original_request(session: Session, conversation_id: str | None) -> str:
-    """Первое содержательное сообщение пользователя в беседе (исходный запрос плана)."""
-    if not conversation_id:
+    """Первое содержательное сообщение пользователя в беседе (исходный запрос плана).
+
+    У «Моих рецептов» (беседа library) исходного запроса нет: там только реплики обсуждения
+    своих рецептов — первая из них не должна попадать в каждый рецепт как «запрос плана»."""
+    from .recipebook import LIBRARY_ID  # recipebook импортирует history — здесь лениво
+
+    if not conversation_id or conversation_id == LIBRARY_ID:
         return ""
     msgs = session.exec(
         select(MessageRow)

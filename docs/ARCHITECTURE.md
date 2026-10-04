@@ -214,8 +214,9 @@ backend/app/services/
   history.py     # «недавно ели или отвергли», отвергнутое в беседе, исходный запрос
   discussion.py  # реплики обсуждения цели: контекст перегенерации и мульти-тёрн
   regenerate.py  # (пере)генерация рецепта / плана готовки / покупок, бэкфилл деталей
+  planstore.py   # ЕДИНСТВЕННАЯ запись planrow.dishes/cooking_plan: перечитать + CAS по версии
   summary.py     # сводка беседы: дебаунс 5 с, одна на беседу; memory() — первое сообщение + сводка
-  variants.py    # варианты рецепта по моделям (variants + active_model)
+  variants.py    # варианты рецепта по моделям (variants + active_model) + метаданные генерации
 backend/app/routers/
   settings.py    # GET/PUT /api/settings
   discuss.py     # POST /api/chat/discuss

@@ -172,7 +172,8 @@ def test_regenerate_shopping_backfill_uses_recipe_default(session, monkeypatch):
 
     async def fake_detail(name, servings=4, change="", model="", **kw):
         detail_models.append(model)
-        return {"ingredients": ITEMS, "steps": [], "tips": [], "note": "", "provider": "X"}
+        return {"ingredients": ITEMS, "steps": [], "tips": [], "note": "", "provider": "X",
+                "model": "deepseek"}
 
     async def fake_norm(items, discussion="", model=""):
         norm_models.append(model)
@@ -183,3 +184,65 @@ def test_regenerate_shopping_backfill_uses_recipe_default(session, monkeypatch):
     asyncio.run(regenerate.regenerate_shopping(session, session.get(PlanRow, "p1"), "gemini"))
     # Бэкфилл — без модели (планер возьмёт дефолт «Рецепты»), нормализация — выбранной.
     assert detail_models == [""] and norm_models == ["gemini"]
+
+
+def test_backfill_writes_variant_with_metadata(session, monkeypatch):
+    """Догенерация для покупок/PDF/готовки пишет настоящий вариант рецепта (kind backfill) с
+    метаданными — блюдо такое же, как после открытия рецепта, без «ничьих» плоских полей."""
+    st = {"vacuum": True, "freeze": True, "shelf_life_days": 60, "note": ""}
+    done = {"id": "d2", "name": "Плов", "emoji": "🍚", "servings": 4, "prep_min": 5,
+            "cook_min": 40, "storage": st, "ingredients": ITEMS, "steps": ["шаг"]}
+    session.add(PlanRow(id="p2", conversation_id="", title="План", week_label="1–7",
+                        leftovers=["порей"], dishes=[
+                            {"id": "d1", "name": "Суп", "emoji": "🥣", "servings": 4,
+                             "prep_min": 5, "cook_min": 40, "uses": ["порей"], "storage": st},
+                            done,
+                        ]))
+    session.commit()
+    asked = []
+
+    async def fake_detail(name, servings=4, change="", model="", **kw):
+        asked.append(name)
+        return {"ingredients": [{"name": "порей", "qty": 1, "unit": "шт", "category": "Овощи"}],
+                "steps": ["Свари"], "tips": [], "note": "Разогрей", "provider": "Gemini",
+                "model": "gemini", "model_ref": "gemini:gemini-flash-latest", "gen_id": "g1"}
+
+    monkeypatch.setattr(regenerate, "generate_dish_detail", fake_detail)
+    row = session.get(PlanRow, "p2")
+    asyncio.run(regenerate.backfill_all(session, row, need_steps=True, model="gemini"))
+    assert asked == ["Суп"]  # у плова рецепт уже есть
+    session.expire_all()
+    row = session.get(PlanRow, "p2")
+    d = row.dishes[0]
+    assert d["active_model"] == "gemini" and d["detail_provider"] == "Gemini"
+    assert d["steps"] == ["Свари"] and d["storage"]["note"] == "Разогрей"
+    assert d["detail_generated_at"]
+    v = d["variants"]["gemini"]
+    assert v["kind"] == "backfill" and v["model_ref"] == "gemini:gemini-flash-latest"
+    assert v["gen_id"] == "g1" and v["ctx_uses"] == ["порей"] and v["parent_id"] is None
+    assert v["change"] == "" and v["steps"] == ["Свари"]
+    assert d["uses"] == ["порей"]  # uses — по ингредиентам рецепта
+    assert row.dishes[1] == done and row.dishes_version == 1
+
+
+def test_backfill_keeps_plan_storage_note_when_model_gives_none(session, monkeypatch):
+    """Заметка о хранении из плана (спека пайплайна Cloudflare) переживает догенерацию, если
+    модель рецепта note не дала: её печатает PDF «Хранение: …»."""
+    st = {"vacuum": True, "freeze": True, "shelf_life_days": 60,
+          "note": "Разморозить в холодильнике"}
+    session.add(PlanRow(id="p3", conversation_id="", title="План", week_label="1–7", dishes=[
+        {"id": "d1", "name": "Котлеты", "emoji": "🍖", "servings": 4, "prep_min": 5,
+         "cook_min": 20, "storage": st, "ingredients": ITEMS},  # плоские ингредиенты без шагов
+    ]))
+    session.commit()
+
+    async def fake_detail(name, servings=4, change="", model="", **kw):
+        return {"ingredients": ITEMS, "steps": ["Обжарь"], "tips": [], "note": "",
+                "provider": "DeepSeek", "model": "deepseek", "model_ref": "deepseek:x",
+                "gen_id": "g"}
+
+    monkeypatch.setattr(regenerate, "generate_dish_detail", fake_detail)
+    asyncio.run(regenerate.backfill_all(session, session.get(PlanRow, "p3"), need_steps=True))
+    d = session.get(PlanRow, "p3").dishes[0]
+    assert d["steps"] == ["Обжарь"] and d["storage"]["note"] == "Разморозить в холодильнике"
+    assert d["variants"]["deepseek"]["note"] == "Разморозить в холодильнике"
