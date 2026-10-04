@@ -29,4 +29,10 @@ sudo systemctl restart easy-week-backend
 sudo nginx -t && sudo systemctl reload nginx
 
 echo "✅ Готово. Локально: http://$(hostname -I | awk '{print $1}'):8080/"
-echo "   Через интернет/HTTPS — по адресу Cloudflare Tunnel (см. deploy/README.md)."
+# Внешний HTTPS-адрес — из Tailscale Funnel (deploy/README.md, шаг 6); нет funnel — подсказка.
+FUNNEL_URL="$(tailscale funnel status 2>/dev/null | grep -o 'https://[^ ]*' | head -1 || true)"
+if [ -n "$FUNNEL_URL" ]; then
+  echo "   Вне сети (HTTPS, PWA): $FUNNEL_URL"
+else
+  echo "   ⚠️ Tailscale Funnel не включён — вне сети не откроется (см. deploy/README.md, шаг 6)."
+fi
