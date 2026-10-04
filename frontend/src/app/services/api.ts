@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, shareReplay } from 'rxjs';
+import { withOfflineCopy } from '../shared/offline-copy';
 import {
   ChatMessage,
   DiscussTarget,
@@ -554,10 +555,12 @@ export class EasyWeekApi {
     recipeModel: RecipeModel | string,
     action: VariantAction = 'open',
   ): Observable<CookingPlan> {
-    return this.http.post<CookingPlan>(`${API_BASE}/plans/${planId}/cooking`, {
-      recipeModel,
-      action,
-    });
+    // POST не кэширует service worker — офлайн «открыть» отдаёт последнюю копию (shared/offline-copy).
+    return withOfflineCopy(
+      `cooking:${planId}`,
+      this.http.post<CookingPlan>(`${API_BASE}/plans/${planId}/cooking`, { recipeModel, action }),
+      action === 'open',
+    );
   }
 
   // Варианты плана готовки по моделям — для сравнения.
@@ -575,9 +578,15 @@ export class EasyWeekApi {
     action: VariantAction = 'open',
     note = '',
   ): Observable<Dish> {
-    return this.http.post<Dish>(
-      `${API_BASE}/plans/${planId}/dishes/${dishId}/details`,
-      { recipeModel, action, note },
+    // POST не кэширует service worker — офлайн «открыть» отдаёт последнюю копию (shared/offline-copy).
+    return withOfflineCopy(
+      `dish:${planId}:${dishId}`,
+      this.http.post<Dish>(`${API_BASE}/plans/${planId}/dishes/${dishId}/details`, {
+        recipeModel,
+        action,
+        note,
+      }),
+      action === 'open',
     );
   }
 

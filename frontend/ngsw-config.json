@@ -21,7 +21,9 @@
       "installMode": "lazy",
       "updateMode": "prefetch",
       "resources": {
-        "files": ["/**/*.(svg|cur|jpg|jpeg|png|apng|webp|avif|gif|otf|ttf|woff|woff2)"]
+        "files": [
+          "/**/*.(svg|cur|jpg|jpeg|png|apng|webp|avif|gif|otf|ttf|woff|woff2)"
+        ]
       }
     },
     {
@@ -29,18 +31,43 @@
       "installMode": "lazy",
       "updateMode": "prefetch",
       "resources": {
-        "urls": ["https://fonts.googleapis.com/**", "https://fonts.gstatic.com/**"]
+        "urls": [
+          "https://fonts.googleapis.com/**",
+          "https://fonts.gstatic.com/**"
+        ]
       }
     }
   ],
   "dataGroups": [
     {
       "name": "api-plans",
-      "urls": ["/api/plans", "/api/plans/**", "/api/dishes/**"],
+      "urls": [
+        "/api/plans",
+        "/api/plans/**",
+        "/api/dishes/**"
+      ],
       "cacheConfig": {
         "strategy": "freshness",
-        "maxSize": 100,
-        "maxAge": "7d",
+        "maxSize": 400,
+        "maxAge": "14d",
+        "timeout": "5s"
+      }
+    },
+    {
+      "name": "api-read",
+      "urls": [
+        "/api/recipes",
+        "/api/conversations/**",
+        "/api/current-plan",
+        "/api/settings",
+        "/api/preferences",
+        "/api/ratings",
+        "/api/ratings/**"
+      ],
+      "cacheConfig": {
+        "strategy": "freshness",
+        "maxSize": 300,
+        "maxAge": "14d",
         "timeout": "5s"
       }
     }
