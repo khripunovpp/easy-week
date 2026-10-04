@@ -198,7 +198,11 @@ export class ChatStore {
     this.loading.set(true);
 
     // Правка текущего плана: по кнопке (минуя тул-коллинг) или tool calling по тексту.
-    if (this.conversationId && (pending || this.messages().some((m) => m.plan))) {
+    // Последний план беседы отклонён — правит нечего: реплика собирает НОВЫЙ план (в этой же
+    // беседе, с её памятью), иначе правка отвечала «меню уже составлено».
+    const lastPlan = [...this.messages()].reverse().find((m) => m.plan)?.plan;
+    const editable = !!lastPlan && lastPlan.status !== 'rejected';
+    if (this.conversationId && (pending || editable)) {
       this.pending.set(null);
       const opts =
         pending?.kind === 'replace'

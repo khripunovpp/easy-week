@@ -79,6 +79,9 @@
     <div class="d__hero">
       <span class="d__emoji">{{ d.emoji }}</span>
       <h1>{{ d.name }}</h1>
+      @if (d.desc) {
+        <ew-clamp class="d__desc" [text]="d.desc" />
+      }
 
       @if (d.activeModel) {
         <div class="d__rate">

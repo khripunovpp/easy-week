@@ -336,8 +336,9 @@
 /* Блюдо */
 .dish {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 0 6px;
   border-top: 1px solid var(--line);
 }
 .dish:first-of-type {
@@ -452,6 +453,15 @@
   align-items: center;
   gap: 6px;
   margin-top: 5px;
+}
+
+/* Задумка блюда от модели плана — одна строка под строкой блюда, от края текста (паддинг
+   .dish__main 6px + бейдж 50px + зазор 13px) до правого края; «развернуть» (ew-clamp) */
+.dish__desc {
+  flex-basis: 100%;
+  margin: -4px 0 10px;
+  padding-left: 69px;
+  padding-right: 6px;
 }
 
 .dish__chev {

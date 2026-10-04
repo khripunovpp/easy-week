@@ -35,6 +35,7 @@ export interface Dish {
   cookMin: number;
   tags: string[]; // напр. «на ужин», «впрок»
   uses?: string[]; // какие остатки пользователя (WeekPlan.leftovers) пристроены в блюдо
+  desc?: string; // задумка блюда от модели плана (1–2 предложения); пусто у старых планов
   storage: Storage;
   tips: string[];
   steps: string[];

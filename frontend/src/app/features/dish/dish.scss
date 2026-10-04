@@ -35,6 +35,11 @@
   margin: 14px 0 12px;
 }
 
+/* Задумка блюда от модели плана — одна строка под названием, «развернуть» (ew-clamp) */
+.d__desc {
+  margin: -6px 0 12px;
+}
+
 .d__meta {
   display: flex;
   flex-wrap: wrap;

@@ -75,3 +75,34 @@ def test_shopping_by_dish_groups_per_dish(session):
         ("d1", [("Лук", 150, "г")]),
         ("d2", [("Говядина", 1, "кг")]),
     ]
+
+
+def test_message_after_rejected_plan_builds_new_plan(session, monkeypatch):
+    """Последний план беседы отклонён → реплика в /chat/edit собирает НОВЫЙ план, а не правку
+    (раньше правка отвечала «меню уже составлено»)."""
+    from app.schemas import ChatRequest
+
+    session.add(Conversation(id="c3"))
+    session.add(PlanRow(id="old", conversation_id="c3", title="t", week_label="w", status="rejected",
+                        dishes=[{"id": "d", "name": "Борщ"}]))
+    session.commit()
+    calls = []
+
+    async def fake_plan(msg, avoid, count, gender, model, **kw):
+        calls.append(msg)
+        return {"reply": "новый", "title": "Новый", "week_label": "w", "provider": "Fake",
+                "dishes": [{"id": "n", "name": "Щи", "emoji": "🍲", "servings": 4, "prep_min": 1,
+                            "cook_min": 1, "storage": {"shelf_life_days": 30}}],
+                "leftovers": []}
+
+    async def fail_edit(*a, **kw):
+        raise AssertionError("правка отклонённого плана")
+
+    monkeypatch.setattr(chat_router, "generate_plan", fake_plan)
+    monkeypatch.setattr(chat_router, "edit_plan", fail_edit)
+    monkeypatch.setattr(chat_router.prefs, "learn_async", lambda *a, **kw: None)
+    monkeypatch.setattr(chat_router.chat_summary, "schedule", lambda *a, **kw: None)
+    req = ChatRequest(conversation_id="c3", message="то же меню ещё раз", recipe_model="deepseek")
+    res = asyncio.run(chat_router.chat_edit(req, session))
+    assert calls == ["то же меню ещё раз"]
+    assert res.plan is not None and res.plan.title == "Новый" and res.plan.id != "old"

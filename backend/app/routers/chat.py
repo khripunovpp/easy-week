@@ -409,8 +409,10 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
         raise HTTPException(status_code=404, detail="Диалог не найден")
 
     row = _latest_plan(session, conv.id)
-    if row is None:
-        # Плана ещё нет — вести себя как обычное создание.
+    button = bool(req.remove_dish_id or req.replace_dish_id or req.add_dish)
+    # Плана ещё нет или последний отклонён пользователем (правка отклоняет только родителя,
+    # самая свежая версия — никогда) — вести себя как обычное создание нового плана.
+    if row is None or (row.status == "rejected" and not button):
         return await chat(req, session)
     set_ai_context(conversation_id=conv.id, plan_id=row.id, endpoint="chat_edit")
 
@@ -442,7 +444,6 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
     leftovers = [str(x) for x in (row.leftovers or [])]
     if leftovers:
         context = "\n".join(p for p in (context, leftovers_status(leftovers, row.dishes or [])) if p)
-    button = bool(req.remove_dish_id or req.replace_dish_id or req.add_dish)
     # Вкусы извлекаем ТОЛЬКО из свободного текста правки в чате. Действия по кнопкам
     # (replace/remove/add — даже с пожеланием «без рыбы») — разовые, не устойчивые вкусы:
     # CF не дёргаем (раньше так в dislikes навсегда попадала «рыба»). Текстовые правки

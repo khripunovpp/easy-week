@@ -37,6 +37,8 @@ class Dish(CamelModel):
     garnish: str = ""
     # Какие остатки пользователя (WeekPlan.leftovers) пристроены в это блюдо.
     uses: list[str] = []
+    # Задумка блюда от модели плана (1–2 предложения): основа, способ, соус. Пусто — старые планы.
+    desc: str = ""
     storage: Storage
     tips: list[str] = []
     steps: list[str] = []

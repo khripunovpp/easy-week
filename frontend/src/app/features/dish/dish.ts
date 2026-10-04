@@ -6,6 +6,7 @@ import { EasyWeekApi } from '../../services/api';
 import { ChatStore } from '../../services/chat-store';
 import { MODEL_LABELS, RecipeModel } from '../../services/preferences';
 import { ModelSettings } from '../../services/model-settings';
+import { ClampText } from '../../shared/clamp-text';
 import { CookingLoader } from '../../shared/cooking-loader';
 import { Vote } from '../../shared/vote';
 import { formatGeneratedAt } from '../../shared/format';
@@ -14,7 +15,7 @@ import { TtsBtn } from '../../shared/tts-btn';
 
 @Component({
   selector: 'ew-dish',
-  imports: [RouterLink, CookingLoader, Vote, ModelName, TtsBtn],
+  imports: [RouterLink, CookingLoader, Vote, ModelName, TtsBtn, ClampText],
   templateUrl: './dish.html',
   styleUrl: './dish.scss',
 })

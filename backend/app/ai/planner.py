@@ -287,6 +287,7 @@ def _clean_dish(i: int, d: dict) -> dict:
         "tags": d.get("tags", []),
         "garnish": str(d.get("garnish") or "").strip(),
         "uses": _clean_list(d.get("uses"), 8),
+        "desc": _clip_desc(d.get("desc")),
         "storage": d.get("storage") or dict(_DEFAULT_STORAGE),
         "ingredients": d.get("ingredients", []),
         "steps": d.get("steps", []),
@@ -304,6 +305,12 @@ def _clean_list(raw: Any, cap: int) -> list[str]:
             seen.add(t.lower())
             out.append(t)
     return out[:cap]
+
+
+def _clip_desc(raw: Any) -> str:
+    """Задумка блюда (1–2 предложения от модели плана) — для промпта рецепта; длинное режем."""
+    t = " ".join(str(raw or "").split())
+    return t if len(t) <= 300 else t[:299].rsplit(" ", 1)[0] + "…"
 
 
 def _clean_leftovers(raw: Any) -> list[str]:
@@ -480,6 +487,7 @@ async def _generate_plan_cloudflare(
     await _validate_and_fix(dishes, user_message, gate)
     for d, e in zip(dishes, entries):  # после валидатора: он пересобирает блюдо целиком
         d["uses"] = _clean_list(e.get("uses"), 8)
+        d["desc"] = _clip_desc(e.get("desc"))
 
     if not dishes:
         raise AIError("Cloudflare вернул пустой план")

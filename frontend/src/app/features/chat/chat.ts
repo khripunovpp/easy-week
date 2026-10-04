@@ -6,6 +6,7 @@ import { EasyWeekApi, MessageSearchHit } from '../../services/api';
 import { ChatStore } from '../../services/chat-store';
 import { ModelSettings } from '../../services/model-settings';
 import { MODEL_LABELS, RecipeModel, providerToModel } from '../../services/preferences';
+import { ClampText } from '../../shared/clamp-text';
 import { CookingLoader } from '../../shared/cooking-loader';
 import { dishColorClass } from '../../shared/dish-color';
 import { leftoverChips } from '../../shared/leftovers';
@@ -16,7 +17,7 @@ import { PlanWizardCard } from './plan-wizard';
 
 @Component({
   selector: 'ew-chat',
-  imports: [FormsModule, RouterLink, CookingLoader, Vote, ModelName, PlanWizardCard],
+  imports: [FormsModule, RouterLink, CookingLoader, Vote, ModelName, PlanWizardCard, ClampText],
   templateUrl: './chat.html',
   styleUrl: './chat.scss',
 })

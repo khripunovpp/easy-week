@@ -232,3 +232,17 @@ def test_detail_drops_leftover_promises_from_plan_reply():
     assert "в панировке с горчицей" in user
     plain = build_dish_detail_messages("Котлеты по-киевски", 6, dish={}, mention=reply)[1]["content"]
     assert "закуску к котлетам" in plain  # без остатков в плане — реплика как была
+
+
+def test_desc_in_plan_prompt_and_recipe_header(monkeypatch):
+    """Задумка блюда (desc) из плана → в промпт рецепта; без подачи/закусок."""
+    assert "desc — 1–2 коротких предложения" in DEEPSEEK_PLAN_SYSTEM
+    assert "без подачи, гарниров, закусок" in DEEPSEEK_PLAN_SYSTEM
+    dish = {"desc": "Курица, тушённая с оливками и лимоном в духовке.", "tags": ["курица"]}
+    user = build_dish_detail_messages("Курица по-провански", 4, dish=dish)[1]["content"]
+    assert "Задумка блюда из плана (рецепт ей соответствует): Курица, тушённая" in user
+    gate = FakeGate({"reply": "ок", "title": "Неделя", "dishes": [
+        {"name": "Курица по-провански", "emoji": "🍗", "desc": "  Курица   с оливками. " * 30}]})
+    monkeypatch.setattr(planner, "gate_for", lambda m, task="chat": gate)
+    d = asyncio.run(planner.generate_plan("меню", [], 1, count_plan=False, variety=""))["dishes"][0]
+    assert d["desc"].startswith("Курица с оливками.") and len(d["desc"]) <= 300
