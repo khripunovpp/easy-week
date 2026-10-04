@@ -62,6 +62,12 @@ export class DishPage {
   // Выбор модели в выпадашке не удался (модель перегружена/не ответила), а на экране уже есть
   // рецепт — он остаётся, ошибка с «Повторить» в футере (иначе старая версия молча её перекрывала).
   readonly switchError = signal<{ model: string; text: string } | null>(null);
+  // Рецепт не собрался и показать нечего (лимит Claude, модель упала): какая модель не смогла и
+  // другие модели задачи «Рецепты» — кнопками прямо под ошибкой, тап сразу генерирует.
+  readonly failedModel = signal('');
+  readonly retryModels = computed<RecipeModel[]>(() =>
+    this.modelSettings.modelsFor('recipe').filter((m) => m !== this.failedModel()),
+  );
   private readonly opening = signal(false); // «💬 Обсудить»: ждём conversationId плана
   readonly busy = computed(() => this.regenerating() || this.opening());
 
@@ -111,6 +117,7 @@ export class DishPage {
         }
         // 429 (дневной лимит) — текст с бэка; 502 — понятный текст вместо сырого ответа провайдера
         this.errorMsg.set(text);
+        this.failedModel.set((model || this.modelSettings.models().recipe).split(':')[0]);
         this.failed.set(true);
         this.loading.set(false);
         this.generatingModel.set(null);
@@ -146,6 +153,12 @@ export class DishPage {
     this.regenError.set('');
     if (isNew) this.generatingModel.set(model);
     else this.modelMenuOpen.set(false);
+    this.load(this.planId(), this.dishId(), model, 'select');
+  }
+
+  /** Кнопка модели на экране ошибки: собрать рецепт этой моделью (настройки не меняются). */
+  retryWith(model: string): void {
+    if (this.loading()) return;
     this.load(this.planId(), this.dishId(), model, 'select');
   }
 

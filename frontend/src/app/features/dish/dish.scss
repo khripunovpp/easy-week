@@ -227,6 +227,25 @@
   gap: 16px;
   padding: 40px;
 }
+/* Экран ошибки рецепта: другие модели «Рецептов» кнопками (GUIDEBOOK «Ошибка генерации — другой моделью») */
+.d__retry {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 320px;
+}
+.d__retry-label {
+  font-size: 13px;
+  color: var(--ink-3);
+  text-align: center;
+}
+.d__retry-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
 .d__state .btn-primary {
   width: auto;
   padding: 14px 28px;

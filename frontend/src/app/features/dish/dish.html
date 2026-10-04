@@ -158,7 +158,20 @@
     } @else {
       <div class="d__state">
         <p class="muted">{{ errorMsg() || 'Модель недоступна — рецепт не собрать. Переключите модель или соберите новый план.' }}</p>
-        <a class="btn-primary" routerLink="/chat">В чат</a>
+        @if (retryModels().length) {
+          <!-- Другие модели «Рецептов» — тап сразу собирает рецепт ею (настройки не меняются) -->
+          <div class="d__retry" role="group" aria-label="Собрать другой моделью">
+            <span class="d__retry-label">Собрать другой моделью:</span>
+            @for (m of retryModels(); track m) {
+              <button class="btn-ghost d__retry-btn" type="button" (click)="retryWith(m)">
+                <span class="msel__ic">🤖</span>
+                <ew-model-name [model]="newRef(m)" />
+              </button>
+            }
+          </div>
+        } @else {
+          <a class="btn-primary" routerLink="/chat">В чат</a>
+        }
       </div>
     }
     </div>
