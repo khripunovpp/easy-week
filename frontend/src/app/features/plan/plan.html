@@ -95,6 +95,10 @@
               @if (d.uses?.length) {
                 <p class="dish-uses">♻ {{ d.uses?.join(', ') }}</p>
               }
+              @if (d.desc) {
+                <!-- Задумка блюда — на странице плана целиком (в чате — одной строкой) -->
+                <p class="dish__desc">{{ d.desc }}</p>
+              }
             </div>
             <svg class="dish__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round" />

@@ -459,11 +459,15 @@ export class EasyWeekApi {
   }
   // Свой рецепт: «Улучшить» — тот же рецепт понятным текстом; «Дальше» — полный рецепт строго по
   // тексту в «Мои рецепты» → куда открыть. Модель — дефолт задачи «Рецепты» из настроек.
-  improveRecipe(text: string): Observable<{ text: string }> {
-    return this.http.post<{ text: string }>(`${API_BASE}/recipes/improve`, { text });
+  // recipeModel — выбор в модалке (только для этого рецепта); пусто → дефолт задачи «Рецепты».
+  improveRecipe(text: string, recipeModel: RecipeModel | '' = ''): Observable<{ text: string }> {
+    return this.http.post<{ text: string }>(`${API_BASE}/recipes/improve`, { text, recipeModel });
   }
-  createRecipe(text: string): Observable<{ planId: string; dishId: string }> {
-    return this.http.post<{ planId: string; dishId: string }>(`${API_BASE}/recipes/custom`, { text });
+  createRecipe(text: string, recipeModel: RecipeModel | '' = ''): Observable<{ planId: string; dishId: string }> {
+    return this.http.post<{ planId: string; dishId: string }>(`${API_BASE}/recipes/custom`, {
+      text,
+      recipeModel,
+    });
   }
   setFavorite(r: Pick<RecipeItem, 'name' | 'planId' | 'dishId'>, favorite: boolean): Observable<{ key: string; favorite: boolean }> {
     return this.http.put<{ key: string; favorite: boolean }>(`${API_BASE}/recipes/favorite`, {

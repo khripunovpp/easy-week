@@ -97,6 +97,14 @@
   font-family: var(--font-body);
   letter-spacing: 0;
 }
+/* Задумка блюда от модели плана — целиком под мета-строкой */
+.dish__desc {
+  margin: 5px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+
 .dish__meta {
   display: flex;
   flex-wrap: wrap;
