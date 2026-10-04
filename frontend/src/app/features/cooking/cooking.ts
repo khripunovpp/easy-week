@@ -12,6 +12,7 @@ import { HlOwner, highlightStepText } from '../../shared/step-highlight';
 import { PlanPicker } from '../../shared/plan-picker';
 import { Vote } from '../../shared/vote';
 import { formatGeneratedAt } from '../../shared/format';
+import { aiFailText } from '../../shared/ai-error';
 import { ModelName } from '../../shared/model-name';
 import { TtsBtn } from '../../shared/tts-btn';
 
@@ -49,6 +50,8 @@ export class CookingPlanPage {
   // «↻ Перегенерировать»: пересборка идёт (старый план на экране) / ошибка последней попытки.
   readonly regenerating = signal(false);
   readonly regenError = signal('');
+  // Выбор модели не удался, а план готовки уже на экране — он остаётся, ошибка с «Повторить» в футере.
+  readonly switchError = signal<{ model: string; text: string } | null>(null);
   readonly busy = computed(() => this.regenerating() || this.loading());
   // Футер действий — только когда есть собранный план готовки.
   readonly hasFooter = computed(
@@ -239,12 +242,21 @@ export class CookingPlanPage {
     this.api.cookingPlan(planId, model ?? '', action).subscribe({
       next: (cp) => {
         this.plan.set(cp);
+        this.switchError.set(null);
         this.loading.set(false);
         this.generatingModel.set(null);
         this.modelMenuOpen.set(false);
       },
       error: (err) => {
-        this.errorMsg.set(err?.error?.detail ?? '');
+        const text = aiFailText(err, model ?? '', 'план готовки не собран');
+        if (action === 'select' && this.plan() && model) {
+          this.switchError.set({ model, text });
+          this.loading.set(false);
+          this.generatingModel.set(null);
+          this.modelMenuOpen.set(false);
+          return;
+        }
+        this.errorMsg.set(text);
         this.failed.set(true);
         this.loading.set(false);
         this.generatingModel.set(null);
@@ -275,9 +287,17 @@ export class CookingPlanPage {
     }
     if (this.loading() || this.regenerating()) return;
     const isNew = !(p.variantModels ?? []).includes(model);
+    this.switchError.set(null);
+    this.regenError.set('');
     if (isNew) this.generatingModel.set(model);
     else this.modelMenuOpen.set(false);
     this.fetch(this.currentPlanId(), model, 'select');
+  }
+
+  /** «Повторить» после неудачного выбора модели. */
+  retrySwitch(): void {
+    const e = this.switchError();
+    if (e) this.chooseModel(e.model);
   }
 
   totalTime(step: CookingStep): number {
@@ -292,6 +312,7 @@ export class CookingPlanPage {
     if (!cp || !pid || this.busy()) return;
     this.regenerating.set(true);
     this.regenError.set('');
+    this.switchError.set(null);
     this.modelMenuOpen.set(false);
     // Пусто (варианта ещё нет) → бэк возьмёт настройку «План готовки».
     this.api.cookingPlan(pid, cp.activeModel ?? '', 'regenerate').subscribe({
@@ -300,7 +321,7 @@ export class CookingPlanPage {
         this.regenerating.set(false);
       },
       error: (err) => {
-        this.regenError.set(err?.error?.detail ?? 'Не удалось пересобрать план готовки.');
+        this.regenError.set(aiFailText(err, cp.activeModel ?? '', 'новый план готовки не собран, текущий на месте'));
         this.regenerating.set(false);
       },
     });

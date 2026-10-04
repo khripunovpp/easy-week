@@ -8,6 +8,7 @@ import { MODEL_LABELS, RecipeModel } from '../../services/preferences';
 import { CookingLoader } from '../../shared/cooking-loader';
 import { PlanPicker } from '../../shared/plan-picker';
 import { formatGeneratedAt } from '../../shared/format';
+import { aiFailText } from '../../shared/ai-error';
 import { Vote } from '../../shared/vote';
 import { productKey, sameProduct } from '../../shared/product-key';
 import { ModelName } from '../../shared/model-name';
@@ -290,7 +291,7 @@ export class Shopping {
         this.regenerating.set(false);
       },
       error: (err) => {
-        this.regenError.set(err?.error?.detail ?? 'Не удалось пересобрать список покупок.');
+        this.regenError.set(aiFailText(err, this.shopModel(), 'новый список не собран, текущий на месте'));
         this.regenerating.set(false);
       },
     });

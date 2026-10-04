@@ -178,6 +178,11 @@
           <span class="page__footer-error">{{ regenError() }}</span>
           <button class="link-btn" type="button" (click)="regenerate()">Повторить</button>
         </div>
+      } @else if (switchError(); as e) {
+        <div class="page__footer-status">
+          <span class="page__footer-error">{{ e.text }}</span>
+          <button class="link-btn" type="button" (click)="retrySwitch()">Повторить</button>
+        </div>
       }
       <div class="page__footer-row">
         <button class="btn-ghost" type="button" [disabled]="busy()" (click)="regenerate()">↻ Перегенерировать</button>

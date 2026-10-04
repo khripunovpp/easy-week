@@ -9,6 +9,7 @@ import { ModelSettings } from '../../services/model-settings';
 import { CookingLoader } from '../../shared/cooking-loader';
 import { Vote } from '../../shared/vote';
 import { formatGeneratedAt } from '../../shared/format';
+import { aiFailText } from '../../shared/ai-error';
 import { ModelName } from '../../shared/model-name';
 import { TtsBtn } from '../../shared/tts-btn';
 import { Modal } from '../../shared/modal';
@@ -58,6 +59,9 @@ export class DishPage {
   // и текст ошибки последней попытки (показываем в футере с «Повторить», блюдо не стираем).
   readonly regenerating = signal(false);
   readonly regenError = signal('');
+  // Выбор модели в выпадашке не удался (модель перегружена/не ответила), а на экране уже есть
+  // рецепт — он остаётся, ошибка с «Повторить» в футере (иначе старая версия молча её перекрывала).
+  readonly switchError = signal<{ model: string; text: string } | null>(null);
   private readonly opening = signal(false); // «💬 Обсудить»: ждём conversationId плана
   readonly busy = computed(() => this.regenerating() || this.opening());
 
@@ -91,13 +95,22 @@ export class DishPage {
     this.api.dishDetails(pid, did, model, action).subscribe({
       next: (d) => {
         this.dish.set(d);
+        this.switchError.set(null);
         this.loading.set(false);
         this.generatingModel.set(null);
         this.modelMenuOpen.set(false);
       },
       error: (err) => {
-        // 429 (дневной лимит) и прочие ошибки — показываем текст с бэка, если есть
-        this.errorMsg.set(err?.error?.detail ?? '');
+        const text = aiFailText(err, model, 'рецепт не собран');
+        if (action === 'select' && this.dish()) {
+          this.switchError.set({ model, text });
+          this.loading.set(false);
+          this.generatingModel.set(null);
+          this.modelMenuOpen.set(false);
+          return;
+        }
+        // 429 (дневной лимит) — текст с бэка; 502 — понятный текст вместо сырого ответа провайдера
+        this.errorMsg.set(text);
         this.failed.set(true);
         this.loading.set(false);
         this.generatingModel.set(null);
@@ -129,9 +142,17 @@ export class DishPage {
     }
     if (this.loading() || this.regenerating()) return;
     const isNew = !(d.variantModels ?? []).includes(model);
+    this.switchError.set(null);
+    this.regenError.set('');
     if (isNew) this.generatingModel.set(model);
     else this.modelMenuOpen.set(false);
     this.load(this.planId(), this.dishId(), model, 'select');
+  }
+
+  /** «Повторить» после неудачного выбора модели. */
+  retrySwitch(): void {
+    const e = this.switchError();
+    if (e) this.chooseModel(e.model);
   }
 
   // «↻ Перегенерировать»: новый вариант рецепта той модели, что открыта сейчас, с учётом
@@ -166,6 +187,7 @@ export class DishPage {
     if (!d || this.busy()) return;
     this.regenerating.set(true);
     this.regenError.set('');
+    this.switchError.set(null);
     this.modelMenuOpen.set(false);
     const model = d.activeModel ?? ''; // пусто → бэк возьмёт настройку «Рецепты»
     this.api.dishDetails(this.planId(), this.dishId(), model, 'regenerate', this.lastRegenNote).subscribe({
@@ -174,7 +196,7 @@ export class DishPage {
         this.regenerating.set(false);
       },
       error: (err) => {
-        this.regenError.set(err?.error?.detail ?? 'Не удалось перегенерировать рецепт.');
+        this.regenError.set(aiFailText(err, model, 'новая версия не собрана, текущая на месте'));
         this.regenerating.set(false);
       },
     });
