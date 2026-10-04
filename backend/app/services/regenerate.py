@@ -132,6 +132,10 @@ async def regenerate_dish(
         leftovers=row.leftovers,
     )
     new = sync_uses(with_detail(dish, key, detail), row.leftovers)
+    # Свой рецепт: уточнение («соус на сливках») — часть рецепта, дописываем к тексту пользователя,
+    # чтобы следующие перегенерации и другие модели его не теряли (prompt._source_block).
+    if change and new.get("source"):
+        new["source"] = f"{new['source'].rstrip()}\n\nУточнение: {change}"
     dishes[idx] = new
     row.dishes = dishes
     session.add(row)

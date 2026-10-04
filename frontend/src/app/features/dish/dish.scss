@@ -238,3 +238,19 @@
 .d__rate + .gen-at {
   margin: -8px 0 12px;
 }
+
+/* Окно «Что учесть?» перед перегенерацией: поле как «Другое» в оценке (--r-sm, без ресайза) */
+.regen__hint {
+  margin-bottom: 12px;
+}
+.regen__note {
+  display: block;
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  resize: none;
+  font-family: inherit;
+  line-height: 1.35;
+}
+.regen__actions {
+  margin-top: 14px;
+}

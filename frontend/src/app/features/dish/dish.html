@@ -176,12 +176,34 @@
         </div>
       }
       <div class="page__footer-row">
-        <button class="btn-ghost" type="button" [disabled]="busy()" (click)="regenerate()">↻ Перегенерировать</button>
+        <button class="btn-ghost" type="button" [disabled]="busy()" (click)="askRegenerate()">↻ Перегенерировать</button>
         <!-- Свой рецепт («Мои рецепты») живёт вне беседы плана — обсуждать/заменять там нечего -->
         @if (!isOwn()) {
           <button class="btn-primary" type="button" [disabled]="busy()" (click)="discuss()">💬 Обсудить в чате</button>
         }
       </div>
     </footer>
+  }
+
+  @if (regenAskOpen()) {
+    <!-- Окно «Что учесть?» перед перегенерацией (GUIDEBOOK «Перегенерация рецепта») -->
+    <ew-modal label="Перегенерировать рецепт" (closed)="regenAskOpen.set(false)">
+      <p class="modal__title">Перегенерировать рецепт</p>
+      <p class="modal__text muted regen__hint">
+        Что учесть? Например: «соус на сливках», «без лука», «острее». Можно оставить пустым — будет
+        другой вариант.
+      </p>
+      <textarea
+        class="text-field regen__note"
+        rows="3"
+        maxlength="1000"
+        placeholder="Уточнение (необязательно)"
+        [value]="regenNote()"
+        (input)="onRegenNote($event)"></textarea>
+      <div class="modal__actions regen__actions">
+        <button class="btn-ghost" type="button" (click)="regenAskOpen.set(false)">Отмена</button>
+        <button class="btn-primary" type="button" (click)="confirmRegenerate()">Перегенерировать</button>
+      </div>
+    </ew-modal>
   }
 </div>

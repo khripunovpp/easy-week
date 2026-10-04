@@ -11,10 +11,11 @@ import { Vote } from '../../shared/vote';
 import { formatGeneratedAt } from '../../shared/format';
 import { ModelName } from '../../shared/model-name';
 import { TtsBtn } from '../../shared/tts-btn';
+import { Modal } from '../../shared/modal';
 
 @Component({
   selector: 'ew-dish',
-  imports: [RouterLink, CookingLoader, Vote, ModelName, TtsBtn],
+  imports: [RouterLink, CookingLoader, Vote, ModelName, TtsBtn, Modal],
   templateUrl: './dish.html',
   styleUrl: './dish.scss',
 })
@@ -136,6 +137,30 @@ export class DishPage {
   // «↻ Перегенерировать»: новый вариант рецепта той модели, что открыта сейчас, с учётом
   // обсуждения рецепта в чате. Бэк пишет вариант только после успеха — при ошибке старый
   // рецепт остаётся (и на экране, и в БД), ошибку показываем в футере.
+  // «↻ Перегенерировать» сначала открывает окно «Что учесть?» (уточнение необязательно):
+  // «соус на сливках», «без лука» → обязательная правка нового варианта.
+  readonly regenAskOpen = signal(false);
+  readonly regenNote = signal('');
+  private lastRegenNote = '';
+
+  askRegenerate(): void {
+    if (!this.dish() || this.busy()) return;
+    this.modelMenuOpen.set(false);
+    this.regenNote.set('');
+    this.regenAskOpen.set(true);
+  }
+
+  onRegenNote(e: Event): void {
+    this.regenNote.set((e.target as HTMLTextAreaElement).value);
+  }
+
+  confirmRegenerate(): void {
+    this.regenAskOpen.set(false);
+    this.lastRegenNote = this.regenNote().trim();
+    this.regenerate();
+  }
+
+  /** Сам запрос новой версии; «Повторить» после ошибки — с тем же уточнением. */
   regenerate(): void {
     const d = this.dish();
     if (!d || this.busy()) return;
@@ -143,7 +168,7 @@ export class DishPage {
     this.regenError.set('');
     this.modelMenuOpen.set(false);
     const model = d.activeModel ?? ''; // пусто → бэк возьмёт настройку «Рецепты»
-    this.api.dishDetails(this.planId(), this.dishId(), model, 'regenerate').subscribe({
+    this.api.dishDetails(this.planId(), this.dishId(), model, 'regenerate', this.lastRegenNote).subscribe({
       next: (nd) => {
         this.dish.set(nd);
         this.regenerating.set(false);

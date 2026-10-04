@@ -251,7 +251,7 @@ async def dish_details(
     action = (req.action or "open").lower()
     set_ai_context(plan_id=plan_id, dish_id=dish_id, endpoint="dish_details", action=action)
     # Пусто → модель рецептов по умолчанию из настроек (ключ склейки — реальная модель).
-    key = (plan_id, dish_id, action, gate_for(req.recipe_model, "recipe").key)
+    key = (plan_id, dish_id, action, gate_for(req.recipe_model, "recipe").key, req.note.strip())
     return await _single_flight(
         key, lambda: _resolve_dish_detail(plan_id, dish_id, req, action, session)
     )
@@ -276,7 +276,8 @@ async def _resolve_dish_detail(
 
     if action == "regenerate":
         try:
-            new = await regenerate_dish(session, row, dish_id, resolved)
+            # Уточнение из окна «Что учесть?» — обязательная правка этого варианта.
+            new = await regenerate_dish(session, row, dish_id, resolved, change=req.note.strip())
         except DishNotFound as exc:
             raise HTTPException(status_code=404, detail="Блюдо не найдено") from exc
         except LimitError as exc:

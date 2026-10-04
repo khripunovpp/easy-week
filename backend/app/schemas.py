@@ -255,6 +255,8 @@ class DetailRequest(CamelModel):
     # select — сделать recipe_model активным (сгенерить его вариант, если ещё нет);
     # regenerate — «↻ Перегенерировать»: всегда новый вариант recipe_model с учётом обсуждения.
     action: str = "open"
+    # Уточнение к перегенерации из окна «Что учесть?» («соус на сливках», «без лука»); пусто — нет.
+    note: str = Field(default="", max_length=1000)
 
 
 class CurrentPlanBody(CamelModel):

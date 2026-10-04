@@ -104,3 +104,22 @@ def test_recipe_list_has_generated_at(session, monkeypatch):
     item = asyncio.run(recipes_router.list_recipes(session))[0]
     assert item.generated_at is not None and item.generated_at.tzinfo is not None
     assert recipes_router._iso("bad") is None and recipes_router._iso("") is None
+
+
+def test_regenerate_note_is_change_and_sticks_to_own_recipe(session, monkeypatch):
+    """«Что учесть?» перед ↻: уточнение — обязательная правка; у своего рецепта — в source."""
+    from app.routers.plans import dish_details
+    from app.schemas import DetailRequest
+
+    gate = FakeGate(RECIPE)
+    monkeypatch.setattr(planner, "gate_for", lambda m, task="chat": gate)
+    out = asyncio.run(recipes_router.create_custom_recipe(RecipeTextBody(text=TEXT), session))
+    monkeypatch.setattr("app.routers.plans.gate_for", lambda m, task="chat": gate)
+    monkeypatch.setattr("app.services.regenerate.gate_for", lambda m, task="chat": gate)
+    req = DetailRequest(recipe_model="fake", action="regenerate", note="соус на сливках")
+    asyncio.run(dish_details(out.plan_id, out.dish_id, req, session))
+    user = gate.calls[-1][0][1]["content"]
+    assert "Изменение рецепта (обязательно учти): соус на сливках" in user
+    assert "изменение рецепта ниже" in user  # правило перегенерации не требует «заметно другого»
+    dish = recipebook.library_row(session).dishes[0]
+    assert dish["source"].endswith("Уточнение: соус на сливках")

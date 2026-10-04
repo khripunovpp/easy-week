@@ -562,16 +562,18 @@ export class EasyWeekApi {
   }
 
   // action: open — активный вариант (сгенерит первый, если детали нет);
-  // select — сделать recipeModel активным (сгенерит его вариант, если ещё нет).
+  // select — сделать recipeModel активным (сгенерит его вариант, если ещё нет);
+  // regenerate — новый вариант; note — уточнение из окна «Что учесть?» (необязательно).
   dishDetails(
     planId: string,
     dishId: string,
     recipeModel: RecipeModel | string,
     action: VariantAction = 'open',
+    note = '',
   ): Observable<Dish> {
     return this.http.post<Dish>(
       `${API_BASE}/plans/${planId}/dishes/${dishId}/details`,
-      { recipeModel, action },
+      { recipeModel, action, note },
     );
   }
 
