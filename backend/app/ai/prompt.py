@@ -7,6 +7,32 @@ _VARIETY_RULE = (
     "одним соусом или одной кухней; избегай банальных, заезженных вариантов. "
 )
 
+# Остатки «пристроить, чтобы не пропали» — ингредиенты, а не тема меню. Без этого правила
+# модель строила меню ВОКРУГ остатков и выдумывала блюда-перечисления («Суп-похлёбка
+# с сельдереем, солёными огурцами и перловкой»). Без примеров блюд — чтобы не «якорить».
+_LEFTOVERS_RULE = (
+    "ОСТАТКИ: если пользователь перечисляет продукты, которые у него остались, лежат в "
+    "холодильнике или есть дома (чтобы не пропали), — это НЕ тема меню, а ингредиенты, которые "
+    "надо пристроить. Сначала подбери настоящие, общеизвестные блюда под остальной запрос, потом "
+    "распредели остатки туда, где они входят в классический рецепт естественно и в обычном для "
+    "него количестве. Не придумывай блюдо ради остатка и не своди в одно блюдо остатки, которые "
+    "в классических рецептах вместе не встречаются. Название — устоявшееся, как в кулинарной "
+    "книге, а не конструкция «основа с остатком и остатком»; остаток в названии — только если он "
+    "часть классического названия. Не каждое блюдо обязано их содержать, и пристроить все — не "
+    "цель: лучше оставить 1–2 остатка без места, чем выдумать блюдо или впихнуть остаток туда, "
+    "где его в классике нет; так и скажи в reply. uses — честно: только то, что "
+    "реально войдёт в рецепт. Куда ушли остатки, в reply НЕ расписывай (это покажет карточка "
+    "плана по uses) — назови только те, что не пристроены. "
+)
+
+# Явно названное блюдо важнее истории: раньше «начинка для пот-пая, она уже есть в рецептах»
+# попадала под «недавно ели» и модель выдумывала «вариацию» (овощную с ячменем).
+_REQUESTED_RULE = (
+    "Блюдо, которое пользователь назвал сам, включай обязательно и под узнаваемым названием — "
+    "даже если оно есть в списке «недавно ели»; если оно есть в «книге рецептов» — пиши "
+    "название ровно как там (тогда возьмётся готовый рецепт семьи). "
+)
+
 NAMES_SYSTEM = (
     "Ты — помощник по меню на неделю для заготовок впрок (вакуум + заморозка). "
     "Подбери блюда под запрос, которые удобно заморозить порциями. "
@@ -15,9 +41,14 @@ NAMES_SYSTEM = (
     "не добавляй лишнее сверх запрошенного. Суп — любое жидкое первое блюдо на бульоне или "
     "воде, как бы оно ни называлось. "
     "Учитывай ограничения пользователя (аллергии, нелюбимое). "
-    "Не повторяй блюда из списка «недавно ели или отвергли». Ответ компактный, на русском. "
+    "Не повторяй блюда из списка «недавно ели или отвергли». "
+    + _REQUESTED_RULE
+    + _LEFTOVERS_RULE
+    + "Ответ компактный, на русском. "
     "title — короткое название плана, 2–3 слова, без точки в конце. "
-    "name — только короткое название блюда, 2–4 слова, без описаний и скобок."
+    "name — только короткое название блюда, 2–4 слова, без описаний и скобок. "
+    "leftovers — остатки пользователя (именительный падеж, коротко), нет — []; "
+    "uses у блюда — какие из leftovers в нём."
 )
 
 # Быстрый первый шаг: только названия блюд + мета (дату недели считаем сами).
@@ -26,6 +57,11 @@ NAMES_SCHEMA = {
     "properties": {
         "reply": {"type": "string", "description": "Короткая реплика в чат (1 предложение)"},
         "title": {"type": "string", "description": "Короткое название плана, 2–3 слова"},
+        "leftovers": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Остатки, которые пользователь просит пристроить; нет — []",
+        },
         "dishes": {
             "type": "array",
             "items": {
@@ -33,6 +69,7 @@ NAMES_SCHEMA = {
                 "properties": {
                     "name": {"type": "string"},
                     "emoji": {"type": "string", "description": "1 эмодзи еды"},
+                    "uses": {"type": "array", "items": {"type": "string"}},
                 },
                 "required": ["name", "emoji"],
             },
@@ -236,11 +273,17 @@ DEEPSEEK_PLAN_SYSTEM = _SHARED_PREFIX + (
     "Если задано число блюд категории (напр. «один суп») — соблюдай его точно, не добавляй "
     "лишнее сверх запрошенного. Суп — любое жидкое первое блюдо на бульоне или воде, как бы оно "
     "ни называлось. "
-    "Верни СТРОГО JSON вида: "
+    + _REQUESTED_RULE
+    + _LEFTOVERS_RULE
+    + "Верни СТРОГО JSON вида: "
     '{"reply": "короткая реплика", "title": "название плана 2-3 слова", '
+    '"leftovers": ["продукт"], '
     '"dishes": [{"name": "короткое название", "emoji": "1 эмодзи", "servings": число, '
     '"prep_min": число, "cook_min": число, "tags": ["тег"], "garnish": "гарнир или пусто", '
+    '"uses": ["продукт из leftovers"], '
     '"storage": {"vacuum": true, "freeze": true, "shelf_life_days": число 30-90}}]}. '
+    "leftovers — остатки пользователя коротко, в именительном падеже; нет остатков — []. "
+    "uses — какие из leftovers идут в это блюдо (нет — []). "
     "garnish — гарнир к основному блюду (к супу — пусто). "
     "НЕ добавляй ингредиенты, шаги и советы — только эти поля. "
     "Количества/тайминги реалистичны на порции."
@@ -324,19 +367,40 @@ def _discussion_block(discussion: str) -> str:
     return f"\nОбсуждение с пользователем (учти пожелания):\n{discussion}" if discussion else ""
 
 
+def _dish_leftovers_block(dish: dict | None, leftovers: list[str] | None) -> str:
+    """Какие остатки пользователя идут в ЭТО блюдо (dish["uses"] из плана). Иначе исходный
+    запрос «остался порей, сельдерей…» тянул все остатки в каждый рецепт."""
+    uses = [str(u) for u in ((dish or {}).get("uses") or []) if u]
+    if uses:
+        return (
+            "\nОстатки пользователя для этого блюда: " + ", ".join(uses) + " — включи их в "
+            "ингредиенты как обычную часть рецепта, в количестве, привычном для этого блюда; "
+            "суть и классический состав блюда не меняй."
+        )
+    if leftovers:
+        return (
+            "\nОстатки из запроса пользователя (" + ", ".join(leftovers) + ") пристроены в "
+            "другие блюда плана — сюда специально не добавляй."
+        )
+    return ""
+
+
 def build_dish_detail_messages(
     name: str, servings: int, change: str = "", dish: dict | None = None, request: str = "",
     mention: str = "", *, discussion: str = "", current: str = "", regenerate: bool = False,
+    leftovers: list[str] | None = None,
 ) -> list[dict[str, str]]:
     """dish — блюдо из плана (для шапки); request — исходный запрос беседы (короткий фон);
     mention — реплика к плану, где упомянуто это блюдо (обещанное в ней — выполни).
     discussion — обсуждение рецепта в чате; current — выжимка текущего варианта;
-    regenerate — «↻ Перегенерировать»: пожелания из обсуждения либо заметно другой вариант."""
+    regenerate — «↻ Перегенерировать»: пожелания из обсуждения либо заметно другой вариант;
+    leftovers — остатки плана (какие из них идут в блюдо — dish["uses"])."""
     content = f"Блюдо: {name}. Порций: {servings}." + _dish_header(dish)
     if mention:
         content += f"\nЧто обещано о блюде в плане (выполни): {_clip(mention, 200)}"
     if request:
         content += f"\nИсходный запрос пользователя к плану (фон): {_clip(request, 300)}"
+    content += _dish_leftovers_block(dish, leftovers)
     content += _discussion_block(discussion)
     if current:
         content += f"\nТекущий вариант рецепта ({current})."
@@ -656,8 +720,61 @@ def _avoid_block(avoid_titles: list[str], cap: int = AVOID_CAP) -> str:
         return ""
     return (
         "\nНедавно ели или отвергли — не повторяй и не делай близких вариаций (тот же основной "
-        "продукт + форма/соус): " + ", ".join(avoid_titles[:cap])
+        "продукт + форма/соус; блюда, которые пользователь назвал сам, — можно): "
+        + ", ".join(avoid_titles[:cap])
     )
+
+
+# Лимит «книги рецептов» в промпте плана (сам список — services/recipebook.book_names).
+BOOK_CAP = 40
+
+
+def _book_block(book: list[str] | None) -> str:
+    # Не подсказка меню (иначе «якорит»), а словарь: узнать блюдо, которое назвал пользователь
+    # («начинка для Chicken Pod Pa, она уже есть в рецептах»), и записать его тем же названием.
+    if not book:
+        return ""
+    return (
+        "\nКнига рецептов семьи (уже есть готовые рецепты; это НЕ подсказка меню — только чтобы "
+        "узнать блюдо, которое пользователь назвал сам, пусть иначе, латиницей или с ошибками; "
+        "такое блюдо запиши символ в символ как здесь): " + "; ".join(book[:BOOK_CAP])
+    )
+
+
+def _leftovers_line(leftovers: list[str] | None) -> str:
+    # Остатки, известные заранее (правка/пересборка плана) — модель их не ищет в тексте заново.
+    if not leftovers:
+        return ""
+    return (
+        "\nОстатки пользователя — пристрой по правилу ОСТАТКИ (верни их в leftovers): "
+        + ", ".join(leftovers)
+    )
+
+
+def leftovers_status(leftovers: list[str] | None, dishes: list[dict]) -> str:
+    """Для контекста правки плана: какие остатки куда пристроены и что осталось без места."""
+    if not leftovers:
+        return ""
+    used: set[str] = set()
+    parts: list[str] = []
+    for d in dishes:
+        uses = [u for u in (d.get("uses") or []) if u]
+        if uses:
+            used.update(u.lower() for u in uses)
+            parts.append(f"«{d.get('name')}» — {', '.join(uses)}")
+    text = "Остатки пользователя (просил пристроить, чтобы не пропали): " + ", ".join(leftovers)
+    if parts:
+        text += ". Сейчас: " + "; ".join(parts)
+    free = [x for x in leftovers if x.lower() not in used]
+    if free:
+        text += ". Не пристроены: " + ", ".join(free)
+    return text + "."
+
+
+def free_leftovers(leftovers: list[str] | None, dishes: list[dict]) -> list[str]:
+    """Остатки, которые не использует ни одно из dishes (для замены/добавления блюда)."""
+    used = {str(u).lower() for d in dishes for u in (d.get("uses") or [])}
+    return [x for x in (leftovers or []) if x.lower() not in used]
 
 
 def _in_plan_block(in_plan: list[str] | None) -> str:
@@ -670,6 +787,7 @@ def _in_plan_block(in_plan: list[str] | None) -> str:
 def _plan_user_content(
     user_message: str, avoid_titles: list[str], count: int, gender: str,
     in_plan: list[str] | None, variety: str, context: str, date_hint: str,
+    book: list[str] | None = None, leftovers: list[str] | None = None,
 ) -> str:
     # Всё динамическое — в USER-сообщении: system остаётся стабильным (кэш префикса DeepSeek).
     content = user_message.strip() + _plan_count_hint(count)
@@ -677,7 +795,8 @@ def _plan_user_content(
         content += f"\n{context}"
     if date_hint:
         content += f"\n{date_hint}"
-    content += _in_plan_block(in_plan) + _avoid_block(avoid_titles)
+    content += _leftovers_line(leftovers)
+    content += _in_plan_block(in_plan) + _avoid_block(avoid_titles) + _book_block(book)
     if variety:
         content += f"\n{variety}"
     return content + _gender_hint(gender) + as_hint()
@@ -686,12 +805,14 @@ def _plan_user_content(
 def build_ds_plan_messages(
     user_message: str, avoid_titles: list[str], count: int, gender: str = "f",
     *, in_plan: list[str] | None = None, variety: str = "", context: str = "",
-    date_hint: str = "",
+    date_hint: str = "", book: list[str] | None = None, leftovers: list[str] | None = None,
 ) -> list[dict[str, str]]:
     """План одним запросом. in_plan — блюда текущего плана (для add/create изнутри правки),
-    variety — серверное зерно разнообразия, context — контекст беседы, date_hint — неделя/сезон."""
+    variety — серверное зерно разнообразия, context — контекст беседы, date_hint — неделя/сезон,
+    book — книга рецептов семьи, leftovers — уже известные остатки (правка/пересборка)."""
     content = _plan_user_content(
-        user_message, avoid_titles, count, gender, in_plan, variety, context, date_hint
+        user_message, avoid_titles, count, gender, in_plan, variety, context, date_hint,
+        book, leftovers,
     )
     return [
         {"role": "system", "content": DEEPSEEK_PLAN_SYSTEM},
@@ -702,10 +823,11 @@ def build_ds_plan_messages(
 def build_names_messages(
     user_message: str, avoid_titles: list[str], count: int = 5, gender: str = "f",
     *, in_plan: list[str] | None = None, variety: str = "", context: str = "",
-    date_hint: str = "",
+    date_hint: str = "", book: list[str] | None = None, leftovers: list[str] | None = None,
 ) -> list[dict[str, str]]:
     content = _plan_user_content(
-        user_message, avoid_titles, count, gender, in_plan, variety, context, date_hint
+        user_message, avoid_titles, count, gender, in_plan, variety, context, date_hint,
+        book, leftovers,
     )
     return [
         {"role": "system", "content": NAMES_SYSTEM},
@@ -722,11 +844,14 @@ SINGLE_DISH_SYSTEM = _SHARED_PREFIX + (
     "реалистичное, дружелюбное к заморозке, без выдуманных названий. Оно должно отличаться от "
     "соседних блюд плана основным продуктом и способом готовки. Не предлагай то, что уже "
     "отвергнуто в этой беседе, и близкие к нему вариации. Учитывай ограничения пользователя. "
+    "Если даны остатки пользователя — они ингредиенты, а не тема: используй их, только если "
+    "они естественно входят в подходящее настоящее блюдо, в название не выноси. "
     "Верни СТРОГО JSON вида: "
     '{"reply": "одна короткая фраза", "dish": {"name": "короткое название", "emoji": "1 эмодзи", '
     '"servings": число, "prep_min": число, "cook_min": число, "tags": ["тег"], '
-    '"garnish": "гарнир или пусто", '
+    '"garnish": "гарнир или пусто", "uses": ["остаток"], '
     '"storage": {"vacuum": true, "freeze": true, "shelf_life_days": число 30-90}}}. '
+    "uses — какие из данных остатков идут в блюдо (нет — []). "
     "Ровно одно блюдо, НЕ массив. Без ингредиентов, шагов и советов."
 )
 
@@ -745,6 +870,7 @@ SINGLE_DISH_SCHEMA = {
                 "cook_min": {"type": "integer"},
                 "tags": {"type": "array", "items": {"type": "string"}},
                 "garnish": {"type": "string"},
+                "uses": {"type": "array", "items": {"type": "string"}},
             },
             "required": ["name", "emoji", "servings", "prep_min", "cook_min", "tags"],
         },
@@ -767,9 +893,11 @@ def build_single_dish_messages(
     avoid_titles: list[str] | None = None,
     context: str = "",
     gender: str = "f",
+    leftovers: list[str] | None = None,
 ) -> list[dict[str, str]]:
     """Замена (old_dish задан) или добавление одного блюда. plan_dishes — остальные блюда
-    плана (с тегами), rejected — отвергнутое в ЭТОЙ беседе, avoid_titles — общая история."""
+    плана (с тегами), rejected — отвергнутое в ЭТОЙ беседе, avoid_titles — общая история,
+    leftovers — остатки пользователя, ещё не пристроенные в остальные блюда."""
     if old_dish:
         head = f"Замени блюдо «{_dish_line(old_dish)}» на другое."
     else:
@@ -785,6 +913,8 @@ def build_single_dish_messages(
         )
     if rejected:
         content += "\nУже отвергнуто в этой беседе: " + ", ".join(rejected[:15])
+    if leftovers:
+        content += "\nОстатки пользователя, ещё не пристроенные в план: " + ", ".join(leftovers)
     content += _avoid_block(avoid_titles or [], cap=15)
     content += _gender_hint(gender) + as_hint()
     return [

@@ -12,6 +12,8 @@ import re
 _STR = r'"((?:[^"\\]|\\.)*)"'
 _REPLY_RE = re.compile(r'"reply"\s*:\s*' + _STR)
 _TITLE_RE = re.compile(r'"title"\s*:\s*' + _STR)
+# Остатки плана — массив строк верхнего уровня (до dishes); «]» внутри строк не бывает.
+_LEFTOVERS_RE = re.compile(r'"leftovers"\s*:\s*(\[[^\]]*\])')
 
 
 class ArrayStreamParser:
@@ -52,6 +54,17 @@ class PlanStreamParser(ArrayStreamParser):
 
     def new_dishes(self) -> list[dict]:
         return self.new_objects()
+
+    def leftovers(self) -> list:
+        """Остатки плана (ключ leftovers) — пусто, если модель их не вернула."""
+        m = _LEFTOVERS_RE.search(self.buf)
+        if not m:
+            return []
+        try:
+            val = json.loads(m.group(1))
+        except json.JSONDecodeError:
+            return []
+        return val if isinstance(val, list) else []
 
 
 def _unescape(s: str) -> str:

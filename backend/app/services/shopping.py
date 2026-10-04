@@ -89,11 +89,53 @@ def aggregate_ingredients(dishes: list[Dish]) -> list[dict]:
     return items
 
 
-def group_items(items: list[dict]) -> list[ShoppingGroup]:
-    """Группирует позиции по категориям в заданном порядке."""
+# Остатки плана (PlanRow.leftovers) — «пристроить, чтобы не пропали»: в покупках такие позиции
+# уходят в отдельную группу в конце — проверить дома, а не покупать заново.
+HOME_CATEGORY = "Есть дома (остатки)"
+
+# Другой продукт из того же сырья: «оливковое масло» ≠ «оливки», «томатная паста» ≠ «томаты»,
+# «лук-порей» ≠ «лук», «имбирь молотый» ≠ свежий. Такие слова в позиции (если их нет в самом
+# остатке) отменяют совпадение.
+_DERIVED = ("масл", "сок", "паст", "соус", "порош", "молот", "сушен", "порей", "шалот")
+
+
+def _raw_tokens(name: str) -> list[str]:
+    s = re.sub(r"[^а-я0-9 ]", " ", name.lower().replace("ё", "е"))
+    return s.split()
+
+
+def _tok_match(a: str, b: str) -> bool:
+    # Точно или та же основа с другим окончанием: «имбирь»/«имбиря», «сельдерей»/«сельдерея».
+    return a == b or (len(a) >= 5 and len(b) >= 5 and a[:5] == b[:5] and abs(len(a) - len(b)) <= 2)
+
+
+def is_leftover(name: str, leftovers: list[str] | None) -> bool:
+    """Позиция покупок — это один из остатков пользователя (все слова остатка есть в позиции,
+    и позиция не производный продукт вроде масла/пасты/сока из него)."""
+    toks = _canon_name(name).split()
+    raw = _raw_tokens(name)
+    for lo in leftovers or []:
+        lt = _canon_name(lo).split()
+        if not lt or not all(any(_tok_match(x, t) for t in toks) for x in lt):
+            continue
+        lo_raw = _raw_tokens(lo)
+        derived = any(
+            t.startswith(d) and not any(x.startswith(d) for x in lo_raw)
+            for t in raw for d in _DERIVED
+        )
+        if not derived:
+            return True
+    return False
+
+
+def group_items(items: list[dict], leftovers: list[str] | None = None) -> list[ShoppingGroup]:
+    """Группирует позиции по категориям в заданном порядке; остатки плана — в группу
+    «Есть дома» последней."""
     by_cat: dict[str, list[ShoppingItem]] = {}
     for it in items:
         cat = it.get("category") or "Прочее"
+        if leftovers and is_leftover(str(it.get("name", "")), leftovers):
+            cat = HOME_CATEGORY
         by_cat.setdefault(cat, []).append(
             ShoppingItem(
                 name=str(it.get("name", "")).strip(),
@@ -102,7 +144,8 @@ def group_items(items: list[dict]) -> list[ShoppingGroup]:
                 category=cat,
             )
         )
-    order = CATEGORY_ORDER + [c for c in by_cat if c not in CATEGORY_ORDER]
+    order = CATEGORY_ORDER + [c for c in by_cat if c not in CATEGORY_ORDER and c != HOME_CATEGORY]
+    order.append(HOME_CATEGORY)
     return [
         ShoppingGroup(category=c, items=sorted(by_cat[c], key=lambda x: x.name.lower()))
         for c in order

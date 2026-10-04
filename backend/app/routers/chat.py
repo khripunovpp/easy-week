@@ -12,7 +12,7 @@ from ..ai.base import AIError
 from ..ai.gates import resolve_key
 from ..ai.limits import LimitError, status as limits_status
 from ..ai.observe import record_conversation, record_plan, set_ai_context
-from ..ai.prompt import chat_memory_block
+from ..ai.prompt import chat_memory_block, leftovers_status
 from ..ai.planner import (
     _week_label,
     add_dish_direct,
@@ -37,6 +37,7 @@ from ..schemas import (
 from ..services import appstate
 from ..services import summary as chat_summary
 from ..services.history import conversation_rejected, variety_avoid
+from ..services.recipebook import attach, attach_all, book_index, book_names
 from ..services.mapping import to_week_plan
 
 import logging
@@ -202,10 +203,14 @@ async def chat_stream(
     avoid = variety_avoid(session, exclude_conversation=conv.id)
     # Память беседы: первое сообщение (если это не оно само) + последняя сводка.
     memory = chat_summary.memory(session, conv.id, req.message)
+    # Книга рецептов: модель узнаёт названное пользователем блюдо, а совпавшее по названию
+    # блюдо сразу получает готовый рецепт семьи (без генерации).
+    book = book_index(session)
     plan_id = uuid4().hex
     set_ai_context(conversation_id=conv.id, plan_id=plan_id, endpoint="chat_stream")
 
     dishes: list[dict] = []
+    leftovers: list[str] = []
     title = "План на неделю"
     reply = "Готово — вот план на неделю."
     week = ""  # заполнится из события meta (оно всегда раньше блюд)
@@ -214,7 +219,8 @@ async def chat_stream(
     err_msg = ""
     try:
         async for kind, payload in generate_plan_stream(
-            req.message, avoid, req.dishes_count, req.gender, req.recipe_model, context=memory
+            req.message, avoid, req.dishes_count, req.gender, req.recipe_model, context=memory,
+            book=book_names(session, index=book),
         ):
             if kind == "meta":
                 title, week, reply = payload["title"], payload["week_label"], payload["reply"]
@@ -230,7 +236,10 @@ async def chat_stream(
                         "provider": provider,
                     },
                 )
+            elif kind == "leftovers":
+                leftovers = payload
             elif kind == "dish":
+                payload = attach(payload, book)
                 dishes.append(payload)
                 yield ServerSentEvent(
                     event="dish",
@@ -255,6 +264,7 @@ async def chat_stream(
         status="draft",
         provider=provider,
         dishes=dishes,
+        leftovers=leftovers or None,
     )
     session.add(plan_row)
     msg_id = uuid4().hex
@@ -277,6 +287,7 @@ async def chat_stream(
             "dishesCount": len(dishes),
             "messageId": msg_id,
             "model": req.recipe_model,
+            "leftovers": leftovers,
         },
     )
 
@@ -300,11 +311,13 @@ async def chat(req: ChatRequest, session: SessionDep) -> ChatResponse:
     chat_summary.schedule(conv.id)  # сводка беседы — фоном, дебаунс 5 с
     avoid = variety_avoid(session, exclude_conversation=conv.id)
     memory = chat_summary.memory(session, conv.id, req.message)
+    book = book_index(session)
     set_ai_context(conversation_id=conv.id, endpoint="chat")
 
     try:
         data = await generate_plan(
-            req.message, avoid, req.dishes_count, req.gender, req.recipe_model, context=memory
+            req.message, avoid, req.dishes_count, req.gender, req.recipe_model, context=memory,
+            book=book_names(session, index=book),
         )
     except LimitError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
@@ -318,7 +331,8 @@ async def chat(req: ChatRequest, session: SessionDep) -> ChatResponse:
         week_label=data["week_label"],
         status="draft",
         provider=data.get("provider", ""),
-        dishes=data["dishes"],
+        dishes=attach_all(data["dishes"], book),
+        leftovers=data.get("leftovers") or None,
     )
     session.add(plan_row)
     chat_msg_id = uuid4().hex
@@ -422,6 +436,10 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
         chat_summary.schedule(conv.id)  # сводка беседы — фоном, дебаунс 5 с
 
     context = _edit_context(session, conv.id, req.message)
+    # Остатки плана: в контекст правки (что куда пристроено) и в новые блюда (непристроенные).
+    leftovers = [str(x) for x in (row.leftovers or [])]
+    if leftovers:
+        context = "\n".join(p for p in (context, leftovers_status(leftovers, row.dishes or [])) if p)
     button = bool(req.remove_dish_id or req.replace_dish_id or req.add_dish)
     # Вкусы извлекаем ТОЛЬКО из свободного текста правки в чате. Действия по кнопкам
     # (replace/remove/add — даже с пожеланием «без рыбы») — разовые, не устойчивые вкусы:
@@ -442,18 +460,18 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
             result = await replace_dish_by_id(
                 row.dishes or [], row.title, req.replace_dish_id, req.message,
                 req.gender, req.recipe_model,
-                context=context, rejected=rejected, avoid=avoid,
+                context=context, rejected=rejected, avoid=avoid, leftovers=leftovers,
             )
         elif req.add_dish:
             # Добавление по кнопке — минуя тул-коллинг.
             result = await add_dish_direct(
                 row.dishes or [], row.title, req.message, req.gender, req.recipe_model,
-                context=context, rejected=rejected, avoid=avoid,
+                context=context, rejected=rejected, avoid=avoid, leftovers=leftovers,
             )
         else:
             result = await edit_plan(
                 row.dishes or [], row.title, req.message, req.gender, req.recipe_model, context,
-                avoid=avoid, rejected=rejected,
+                avoid=avoid, rejected=rejected, leftovers=leftovers,
             )
     except LimitError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
@@ -495,7 +513,9 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
         decided_at=row.decided_at if row.status == "accepted" else None,
         provider=result.get("provider") or row.provider,
         parent_id=row.id,
-        dishes=result["dishes"],
+        # Новые блюда, совпавшие по названию с книгой рецептов, — сразу с готовым рецептом.
+        dishes=attach_all(result["dishes"], book_index(session)),
+        leftovers=result.get("leftovers") or leftovers or None,
     )
     session.add(new_plan)
     # Исходная версия заменена новой — сразу отменяем её (остаётся доступной по ссылке,

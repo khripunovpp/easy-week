@@ -34,6 +34,7 @@ export interface Dish {
   prepMin: number;
   cookMin: number;
   tags: string[]; // напр. «на ужин», «впрок»
+  uses?: string[]; // какие остатки пользователя (WeekPlan.leftovers) пристроены в блюдо
   storage: Storage;
   tips: string[];
   steps: string[];
@@ -52,6 +53,7 @@ export interface WeekPlan {
   status: PlanStatus;
   provider?: string; // модель, составившая план (DeepSeek | Cloudflare)
   dishes: Dish[];
+  leftovers?: string[]; // остатки, которые пользователь просил пристроить (пусто — не просил)
   createdAt?: string | null; // когда создан план (ISO)
   shoppingGeneratedAt?: string | null; // когда собран закэшированный список покупок (ISO)
   shoppingModel?: string; // ключ модели, собравшей список покупок (для оценки 👍/👎)

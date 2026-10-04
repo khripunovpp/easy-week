@@ -128,10 +128,19 @@ export interface ChatStreamMeta {
   provider?: string;
 }
 
+// Финал потока: id плана/сообщения, модель и остатки, которые модель выделила из запроса.
+export interface ChatStreamDone {
+  planId: string;
+  dishesCount: number;
+  messageId?: string;
+  model?: string;
+  leftovers?: string[];
+}
+
 export interface ChatStreamHandlers {
   onMeta: (meta: ChatStreamMeta) => void;
   onDish: (dish: Dish) => void;
-  onDone: (info: { planId: string; dishesCount: number; messageId?: string; model?: string }) => void;
+  onDone: (info: ChatStreamDone) => void;
   onError: (message: string) => void;
 }
 
@@ -330,9 +339,7 @@ export class EasyWeekApi {
         if (event === 'meta') handlers.onMeta(payload as ChatStreamMeta);
         else if (event === 'dish') handlers.onDish(payload as Dish);
         else if (event === 'done')
-          handlers.onDone(
-            payload as { planId: string; dishesCount: number; messageId?: string; model?: string },
-          );
+          handlers.onDone(payload as ChatStreamDone);
         else if (event === 'error')
           handlers.onError((payload as { message?: string }).message ?? 'Ошибка генерации');
       },

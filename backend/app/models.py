@@ -32,6 +32,10 @@ class PlanRow(SQLModel, table=True):
     parent_id: str | None = Field(default=None, index=True)
     # Полный список блюд плана — как JSON (snake_case, см. schemas.Dish).
     dishes: list = Field(default_factory=list, sa_column=Column(JSON))
+    # Остатки, которые пользователь просил пристроить («остался порей, сельдерей…») — модель
+    # плана выделяет их из запроса; у блюда — dish["uses"]. В покупках такие продукты уходят
+    # в группу «Есть дома». Правки плана переносят список в новую версию.
+    leftovers: list | None = Field(default=None, sa_column=Column(JSON))
     # Кэш нормализованного списка покупок (mistral) + подпись состава.
     shopping_cache: list = Field(default_factory=list, sa_column=Column(JSON))
     shopping_sig: str = ""

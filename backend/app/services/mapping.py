@@ -29,6 +29,7 @@ def to_week_plan(row: PlanRow) -> WeekPlan:
         status=row.status,
         provider=row.provider,
         dishes=dishes,
+        leftovers=[str(x) for x in (row.leftovers or [])],
         created_at=_utc(row.created_at),
         shopping_generated_at=_utc(row.shopping_at),
         shopping_model=row.shopping_model or "",

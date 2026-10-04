@@ -58,7 +58,7 @@
             @for (r of sec.items; track r.planId + ':' + r.dishId; let i = $index) {
               <div class="prow">
                 <a class="prow__link" [routerLink]="['/plan', r.planId, 'dish', r.dishId]">
-                  <span class="emoji-badge" [class]="pastel(i)">{{ r.emoji }}</span>
+                  <span class="emoji-badge" [class]="pastel(i)" [class.emoji-badge--ready]="r.hasRecipe">{{ r.emoji }}</span>
                   <span class="prow__body">
                     <span class="prow__title">{{ r.name }}</span>
                     <span class="prow__sub prow__sub--clip muted">

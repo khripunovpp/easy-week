@@ -36,6 +36,7 @@ from .prompt import (
     build_shop_normalize_messages,
     build_single_dish_messages,
     build_validate_messages,
+    free_leftovers,
 )
 from .stream_parse import PlanStreamParser
 from ..services.variants import with_detail
@@ -284,11 +285,28 @@ def _clean_dish(i: int, d: dict) -> dict:
         "cook_min": d.get("cook_min", 30),
         "tags": d.get("tags", []),
         "garnish": str(d.get("garnish") or "").strip(),
+        "uses": _clean_list(d.get("uses"), 8),
         "storage": d.get("storage") or dict(_DEFAULT_STORAGE),
         "ingredients": d.get("ingredients", []),
         "steps": d.get("steps", []),
         "tips": d.get("tips", []),
     }
+
+
+def _clean_list(raw: Any, cap: int) -> list[str]:
+    """Список коротких строк от модели (остатки плана / uses блюда): без пустых и дублей."""
+    out: list[str] = []
+    seen: set[str] = set()
+    for x in raw if isinstance(raw, list) else []:
+        t = " ".join(str(x).split()).strip(" .,;")[:40]
+        if t and t.lower() not in seen:
+            seen.add(t.lower())
+            out.append(t)
+    return out[:cap]
+
+
+def _clean_leftovers(raw: Any) -> list[str]:
+    return _clean_list(raw, 12)
 
 
 def _resolve_variety(avoid_titles: list[str], variety: str | None) -> str:
@@ -305,6 +323,7 @@ async def generate_plan(
     user_message: str, avoid_titles: list[str], count: int = 5, gender: str = "f",
     model: str = "", count_plan: bool = True, *,
     in_plan: list[str] | None = None, context: str = "", variety: str | None = None,
+    book: list[str] | None = None, leftovers: list[str] | None = None,
 ) -> dict[str, Any]:
     """План выбранной моделью. Без фолбэков: модель либо отвечает, либо кидает AIError.
 
@@ -312,6 +331,8 @@ async def generate_plan(
     count_plan=False — вызов изнутри правки (add/create), не считаем как отдельный план.
     in_plan — блюда текущего плана (для add), context — контекст беседы (исходный запрос),
     variety — None: новое серверное зерно разнообразия; строка — готовая подсказка.
+    book — книга рецептов семьи (узнать названное пользователем блюдо), leftovers — уже
+    известные остатки (правка/пересборка). В ответе leftovers — остатки, выделенные моделью.
     """
     gate = gate_for(model)
     if count_plan:
@@ -321,12 +342,14 @@ async def generate_plan(
         return await _generate_plan_cloudflare(
             user_message, avoid_titles, count, gender,
             in_plan=in_plan, context=context, variety=variety, gate=gate,
+            book=book, leftovers=leftovers,
         )
 
     parsed, _ = await gate.complete_json(
         build_ds_plan_messages(
             user_message, avoid_titles, count, gender,
             in_plan=in_plan, variety=variety, context=context, date_hint=_date_hint(),
+            book=book, leftovers=leftovers,
         ),
         max_tokens=3000,
         temperature=_PLAN_TEMPERATURE,
@@ -341,20 +364,23 @@ async def generate_plan(
         "title": _clean_title(parsed.get("title") or "План на неделю"),
         "week_label": _week_label(),
         "dishes": dishes,
+        "leftovers": _clean_leftovers(parsed.get("leftovers")),
         "provider": gate.provider,
     }
 
 
 async def generate_plan_stream(
     user_message: str, avoid_titles: list[str], count: int = 5, gender: str = "f",
-    model: str = "", *, context: str = "",
+    model: str = "", *, context: str = "", book: list[str] | None = None,
 ) -> AsyncIterator[tuple[str, Any]]:
     """Потоковый план: yield ('meta', {reply,title,week_label,provider}) → ('dish', dish)…
+    → ('leftovers', [остатки]) в конце.
 
     Стриминговые модели (DeepSeek/Gemini) отдают блюда по мере генерации; Cloudflare
     (без стрима) собирает план пайплайном и отдаёт теми же событиями. Без фолбэков —
     падение модели пробрасывается наверх (роутер отдаёт event: error).
-    context — память беседы (первое сообщение + сводка, services/summary.memory)."""
+    context — память беседы (первое сообщение + сводка, services/summary.memory),
+    book — книга рецептов семьи (services/recipebook.book_names)."""
     week = _week_label()
     gate = gate_for(model)
     enforce_daily(gate, "plan")  # дневной лимит на Claude (no-op для остальных)
@@ -367,7 +393,7 @@ async def generate_plan_stream(
         async for delta in gate.stream_json(
             build_ds_plan_messages(
                 user_message, avoid_titles, count, gender,
-                variety=variety, context=context, date_hint=_date_hint(),
+                variety=variety, context=context, date_hint=_date_hint(), book=book,
             ),
             max_tokens=3000,
             temperature=_PLAN_TEMPERATURE,
@@ -400,13 +426,14 @@ async def generate_plan_stream(
         if not emitted:
             raise AIError(f"{gate.provider} вернул пустой план")
         logger.info("plan stream via %s: dishes=%d", gate.provider, emitted)
+        yield "leftovers", _clean_leftovers(parser.leftovers())
         return
 
     # Нестриминговые гейты (Cloudflare-пайплайн, Gemini — у него стрим JSON рвётся):
     # собираем план целиком и отдаём теми же событиями. count_plan=False — лимит уже учтён выше.
     data = await generate_plan(
         user_message, avoid_titles, count, gender, model, count_plan=False, variety=variety,
-        context=context,
+        context=context, book=book,
     )
     yield "meta", {
         "reply": data["reply"],
@@ -416,11 +443,13 @@ async def generate_plan_stream(
     }
     for d in data["dishes"]:
         yield "dish", d
+    yield "leftovers", data.get("leftovers") or []
 
 
 async def _generate_plan_cloudflare(
     user_message: str, avoid_titles: list[str], count: int = 5, gender: str = "f", *,
     in_plan: list[str] | None = None, context: str = "", variety: str = "", gate=None,
+    book: list[str] | None = None, leftovers: list[str] | None = None,
 ) -> dict[str, Any]:
     """Пайплайн Cloudflare: меню (главная модель) → спеки (8b, параллельно) → валидация.
     gate — Cloudflare-гейт с моделью из настроек (меню и валидатор идут ею)."""
@@ -429,6 +458,7 @@ async def _generate_plan_cloudflare(
         build_names_messages(
             user_message, avoid_titles, count, gender,
             in_plan=in_plan, variety=variety, context=context, date_hint=_date_hint(),
+            book=book, leftovers=leftovers,
         ),
         schema=NAMES_SCHEMA,
         model=cf_menu(gate),
@@ -447,6 +477,8 @@ async def _generate_plan_cloudflare(
     )
 
     await _validate_and_fix(dishes, user_message, gate)
+    for d, e in zip(dishes, entries):  # после валидатора: он пересобирает блюдо целиком
+        d["uses"] = _clean_list(e.get("uses"), 8)
 
     if not dishes:
         raise AIError("Cloudflare вернул пустой план")
@@ -456,6 +488,7 @@ async def _generate_plan_cloudflare(
         "title": _clean_title(names.get("title") or "План на неделю"),
         "week_label": _week_label(),
         "dishes": dishes,
+        "leftovers": _clean_leftovers(names.get("leftovers")),
         "provider": cloudflare.provider,
     }
 
@@ -464,6 +497,7 @@ async def generate_dish_detail(
     name: str, servings: int = 4, change: str = "", model: str = "", *,
     dish: dict | None = None, request: str = "", mention: str = "",
     discussion: str = "", current: str = "", regenerate: bool = False,
+    leftovers: list[str] | None = None,
 ) -> dict:
     """Полная деталь блюда (ингредиенты + шаги + советы + note) — лениво при открытии.
     change — правка рецепта (напр. «убрать болгарский перец»): перегенерирует рецепт с учётом.
@@ -471,6 +505,7 @@ async def generate_dish_detail(
     mention — реплика к плану, где упомянуто блюдо. Всё — чтобы рецепт не расходился
     с тем, что обещано в плане. discussion/current/regenerate — «↻ Перегенерировать» и правка
     из обсуждения: реплики обсуждения рецепта, выжимка текущего варианта, правило перегенерации.
+    leftovers — остатки плана: в рецепт идут только те, что в dish["uses"].
 
     Генерит выбранная модель; пусто → модель рецептов по умолчанию из настроек.
     Без фолбэков — падение пробрасывается наверх."""
@@ -482,7 +517,7 @@ async def generate_dish_detail(
     )
     messages = build_dish_detail_messages(
         name, servings, change, dish=dish, request=request, mention=mention,
-        discussion=discussion, current=current, regenerate=regenerate,
+        discussion=discussion, current=current, regenerate=regenerate, leftovers=leftovers,
     )
     if _is_cf(gate):
         parsed, _ = await gate.complete_json(
@@ -664,16 +699,18 @@ async def generate_single_dish(
     rejected: list[str] | None = None,
     avoid_titles: list[str] | None = None,
     context: str = "",
+    leftovers: list[str] | None = None,
 ) -> dict[str, Any] | None:
     """Одно блюдо для замены (old_dish задан) или добавления — отдельным промптом.
 
     Контекст: пожелание пользователя, контекст беседы (исходный запрос + последние реплики),
     заменяемое блюдо (название + теги), остальные блюда плана, отвергнутое в этой беседе,
-    общая история. Возвращает {"dish", "reply", "provider"} или None, если блюда нет."""
+    общая история, остатки, ещё не пристроенные в план.
+    Возвращает {"dish", "reply", "provider"} или None, если блюда нет."""
     gate = gate_for(model)
     messages = build_single_dish_messages(
         query, old_dish=old_dish, plan_dishes=plan_dishes, rejected=rejected,
-        avoid_titles=avoid_titles, context=context, gender=gender,
+        avoid_titles=avoid_titles, context=context, gender=gender, leftovers=leftovers,
     )
     label = (
         f"замена блюда: {old_dish.get('name')}" if old_dish else "добавление блюда"
@@ -706,6 +743,7 @@ async def generate_single_dish(
 async def edit_plan(
     dishes: list[dict], title: str, user_message: str, gender: str = "f", model: str = "",
     context: str = "", *, avoid: list[str] | None = None, rejected: list[str] | None = None,
+    leftovers: list[str] | None = None,
 ) -> dict[str, Any]:
     """Правит существующий план по просьбе выбранной моделью.
 
@@ -714,11 +752,13 @@ async def edit_plan(
     context — узкая история диалога (исходный запрос + пара реплик), чтобы точнее понять,
     какое блюдо имеется в виду; в пограничных случаях модель задаёт уточняющий вопрос.
     avoid — «недавно ели или отвергли» (history.variety_avoid), rejected — отвергнутое
-    в этой беседе (history.conversation_rejected): для add/replace/create."""
+    в этой беседе (history.conversation_rejected): для add/replace/create.
+    leftovers — остатки плана: новые блюда пристраивают ещё не пристроенные, пересборка — все."""
     gate = gate_for(model)
     work = [dict(d) for d in dishes]
     avoid = avoid or []
     rejected = list(rejected or [])
+    leftovers = list(leftovers or [])
 
     if gate.supports_tools:
         calls, reply_hint = await gate.call_tools(
@@ -747,12 +787,14 @@ async def edit_plan(
                 one = await generate_single_dish(
                     args.get("query", ""), model=model, gender=gender, plan_dishes=work,
                     rejected=rejected, avoid_titles=avoid, context=context,
+                    leftovers=free_leftovers(leftovers, work),
                 )
                 new = [one["dish"]] if one else []
             else:
                 gen = await generate_plan(
                     args.get("query", ""), avoid, cnt, gender, model, count_plan=False,
                     in_plan=_dish_names(work), context=context, variety=_NEIGHBOR_HINT,
+                    leftovers=free_leftovers(leftovers, work),
                 )
                 new = gen["dishes"][:cnt]
             for j, d in enumerate(new):
@@ -766,6 +808,7 @@ async def edit_plan(
             one = await generate_single_dish(
                 args.get("query", ""), model=model, gender=gender, old_dish=old,
                 plan_dishes=others, rejected=rejected, avoid_titles=avoid, context=context,
+                leftovers=free_leftovers(leftovers, others),
             )
             if one:
                 ids = {d["id"] for d in work}
@@ -785,7 +828,8 @@ async def edit_plan(
             if idx is not None and change:
                 dish = work[idx]
                 detail = await generate_dish_detail(
-                    dish.get("name", ""), dish.get("servings", 4), change, model, dish=dish
+                    dish.get("name", ""), dish.get("servings", 4), change, model, dish=dish,
+                    leftovers=leftovers,
                 )
                 # Пишем в варианты (variants[модель] + active_model), а не только в плоские
                 # поля: иначе при следующем открытии рецепт брался из старого варианта и
@@ -798,9 +842,10 @@ async def edit_plan(
             cnt = max(2, min(int(args.get("count") or len(work) or 5), 12))
             gen = await generate_plan(
                 args.get("note", user_message), avoid + _dish_names(work), cnt, gender, model,
-                count_plan=False, context=context,
+                count_plan=False, context=context, leftovers=leftovers,
             )
             work = gen["dishes"]
+            leftovers = gen.get("leftovers") or leftovers
             new_title = gen.get("title", title)
             changed = ["меню пересобрано"]
 
@@ -814,6 +859,7 @@ async def edit_plan(
         "reply": reply,
         "title": new_title,
         "dishes": work,
+        "leftovers": leftovers,
         "provider": gate.provider,
         "changed": changed,
     }
@@ -822,6 +868,7 @@ async def edit_plan(
 async def replace_dish_by_id(
     dishes: list[dict], title: str, dish_id: str, query: str, gender: str = "f", model: str = "",
     *, context: str = "", rejected: list[str] | None = None, avoid: list[str] | None = None,
+    leftovers: list[str] | None = None,
 ) -> dict[str, Any]:
     """Точечная замена конкретного блюда (кнопка «заменить» в карточке): без выбора функции
     моделью — сразу генерим замену отдельным промптом на одно блюдо. query — пожелание
@@ -840,6 +887,7 @@ async def replace_dish_by_id(
     one = await generate_single_dish(
         query, model=model, gender=gender, old_dish=old, plan_dishes=others,
         rejected=rejected, avoid_titles=avoid, context=context,
+        leftovers=free_leftovers(leftovers, others),
     )
     if not one:
         return {"reply": "Не удалось подобрать замену. Попробуйте ещё раз.", "title": title,
@@ -871,6 +919,7 @@ def remove_dish_by_id(dishes: list[dict], title: str, dish_id: str) -> dict[str,
 async def add_dish_direct(
     dishes: list[dict], title: str, query: str, gender: str = "f", model: str = "",
     *, context: str = "", rejected: list[str] | None = None, avoid: list[str] | None = None,
+    leftovers: list[str] | None = None,
 ) -> dict[str, Any]:
     """Добавить одно блюдо в существующий план (кнопка «Добавить блюдо») — без выбора функции
     моделью. query — пожелание пользователя (может быть пустым)."""
@@ -878,7 +927,7 @@ async def add_dish_direct(
     work = [dict(d) for d in dishes]
     one = await generate_single_dish(
         query, model=model, gender=gender, plan_dishes=work, rejected=rejected,
-        avoid_titles=avoid, context=context,
+        avoid_titles=avoid, context=context, leftovers=free_leftovers(leftovers, work),
     )
     if not one:
         return {"reply": "Не удалось подобрать блюдо. Попробуйте ещё раз.", "title": title,

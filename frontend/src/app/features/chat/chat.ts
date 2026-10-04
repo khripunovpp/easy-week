@@ -8,6 +8,7 @@ import { ModelSettings } from '../../services/model-settings';
 import { MODEL_LABELS, RecipeModel, providerToModel } from '../../services/preferences';
 import { CookingLoader } from '../../shared/cooking-loader';
 import { dishColorClass } from '../../shared/dish-color';
+import { leftoverChips } from '../../shared/leftovers';
 import { renderMarkdown } from '../../shared/markdown';
 import { Vote } from '../../shared/vote';
 import { ModelName } from '../../shared/model-name';
@@ -134,6 +135,45 @@ export class Chat {
   convId(): string {
     return this.store.conversationId ?? '';
   }
+  // --- Кнопка «скопировать ID чата» в шапке (чтобы сослаться на беседу при разборе логов) ---
+  readonly idCopied = signal(false);
+  private copiedTimer: ReturnType<typeof setTimeout> | undefined;
+
+  copyChatId(): void {
+    const id = this.convId();
+    if (!id) return;
+    const done = () => {
+      this.idCopied.set(true);
+      clearTimeout(this.copiedTimer);
+      this.copiedTimer = setTimeout(() => this.idCopied.set(false), 1500);
+    };
+    // Clipboard API есть только в secure context (Funnel-https); по LAN-http — фолбэк.
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(id).then(done, () => this.copyFallback(id) && done());
+    } else if (this.copyFallback(id)) {
+      done();
+    }
+  }
+
+  private copyFallback(text: string): boolean {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, text.length); // iOS не выделяет по select()
+    let ok = false;
+    try {
+      ok = document.execCommand('copy');
+    } catch {
+      ok = false;
+    }
+    ta.remove();
+    return ok;
+  }
+
   toggleTip(m: { serverId?: string }): void {
     this.tipId.update((cur) => (cur === m.serverId ? null : (m.serverId ?? null)));
   }
@@ -218,6 +258,8 @@ export class Chat {
     if (ref.target === 'shopping') return 'Открыть покупки →';
     return 'Открыть рецепт →';
   }
+
+  readonly leftoverChips = leftoverChips; // строка «🧺 Остатки» плана
 
   pastel(i: number): string {
     return dishColorClass(i); // цвет блюда по индексу (единая палитра)

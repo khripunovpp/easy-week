@@ -121,7 +121,7 @@ async def shopping_list(plan_id: str, session: SessionDep) -> list[ShoppingGroup
 
     # Один вызов модели на план; дальше — из кэша.
     if row.shopping_sig == sig and row.shopping_cache:
-        return group_items(row.shopping_cache)
+        return group_items(row.shopping_cache, row.leftovers)
 
     try:
         items = await normalize_shopping(base)  # модель — дефолт «Список покупок» из настроек
@@ -129,16 +129,16 @@ async def shopping_list(plan_id: str, session: SessionDep) -> list[ShoppingGroup
         # Базу под этой подписью НЕ кэшируем — иначе сбой нормализации «застывал» навсегда
         # (кэш совпадает по sig, повторной попытки не было бы).
         logger.warning("shopping normalize failed, отдаём базу без кэша: %s", str(exc)[:150])
-        return group_items(base)
+        return group_items(base, row.leftovers)
     if not items:
-        return group_items(base)
+        return group_items(base, row.leftovers)
     row.shopping_cache = items
     row.shopping_sig = sig
     row.shopping_at = datetime.now(timezone.utc)
     row.shopping_model = gate_for("", "shopping").key  # GET нормализует дефолтом из настроек
     session.add(row)
     session.commit()
-    return group_items(items)
+    return group_items(items, row.leftovers)
 
 
 @router.get("/{plan_id}/shopping-list/by-dish")
@@ -150,7 +150,9 @@ async def shopping_by_dish(plan_id: str, session: SessionDep) -> list[DishShoppi
     await backfill_all(session, row)  # ингредиенты лениво — догрузить (модель рецептов)
     out: list[DishShopping] = []
     for dish in to_week_plan(row).dishes:
-        items = [it for g in group_items(aggregate_ingredients([dish])) for it in g.items]
+        items = [
+            it for g in group_items(aggregate_ingredients([dish]), row.leftovers) for it in g.items
+        ]
         out.append(DishShopping(dish_id=dish.id, name=dish.name, emoji=dish.emoji, items=items))
     return out
 
@@ -176,7 +178,7 @@ async def shopping_regenerate(
         raise HTTPException(
             status_code=502, detail=f"Не удалось пересобрать список покупок: {exc}"
         ) from exc
-    return group_items(items)
+    return group_items(items, row.leftovers)
 
 
 @router.get("/{plan_id}/pdf")
@@ -191,7 +193,7 @@ async def plan_pdf(
     row = _get_plan(session, plan_id)
     await backfill_all(session, row, need_steps=recipes)
     plan = to_week_plan(row)
-    groups = group_items(aggregate_ingredients(plan.dishes)) if shopping else []
+    groups = group_items(aggregate_ingredients(plan.dishes), row.leftovers) if shopping else []
     pdf_bytes = build_plan_pdf(plan, groups, recipes=recipes, shop=shopping)
     return Response(
         content=pdf_bytes,
@@ -294,6 +296,7 @@ async def _resolve_dish_detail(
                 dish.get("name", ""), dish.get("servings", 4), model=target,
                 dish=dish, request=original_request(session, row.conversation_id),
                 mention=reply_mention(session, row.id, dish.get("name", "")),
+                leftovers=row.leftovers,
             )
         except LimitError as exc:
             raise HTTPException(status_code=429, detail=str(exc)) from exc

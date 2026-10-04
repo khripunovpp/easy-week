@@ -6,6 +6,7 @@ import { ChatStore } from '../../services/chat-store';
 import { providerToModel } from '../../services/preferences';
 import { CookingLoader } from '../../shared/cooking-loader';
 import { dishColorClass } from '../../shared/dish-color';
+import { leftoverChips } from '../../shared/leftovers';
 import { formatDuration, formatGeneratedAt } from '../../shared/format';
 import { Vote } from '../../shared/vote';
 
@@ -133,6 +134,8 @@ export class PlanPage {
     if (!p) return '';
     return formatDuration(p.dishes.reduce((s, d) => s + d.prepMin + d.cookMin, 0));
   }
+
+  readonly leftoverChips = leftoverChips; // строка «🧺 Остатки» плана
 
   pastel(i: number): string {
     return dishColorClass(i); // цвет блюда по индексу (единая палитра)

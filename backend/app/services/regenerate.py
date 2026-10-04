@@ -64,7 +64,7 @@ async def backfill_all(
         *(
             generate_dish_detail(
                 d.get("name", ""), d.get("servings", 4), model=model, dish=d, request=request,
-                mention=reply_mention(session, row.id, d.get("name", "")),
+                mention=reply_mention(session, row.id, d.get("name", "")), leftovers=row.leftovers,
             )
             for _, d in missing
         ),
@@ -129,6 +129,7 @@ async def regenerate_dish(
         name, dish.get("servings", 4), change, key,
         dish=dish, request=request, mention=reply_mention(session, row.id, name),
         discussion=discussion, current=variant_summary(current), regenerate=regenerate,
+        leftovers=row.leftovers,
     )
     new = with_detail(dish, key, detail)
     dishes[idx] = new

@@ -122,6 +122,9 @@ export class ChatStore {
         if (model) this.recipeModel.set(model);
         else this.syncModelToLastPlan(msgs);
         this.loading.set(false);
+        // Лента приезжает уже после перехода в чат (из плана/покупок/рецепта) — «тик»,
+        // чтобы чат прижался к низу, а не остался наверху.
+        this.scrollBump.update((n) => n + 1);
       },
       error: () => {
         this.messages.set([INTRO]);
@@ -240,6 +243,10 @@ export class ChatStore {
       onDone: (info) => {
         this.streamingMsgId.set(null);
         this.loading.set(false);
+        // Остатки модель отдаёт в конце потока — дописываем в карточку плана.
+        if (info.leftovers?.length) {
+          this.updatePlan(msgId, (plan) => ({ ...plan, leftovers: info.leftovers }));
+        }
         // Проставляем серверный id + модель стримленному сообщению — чтобы можно было оценить.
         if (info.messageId) {
           this.messages.update((list) =>

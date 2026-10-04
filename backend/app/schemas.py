@@ -35,6 +35,8 @@ class Dish(CamelModel):
     tags: list[str] = []
     # Гарнир к основному блюду из плана (коротко; пусто — не нужен или старые планы).
     garnish: str = ""
+    # Какие остатки пользователя (WeekPlan.leftovers) пристроены в это блюдо.
+    uses: list[str] = []
     storage: Storage
     tips: list[str] = []
     steps: list[str] = []
@@ -99,6 +101,8 @@ class WeekPlan(CamelModel):
     # Модель, составившая план (DeepSeek | Cloudflare).
     provider: str = ""
     dishes: list[Dish]
+    # Остатки, которые пользователь просил пристроить (пусто — не просил).
+    leftovers: list[str] = []
     # Когда создан план и когда собран закэшированный список покупок (для подписей на страницах).
     created_at: datetime | None = None
     shopping_generated_at: datetime | None = None

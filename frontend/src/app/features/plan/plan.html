@@ -65,12 +65,24 @@
               [planId]="p.id" />
           </div>
         }
+        @if (leftoverChips(p); as chips) {
+          @if (chips.length) {
+            <!-- Остатки, которые просили пристроить; приглушённые — модель не нашла им места -->
+            <div class="leftovers">
+              <span class="leftovers__label">🧺 Остатки</span>
+              @for (c of chips; track c.name) {
+                <span class="leftovers__item" [class.leftovers__item--free]="!c.placed"
+                      [attr.title]="c.placed ? null : 'Не пристроен — подходящего блюда не нашлось'">{{ c.name }}</span>
+              }
+            </div>
+          }
+        }
       </div>
 
       <section class="pv__dishes">
         @for (d of p.dishes; track d.id; let i = $index) {
           <a class="dish" [routerLink]="['/plan', p.id, 'dish', d.id]">
-            <div class="emoji-badge" [class]="pastel(i)">{{ d.emoji }}</div>
+            <div class="emoji-badge" [class]="pastel(i)" [class.emoji-badge--ready]="d.steps.length > 0">{{ d.emoji }}</div>
             <div class="dish__body">
               <h3 class="dish__name">{{ d.name }}</h3>
               <div class="dish__meta">
@@ -80,6 +92,9 @@
                 }
                 <span class="meta-chip">{{ d.servings }} порц.</span>
               </div>
+              @if (d.uses?.length) {
+                <p class="dish-uses">♻ {{ d.uses?.join(', ') }}</p>
+              }
             </div>
             <svg class="dish__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round" />
