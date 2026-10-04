@@ -400,6 +400,22 @@ class RecipeItem(CamelModel):
     favorite: bool = False
 
 
+class RecipeTextBody(CamelModel):
+    # Свой рецепт (модалка «Свой рецепт»): текст пользователя; модель — пусто → дефолт «Рецепты».
+    text: str = Field(min_length=3, max_length=4000)
+    recipe_model: str = ""
+
+
+class RecipeTextOut(CamelModel):
+    text: str
+
+
+class CustomRecipeOut(CamelModel):
+    # Куда открыть готовый свой рецепт: /plan/{plan_id}/dish/{dish_id} (plan_id — библиотека).
+    plan_id: str
+    dish_id: str
+
+
 class FavoriteBody(CamelModel):
     name: str = Field(min_length=1, max_length=120)
     favorite: bool

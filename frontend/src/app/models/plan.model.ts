@@ -3,6 +3,10 @@
 
 export type PlanStatus = 'draft' | 'accepted' | 'rejected';
 
+// «Мои рецепты» — служебный план со своими рецептами пользователя (модалка «Свой рецепт»):
+// его блюда открываются обычной страницей рецепта /plan/library/dish/:id, в списке планов его нет.
+export const LIBRARY_PLAN_ID = 'library';
+
 export type IngredientCategory =
   | 'Мясо и птица'
   | 'Рыба'

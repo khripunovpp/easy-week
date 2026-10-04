@@ -454,6 +454,9 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
     # Память беседы для add/replace/create: что уже отвергнуто здесь + общая история.
     rejected = conversation_rejected(session, conv.id) if not req.remove_dish_id else []
     avoid = variety_avoid(session, exclude_conversation=conv.id) if not req.remove_dish_id else []
+    # Книга рецептов (в т.ч. свои рецепты): «добавь мой рецепт X» → блюдо с тем же названием,
+    # attach_all ниже подставит готовый рецепт.
+    book = book_names(session) if not req.remove_dish_id else []
     try:
         if req.remove_dish_id:
             # Крестик — детерминированное удаление, вообще без модели.
@@ -463,18 +466,18 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
             result = await replace_dish_by_id(
                 row.dishes or [], row.title, req.replace_dish_id, req.message,
                 req.gender, req.recipe_model,
-                context=context, rejected=rejected, avoid=avoid, leftovers=leftovers,
+                context=context, rejected=rejected, avoid=avoid, leftovers=leftovers, book=book,
             )
         elif req.add_dish:
             # Добавление по кнопке — минуя тул-коллинг.
             result = await add_dish_direct(
                 row.dishes or [], row.title, req.message, req.gender, req.recipe_model,
-                context=context, rejected=rejected, avoid=avoid, leftovers=leftovers,
+                context=context, rejected=rejected, avoid=avoid, leftovers=leftovers, book=book,
             )
         else:
             result = await edit_plan(
                 row.dishes or [], row.title, req.message, req.gender, req.recipe_model, context,
-                avoid=avoid, rejected=rejected, leftovers=leftovers,
+                avoid=avoid, rejected=rejected, leftovers=leftovers, book=book,
             )
     except LimitError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc

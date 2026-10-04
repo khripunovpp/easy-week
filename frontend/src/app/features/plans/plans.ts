@@ -1,12 +1,13 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { PlanStatus } from '../../models/plan.model';
 import { EasyWeekApi, PlanSummary, RecipeItem } from '../../services/api';
 import { CookingLoader } from '../../shared/cooking-loader';
 import { dishColorClass } from '../../shared/dish-color';
 import { formatDuration } from '../../shared/format';
 import { Modal } from '../../shared/modal';
+import { RecipeAdd } from './recipe-add';
 
 type PlansMode = 'plans' | 'recipes';
 type RecipesGroup = 'plans' | 'favorites';
@@ -45,12 +46,21 @@ function writePref(key: string, v: string): void {
 // остальные; одно блюдо — одна строка, открывается из самого свежего плана).
 @Component({
   selector: 'ew-plans',
-  imports: [RouterLink, CookingLoader, NgTemplateOutlet, Modal],
+  imports: [RouterLink, CookingLoader, NgTemplateOutlet, Modal, RecipeAdd],
   templateUrl: './plans.html',
   styleUrl: './plans.scss',
 })
 export class Plans {
   private readonly api = inject(EasyWeekApi);
+  private readonly router = inject(Router);
+
+  // Модалка «Свой рецепт»: после «Дальше» рецепт уже в «Мои рецепты» — открываем его страницу.
+  readonly addOpen = signal(false);
+  onRecipeCreated(r: { planId: string; dishId: string }): void {
+    this.addOpen.set(false);
+    this.loadRecipes(true);
+    this.router.navigate(['/plan', r.planId, 'dish', r.dishId]);
+  }
 
   readonly plans = signal<PlanSummary[]>([]);
   readonly loading = signal(true);
@@ -170,7 +180,9 @@ export class Plans {
       for (const r of list) {
         let sec = byPlan.get(r.planId);
         if (!sec) {
-          sec = { id: r.planId, label: `${r.planTitle} · ${r.weekLabel}`, items: [], showPlan: false };
+          // У «Мои рецепты» недели нет — только название.
+          const label = r.weekLabel ? `${r.planTitle} · ${r.weekLabel}` : r.planTitle;
+          sec = { id: r.planId, label, items: [], showPlan: false };
           byPlan.set(r.planId, sec);
         }
         sec.items.push(r);

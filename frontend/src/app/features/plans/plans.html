@@ -1,8 +1,8 @@
 <div class="page page--header-fixed page--footer-fixed">
   <header class="page__header page__header--fixed fade-top">
     <div class="page__heading">
-      <h1 class="page__title">Планы</h1>
-      <p class="page__subtitle">Меню по неделям</p>
+      <h1 class="page__title">Книга</h1>
+      <p class="page__subtitle">Планы и рецепты</p>
     </div>
   </header>
 
@@ -164,13 +164,21 @@
   </ng-template>
 
   <footer class="page__footer page__footer--fixed fade-bottom">
-    <a class="btn-primary" routerLink="/chat">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M12 6v12M6 12h12" stroke-linecap="round" />
-      </svg>
-      Новый план
-    </a>
+    <div class="page__footer-row">
+      <!-- Свой рецепт → модалка: текст → «Улучшить» / «Откатить» → «Дальше» (полный рецепт) -->
+      <button class="btn-ghost" type="button" (click)="addOpen.set(true)">📝 Свой рецепт</button>
+      <a class="btn-primary" routerLink="/chat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 6v12M6 12h12" stroke-linecap="round" />
+        </svg>
+        Новый план
+      </a>
+    </div>
   </footer>
+
+  @if (addOpen()) {
+    <ew-recipe-add (closed)="addOpen.set(false)" (created)="onRecipeCreated($event)" />
+  }
 
   @if (pendingDelete(); as plan) {
     <ew-modal (closed)="cancelDelete()">

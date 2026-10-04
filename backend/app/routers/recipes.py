@@ -5,17 +5,34 @@ GET /api/recipes → блюда всех ПРИНЯТЫХ планов (свеж
     поэтому «принятые» — это уже последние версии.
 PUT /api/recipes/favorite {name, favorite, planId?, dishId?} → звезда по нормализованному
     названию блюда (models.FavoriteRecipe) — общая для семьи и переживает правки плана.
+POST /api/recipes/improve {text} → «Улучшить»: тот же рецепт понятным текстом (без выдумок).
+POST /api/recipes/custom {text} → «Дальше»: полный рецепт строго по тексту → в «Мои рецепты»
+    (services/recipebook.library_row) → {planId, dishId} для страницы рецепта.
+Свои рецепты — в списке первыми и в книге рецептов (план из чата может их взять).
 """
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
+from ..ai.base import AIError
+from ..ai.limits import LimitError
+from ..ai.observe import set_ai_context
+from ..ai.planner import generate_custom_recipe, improve_recipe_text
 from ..db import get_session
 from ..models import FavoriteRecipe, PlanRow
-from ..schemas import FavoriteBody, FavoriteOut, RecipeItem
+from ..schemas import (
+    CustomRecipeOut,
+    FavoriteBody,
+    FavoriteOut,
+    RecipeItem,
+    RecipeTextBody,
+    RecipeTextOut,
+)
 from ..services.history import norm_name
+from ..services.recipebook import LIBRARY_STATUS, library_row
+from ..services.variants import with_detail
 
 router = APIRouter(prefix="/api/recipes", tags=["recipes"])
 SessionDep = Annotated[Session, Depends(get_session)]
@@ -31,9 +48,12 @@ def _int(v, default: int = 0) -> int:
 @router.get("")
 async def list_recipes(session: SessionDep) -> list[RecipeItem]:
     favs = {f.key for f in session.exec(select(FavoriteRecipe)).all()}
-    plans = session.exec(select(PlanRow).where(PlanRow.status == "accepted")).all()
-    # Свежие первыми: по дате принятия, иначе по дате создания.
-    plans.sort(key=lambda r: (r.decided_at or r.created_at), reverse=True)
+    plans = session.exec(
+        select(PlanRow).where(PlanRow.status.in_(("accepted", LIBRARY_STATUS)))
+    ).all()
+    # «Мои рецепты» первыми, дальше свежие планы: по дате принятия, иначе по дате создания.
+    plans.sort(key=lambda r: (r.status == LIBRARY_STATUS, r.decided_at or r.created_at),
+               reverse=True)
     out: list[RecipeItem] = []
     for row in plans:
         for d in row.dishes or []:
@@ -73,3 +93,41 @@ async def set_favorite(body: FavoriteBody, session: SessionDep) -> FavoriteOut:
         session.delete(row)
         session.commit()
     return FavoriteOut(key=key, favorite=body.favorite)
+
+
+def _ai_http(exc: Exception, what: str) -> HTTPException:
+    if isinstance(exc, LimitError):
+        return HTTPException(status_code=429, detail=str(exc))
+    return HTTPException(status_code=502, detail=f"{what}: {exc}")
+
+
+@router.post("/improve")
+async def improve_recipe(body: RecipeTextBody) -> RecipeTextOut:
+    set_ai_context(endpoint="custom_recipe", action="improve")
+    try:
+        return RecipeTextOut(text=await improve_recipe_text(body.text, body.recipe_model))
+    except (LimitError, AIError) as exc:
+        raise _ai_http(exc, "Не удалось улучшить текст") from exc
+
+
+@router.post("/custom")
+async def create_custom_recipe(body: RecipeTextBody, session: SessionDep) -> CustomRecipeOut:
+    set_ai_context(endpoint="custom_recipe", action="create")
+    try:
+        head, detail, model_key = await generate_custom_recipe(body.text, body.recipe_model)
+    except (LimitError, AIError) as exc:
+        raise _ai_http(exc, "Не удалось собрать рецепт") from exc
+    row = library_row(session)
+    dishes = list(row.dishes or [])
+    ids = {d.get("id") for d in dishes}
+    base = f"own-{len(dishes)}-" + head["id"].split("-", 2)[-1]
+    dish_id, k = base[:48], len(dishes)
+    while dish_id in ids:
+        k += 1
+        dish_id = (f"own-{k}-" + head["id"].split("-", 2)[-1])[:48]
+    # source — текст пользователя: перегенерация и другие модели держатся его (prompt._source_block).
+    dish = with_detail({**head, "id": dish_id, "source": body.text.strip()}, model_key, detail)
+    row.dishes = [*dishes, dish]
+    session.add(row)
+    session.commit()
+    return CustomRecipeOut(plan_id=row.id, dish_id=dish_id)

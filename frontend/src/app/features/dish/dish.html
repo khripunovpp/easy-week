@@ -80,7 +80,7 @@
       <span class="d__emoji">{{ d.emoji }}</span>
       <h1>{{ d.name }}</h1>
       @if (d.desc) {
-        <ew-clamp class="d__desc" [text]="d.desc" />
+        <p class="d__desc">{{ d.desc }}</p>
       }
 
       @if (d.activeModel) {
@@ -177,7 +177,10 @@
       }
       <div class="page__footer-row">
         <button class="btn-ghost" type="button" [disabled]="busy()" (click)="regenerate()">↻ Перегенерировать</button>
-        <button class="btn-primary" type="button" [disabled]="busy()" (click)="discuss()">💬 Обсудить в чате</button>
+        <!-- Свой рецепт («Мои рецепты») живёт вне беседы плана — обсуждать/заменять там нечего -->
+        @if (!isOwn()) {
+          <button class="btn-primary" type="button" [disabled]="busy()" (click)="discuss()">💬 Обсудить в чате</button>
+        }
       </div>
     </footer>
   }

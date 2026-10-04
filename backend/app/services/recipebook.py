@@ -3,6 +3,9 @@
 
 - book_names — названия для промпта плана: модель узнаёт блюдо, которое пользователь назвал сам
   («начинка для Chicken Pod Pa, она уже есть в рецептах»), и пишет его тем же названием;
+- library_row — «Мои рецепты»: свои рецепты пользователя («Свой рецепт» в Книге) живут
+  блюдами служебного плана со статусом library (id/беседа — LIBRARY_ID). Так страница рецепта,
+  варианты моделей, ↻ и озвучка работают как у блюд плана; в списке планов его не показываем;
 - attach — блюдо нового плана с таким же названием (history.norm_name; падеж/опечатка — тоже:
   то же число слов и сходство ≥ 0.9) сразу получает готовый рецепт из книги (все варианты по
   моделям) и название из книги, а не генерится заново. ↻ на рецепте — как обычно.
@@ -12,21 +15,42 @@ import difflib
 
 from sqlmodel import Session, select
 
-from ..models import FavoriteRecipe, PlanRow
+from ..models import Conversation, FavoriteRecipe, PlanRow
 from .history import norm_name
 from .variants import dish_variants
 
-# Поля рецепта, которые переносим из книги (шапку — тоже: граммовки посчитаны на её порции).
+# Поля рецепта, которые переносим из книги (шапку — тоже: граммовки посчитаны на её порции;
+# source — текст своего рецепта: перегенерация в плане тоже держится его).
 _RECIPE_FIELDS = (
     "variants", "active_model", "ingredients", "steps", "tips", "detail_provider",
-    "detail_generated_at", "storage", "servings", "prep_min", "cook_min",
+    "detail_generated_at", "storage", "servings", "prep_min", "cook_min", "desc", "source",
 )
+
+LIBRARY_ID = "library"
+LIBRARY_STATUS = "library"
+
+
+def library_row(session: Session) -> PlanRow:
+    """Служебный план «Мои рецепты» (создаётся при первом своём рецепте)."""
+    row = session.get(PlanRow, LIBRARY_ID)
+    if row is None:
+        if session.get(Conversation, LIBRARY_ID) is None:
+            session.add(Conversation(id=LIBRARY_ID))
+        row = PlanRow(id=LIBRARY_ID, conversation_id=LIBRARY_ID, title="Мои рецепты",
+                      week_label="", status=LIBRARY_STATUS, dishes=[])
+        session.add(row)
+        session.commit()
+        session.refresh(row)
+    return row
 
 
 def book_index(session: Session) -> dict[str, dict]:
-    """norm_name → блюдо с рецептом: самый свежий принятый план с этим блюдом."""
-    plans = session.exec(select(PlanRow).where(PlanRow.status == "accepted")).all()
-    plans.sort(key=lambda r: (r.decided_at or r.created_at), reverse=True)
+    """norm_name → блюдо с рецептом: сначала свои рецепты, дальше самый свежий принятый план."""
+    plans = session.exec(
+        select(PlanRow).where(PlanRow.status.in_(("accepted", LIBRARY_STATUS)))
+    ).all()
+    plans.sort(key=lambda r: (r.status == LIBRARY_STATUS, r.decided_at or r.created_at),
+               reverse=True)
     out: dict[str, dict] = {}
     for row in plans:
         for d in row.dishes or []:

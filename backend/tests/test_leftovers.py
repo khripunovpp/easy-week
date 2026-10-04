@@ -246,3 +246,15 @@ def test_desc_in_plan_prompt_and_recipe_header(monkeypatch):
     monkeypatch.setattr(planner, "gate_for", lambda m, task="chat": gate)
     d = asyncio.run(planner.generate_plan("меню", [], 1, count_plan=False, variety=""))["dishes"][0]
     assert d["desc"].startswith("Курица с оливками.") and len(d["desc"]) <= 300
+
+
+def test_garnish_with_leftovers_not_in_recipe_header():
+    """План до фикса записал котлетам гарнир «салат из оливок и солёных огурцов» — после
+    перегенерации шаги и note всё равно подавали салат. Гарнир с остатками в шапку не берём."""
+    kiev = {"garnish": "салат из оливок и солёных огурцов", "uses": [], "prep_min": 40}
+    user = build_dish_detail_messages("Котлеты по-киевски", 6, dish=kiev, leftovers=LEFT)[1]["content"]
+    assert "гарнир" not in user and "салат из оливок" not in user
+    rice = build_dish_detail_messages("Рагу", 6, dish={"garnish": "рис"}, leftovers=LEFT)[1]["content"]
+    assert "гарнир: рис" in rice
+    plain = build_dish_detail_messages("Котлеты", 6, dish=kiev)[1]["content"]
+    assert "гарнир: салат из оливок" in plain  # без остатков в плане — как было

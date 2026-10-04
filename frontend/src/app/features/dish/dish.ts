@@ -1,12 +1,11 @@
 import { Location } from '@angular/common';
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { Dish } from '../../models/plan.model';
+import { Dish, LIBRARY_PLAN_ID } from '../../models/plan.model';
 import { EasyWeekApi } from '../../services/api';
 import { ChatStore } from '../../services/chat-store';
 import { MODEL_LABELS, RecipeModel } from '../../services/preferences';
 import { ModelSettings } from '../../services/model-settings';
-import { ClampText } from '../../shared/clamp-text';
 import { CookingLoader } from '../../shared/cooking-loader';
 import { Vote } from '../../shared/vote';
 import { formatGeneratedAt } from '../../shared/format';
@@ -15,7 +14,7 @@ import { TtsBtn } from '../../shared/tts-btn';
 
 @Component({
   selector: 'ew-dish',
-  imports: [RouterLink, CookingLoader, Vote, ModelName, TtsBtn, ClampText],
+  imports: [RouterLink, CookingLoader, Vote, ModelName, TtsBtn],
   templateUrl: './dish.html',
   styleUrl: './dish.scss',
 })
@@ -40,9 +39,13 @@ export class DishPage {
     if (history.length > 1) {
       this.location.back();
     } else {
-      this.router.navigate(['/plan', this.planId()]);
+      // Свой рецепт — к «Рецептам» в Книге (у библиотеки нет страницы плана).
+      this.router.navigate(this.isOwn() ? ['/plans'] : ['/plan', this.planId()]);
     }
   }
+
+  /** Свой рецепт пользователя («Мои рецепты», модалка «Свой рецепт»). */
+  readonly isOwn = computed(() => this.planId() === LIBRARY_PLAN_ID);
 
   readonly dish = signal<Dish | null>(null);
   readonly loading = signal(true);

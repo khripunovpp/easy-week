@@ -67,8 +67,11 @@ async def list_plans(session: SessionDep) -> list[PlanSummary]:
     superseded = {r.parent_id for r in rows if r.parent_id}
     # Версии, заменённые правкой (черновик или авто-«отклонён» при правке), тоже прячем —
     # иначе после «убрать блюдо» в списке висели две «Соляночки»: старая и новая.
+    # «Мои рецепты» (status library) — не план недели: живут в режиме «Рецепты».
     visible = [
-        r for r in rows if not (r.status in ("draft", "rejected") and r.id in superseded)
+        r for r in rows
+        if r.status != "library"
+        and not (r.status in ("draft", "rejected") and r.id in superseded)
     ]
     return [to_summary(r) for r in visible]
 
