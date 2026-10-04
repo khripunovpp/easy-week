@@ -5,12 +5,12 @@ import { PlanStatus } from '../../models/plan.model';
 import { EasyWeekApi, PlanSummary, RecipeItem } from '../../services/api';
 import { CookingLoader } from '../../shared/cooking-loader';
 import { dishColorClass } from '../../shared/dish-color';
-import { formatDuration } from '../../shared/format';
+import { dayGroupLabel, dayKey, formatDuration } from '../../shared/format';
 import { Modal } from '../../shared/modal';
 import { RecipeAdd } from './recipe-add';
 
 type PlansMode = 'plans' | 'recipes';
-type RecipesGroup = 'plans' | 'favorites';
+type RecipesGroup = 'plans' | 'dates' | 'favorites';
 interface RecipeSection {
   id: string;
   label: string;
@@ -129,7 +129,7 @@ export class Plans {
 
   // ---- Режим «Рецепты» ----
   readonly mode = signal<PlansMode>(readPref(MODE_KEY, ['plans', 'recipes'] as const, 'plans'));
-  readonly group = signal<RecipesGroup>(readPref(GROUP_KEY, ['plans', 'favorites'] as const, 'plans'));
+  readonly group = signal<RecipesGroup>(readPref(GROUP_KEY, ['plans', 'dates', 'favorites'] as const, 'plans'));
   readonly recipes = signal<RecipeItem[]>([]);
   readonly recipesLoading = signal(false);
   readonly recipesError = signal(false);
@@ -189,6 +189,7 @@ export class Plans {
       }
       return [...byPlan.values()];
     }
+    if (this.group() === 'dates') return this.dateSections(list);
     // «Избранное»: одно блюдо — одна строка (первое вхождение = самый свежий план).
     const seen = new Set<string>();
     const fav: RecipeItem[] = [];
@@ -211,6 +212,27 @@ export class Plans {
     // При поиске пустую секцию избранного не показываем — только найденное.
     return this.query().trim() ? out.filter((s) => s.items.length) : out;
   });
+
+  // «По дате»: по дню генерации рецепта (нет рецепта — день принятия плана), свежие сверху:
+  // «Сегодня», «Вчера», дальше даты. Одно блюдо — одна строка (самое свежее), в подписи — план.
+  private dateSections(list: RecipeItem[]): RecipeSection[] {
+    const when = (r: RecipeItem) => r.generatedAt || r.planDecidedAt || '';
+    const sorted = [...list].sort((a, b) => (when(b) > when(a) ? 1 : when(b) < when(a) ? -1 : 0));
+    const seen = new Set<string>();
+    const byDay = new Map<string, RecipeSection>();
+    for (const r of sorted) {
+      if (seen.has(r.key)) continue;
+      seen.add(r.key);
+      const key = dayKey(when(r));
+      let sec = byDay.get(key);
+      if (!sec) {
+        sec = { id: `day-${key || 'none'}`, label: dayGroupLabel(when(r)) || 'Без даты', items: [], showPlan: true };
+        byDay.set(key, sec);
+      }
+      sec.items.push(r);
+    }
+    return [...byDay.values()];
+  }
 
   // Звезда: оптимистично для всех вхождений блюда (ключ — название), ошибка — откат.
   toggleFavorite(r: RecipeItem): void {

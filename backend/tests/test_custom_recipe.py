@@ -94,3 +94,13 @@ def test_custom_recipe_without_steps_is_error(session, monkeypatch):
     else:
         raise AssertionError("ожидали 502")
     assert session.get(recipebook.PlanRow, recipebook.LIBRARY_ID) is None  # ничего не создали
+
+
+def test_recipe_list_has_generated_at(session, monkeypatch):
+    """«По дате» в Рецептах — дата генерации рецепта (detail_generated_at) в RecipeItem."""
+    gate = FakeGate(RECIPE)
+    monkeypatch.setattr(planner, "gate_for", lambda m, task="chat": gate)
+    asyncio.run(recipes_router.create_custom_recipe(RecipeTextBody(text=TEXT), session))
+    item = asyncio.run(recipes_router.list_recipes(session))[0]
+    assert item.generated_at is not None and item.generated_at.tzinfo is not None
+    assert recipes_router._iso("bad") is None and recipes_router._iso("") is None

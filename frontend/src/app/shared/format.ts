@@ -28,3 +28,31 @@ export function formatGeneratedAt(iso: string | null | undefined): string {
     .replace('.', '');
   return `${date}, ${time}`;
 }
+
+// Локальный день (ISO → 'YYYY-MM-DD') — ключ группировки «По дате». Битая/пустая дата → ''.
+export function dayKey(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+// Заголовок группы дня: «Сегодня» / «Вчера» / «Пятница, 2 октября» (год — если не текущий).
+export function dayGroupLabel(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const now = new Date();
+  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diffDays = Math.round((day(now) - day(d)) / 86_400_000);
+  if (diffDays === 0) return 'Сегодня';
+  if (diffDays === 1) return 'Вчера';
+  const label = d.toLocaleDateString('ru-RU', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}),
+  });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}

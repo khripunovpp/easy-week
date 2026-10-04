@@ -11,6 +11,7 @@ POST /api/recipes/custom {text} → «Дальше»: полный рецепт 
 Свои рецепты — в списке первыми и в книге рецептов (план из чата может их взять).
 """
 
+from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -36,6 +37,15 @@ from ..services.variants import with_detail
 
 router = APIRouter(prefix="/api/recipes", tags=["recipes"])
 SessionDep = Annotated[Session, Depends(get_session)]
+
+
+def _iso(v) -> datetime | None:
+    """detail_generated_at (ISO-строка в UTC) → datetime; пусто/битое → None."""
+    try:
+        dt = datetime.fromisoformat(str(v)) if v else None
+    except ValueError:
+        return None
+    return dt.replace(tzinfo=timezone.utc) if dt and dt.tzinfo is None else dt
 
 
 def _int(v, default: int = 0) -> int:
@@ -75,6 +85,7 @@ async def list_recipes(session: SessionDep) -> list[RecipeItem]:
                 cook_min=_int(d.get("cook_min")),
                 servings=_int(d.get("servings"), 4) or 4,
                 has_recipe=bool(d.get("steps")),
+                generated_at=_iso(d.get("detail_generated_at")),
                 favorite=key in favs,
             ))
     return out

@@ -49,6 +49,8 @@
           <div class="seg pl__group" role="group" aria-label="Группировка рецептов">
             <button class="seg__opt" type="button" [class.seg__opt--on]="group() === 'plans'"
                     [attr.aria-pressed]="group() === 'plans'" (click)="setGroup('plans')">По планам</button>
+            <button class="seg__opt" type="button" [class.seg__opt--on]="group() === 'dates'"
+                    [attr.aria-pressed]="group() === 'dates'" (click)="setGroup('dates')">По дате</button>
             <button class="seg__opt" type="button" [class.seg__opt--on]="group() === 'favorites'"
                     [attr.aria-pressed]="group() === 'favorites'" (click)="setGroup('favorites')">Избранное</button>
           </div>

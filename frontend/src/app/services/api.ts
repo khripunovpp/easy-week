@@ -267,6 +267,7 @@ export interface RecipeItem {
   cookMin: number;
   servings: number;
   hasRecipe: boolean;
+  generatedAt?: string | null; // когда сгенерирован рецепт (ISO) — группировка «По дате»
   favorite: boolean;
 }
 

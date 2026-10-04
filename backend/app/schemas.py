@@ -397,6 +397,8 @@ class RecipeItem(CamelModel):
     cook_min: int = 0
     servings: int = 4
     has_recipe: bool = False  # развёрнутый рецепт уже сгенерирован (есть шаги)
+    # Когда сгенерирован активный вариант рецепта (группировка «По дате»; нет — дата плана).
+    generated_at: datetime | None = None
     favorite: bool = False
 
 
