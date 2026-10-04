@@ -240,6 +240,12 @@
   color: var(--ink-3);
   text-align: center;
 }
+.d__state .d__retry .btn-primary {
+  width: 100%;
+}
+.d__retry-label {
+  margin-top: 4px;
+}
 .d__retry-btn {
   display: flex;
   align-items: center;

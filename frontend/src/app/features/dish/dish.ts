@@ -65,6 +65,8 @@ export class DishPage {
   // Рецепт не собрался и показать нечего (лимит Claude, модель упала): какая модель не смогла и
   // другие модели задачи «Рецепты» — кнопками прямо под ошибкой, тап сразу генерирует.
   readonly failedModel = signal('');
+  // Лимит (429) той же моделью не повторяем — только перегрузка/сбой.
+  readonly failedRetryable = signal(false);
   readonly retryModels = computed<RecipeModel[]>(() =>
     this.modelSettings.modelsFor('recipe').filter((m) => m !== this.failedModel()),
   );
@@ -107,7 +109,9 @@ export class DishPage {
         this.modelMenuOpen.set(false);
       },
       error: (err) => {
-        const text = aiFailText(err, model, 'рецепт не собран');
+        // Пустая модель — бэк взял дефолт задачи «Рецепты»: называем её в тексте и кнопке повтора.
+        const used = (model || this.modelSettings.models().recipe).split(':')[0];
+        const text = aiFailText(err, used, 'рецепт не собран');
         if (action === 'select' && this.dish()) {
           this.switchError.set({ model, text });
           this.loading.set(false);
@@ -117,7 +121,8 @@ export class DishPage {
         }
         // 429 (дневной лимит) — текст с бэка; 502 — понятный текст вместо сырого ответа провайдера
         this.errorMsg.set(text);
-        this.failedModel.set((model || this.modelSettings.models().recipe).split(':')[0]);
+        this.failedModel.set(used);
+        this.failedRetryable.set(err?.status !== 429);
         this.failed.set(true);
         this.loading.set(false);
         this.generatingModel.set(null);

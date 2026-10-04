@@ -158,10 +158,17 @@
     } @else {
       <div class="d__state">
         <p class="muted">{{ errorMsg() || 'Модель недоступна — рецепт не собрать. Переключите модель или соберите новый план.' }}</p>
-        @if (retryModels().length) {
-          <!-- Другие модели «Рецептов» — тап сразу собирает рецепт ею (настройки не меняются) -->
-          <div class="d__retry" role="group" aria-label="Собрать другой моделью">
-            <span class="d__retry-label">Собрать другой моделью:</span>
+        @if (failedModel()) {
+          <!-- Повтор той же моделью (перегрузка обычно временная), ниже — другие модели «Рецептов» -->
+          <div class="d__retry" role="group" aria-label="Собрать рецепт">
+            @if (failedRetryable()) {
+              <button class="btn-primary d__retry-btn" type="button" (click)="retryWith(failedModel())">
+                ↻ Повторить · {{ modelLabel(failedModel()) }}
+              </button>
+            }
+            @if (retryModels().length) {
+              <span class="d__retry-label">{{ failedRetryable() ? 'или другой моделью:' : 'Собрать другой моделью:' }}</span>
+            }
             @for (m of retryModels(); track m) {
               <button class="btn-ghost d__retry-btn" type="button" (click)="retryWith(m)">
                 <span class="msel__ic">🤖</span>
