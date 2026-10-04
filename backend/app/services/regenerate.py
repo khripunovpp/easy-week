@@ -20,7 +20,7 @@ from ..models import PlanRow
 from ..services.mapping import to_week_plan
 from .discussion import discussion_text
 from .history import original_request, reply_mention
-from .shopping import aggregate_ingredients
+from .shopping import aggregate_ingredients, sync_uses
 from .variants import dish_variants, now_iso, variant_summary, with_detail
 
 logger = logging.getLogger("easy_week.regenerate")
@@ -73,7 +73,7 @@ async def backfill_all(
     changed = False
     for (i, d), det in zip(missing, results):
         if isinstance(det, dict):
-            dishes[i] = merge_detail(d, det)
+            dishes[i] = sync_uses(merge_detail(d, det), row.leftovers)
             changed = True
     if changed:
         row.dishes = dishes
@@ -131,7 +131,7 @@ async def regenerate_dish(
         discussion=discussion, current=variant_summary(current), regenerate=regenerate,
         leftovers=row.leftovers,
     )
-    new = with_detail(dish, key, detail)
+    new = sync_uses(with_detail(dish, key, detail), row.leftovers)
     dishes[idx] = new
     row.dishes = dishes
     session.add(row)

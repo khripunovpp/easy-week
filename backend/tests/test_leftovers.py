@@ -19,7 +19,7 @@ from app.ai.prompt import (
 from app.ai.stream_parse import PlanStreamParser
 from app.models import Conversation, FavoriteRecipe, PlanRow
 from app.services import recipebook
-from app.services.shopping import HOME_CATEGORY, group_items, is_leftover
+from app.services.shopping import HOME_CATEGORY, group_items, is_leftover, sync_uses
 
 LEFT = ["порей", "сельдерей", "морковь", "лук", "оливки", "имбирь", "солёные огурцы"]
 
@@ -66,8 +66,9 @@ def test_plan_user_has_book_and_known_leftovers():
 def test_detail_uses_only_dish_leftovers():
     dish = {"name": "Курица с пореем", "uses": ["порей"]}
     user = build_dish_detail_messages("Курица с пореем", 4, dish=dish, leftovers=LEFT)[1]["content"]
-    assert "Остатки пользователя для этого блюда: порей" in user
-    assert "суть и классический состав блюда не меняй" in user
+    assert "Остатки пользователя, намеченные в это блюдо: порей" in user
+    assert "только те, что естественно входят в классический рецепт" in user
+    assert "ни в рецепт, ни закуской или гарниром к нему" in user
     other = build_dish_detail_messages("Котлеты по-киевски", 4, dish={"uses": []},
                                        leftovers=LEFT)[1]["content"]
     assert "пристроены в другие блюда плана — сюда специально не добавляй" in other
@@ -203,3 +204,31 @@ def test_attach_copies_book_recipe_keeps_plan_fields(session):
     assert recipebook.attach(other, index) is other
     has_recipe = {**new, "steps": ["свой"]}
     assert recipebook.attach(has_recipe, index) is has_recipe  # готовый рецепт не трогаем
+
+
+def test_sync_uses_follows_recipe_ingredients():
+    """План (Haiku) записал оливки и огурцы «закуской» к котлетам по-киевски, рецепт их не взял —
+    uses берём из ингредиентов рецепта; без рецепта — намерение плана как есть."""
+    ing = lambda n: {"name": n, "qty": 1, "unit": "г", "category": "Прочее"}  # noqa: E731
+    kiev = {"name": "Котлеты по-киевски", "uses": ["оливки", "солёные огурцы"],
+            "ingredients": [ing("куриное филе"), ing("сливочное масло"), ing("оливковое масло")]}
+    assert sync_uses(kiev, LEFT)["uses"] == []
+    soup = {"name": "Суп", "uses": ["порей"],
+            "ingredients": [ing("лук-порей"), ing("морковь"), ing("корень сельдерея")]}
+    assert sync_uses(soup, LEFT)["uses"] == ["порей", "сельдерей", "морковь"]
+    draft = {"name": "Рассольник", "uses": ["солёные огурцы"], "ingredients": []}
+    assert sync_uses(draft, LEFT) is draft
+    assert sync_uses(kiev, []) is kiev
+
+
+def test_detail_drops_leftover_promises_from_plan_reply():
+    """Реплика плана «оливки с солёными огурцами — в закуску к котлетам» с «выполни» перебивала
+    правило остатков — предложения про остатки вырезаем, остальные обещания оставляем."""
+    reply = ("Отлично! Включу остатки в меню: порей и сельдерей пойдут в суп, оливки с солёными "
+             "огурцами — в закуску к котлетам. Котлеты по-киевски — в панировке с горчицей.")
+    user = build_dish_detail_messages("Котлеты по-киевски", 6, dish={"uses": []}, mention=reply,
+                                      leftovers=LEFT)[1]["content"]
+    assert "оливки" not in user.split("Остатки из запроса")[0]
+    assert "в панировке с горчицей" in user
+    plain = build_dish_detail_messages("Котлеты по-киевски", 6, dish={}, mention=reply)[1]["content"]
+    assert "закуску к котлетам" in plain  # без остатков в плане — реплика как была

@@ -128,6 +128,17 @@ def is_leftover(name: str, leftovers: list[str] | None) -> bool:
     return False
 
 
+def sync_uses(dish: dict, leftovers: list[str] | None) -> dict:
+    """Рецепт уже есть → uses = остатки, которые реально в его ингредиентах: план мог ошибиться
+    (оливки «закуской» к котлетам по-киевски), а рецепт — отказаться от неуместного остатка.
+    Без рецепта uses — намерение плана, как есть."""
+    names = [str(i.get("name", "")) for i in (dish.get("ingredients") or [])]
+    if not leftovers or not names:
+        return dish
+    uses = [lo for lo in leftovers if any(is_leftover(n, [lo]) for n in names)]
+    return {**dish, "uses": uses}
+
+
 def group_items(items: list[dict], leftovers: list[str] | None = None) -> list[ShoppingGroup]:
     """Группирует позиции по категориям в заданном порядке; остатки плана — в группу
     «Есть дома» последней."""

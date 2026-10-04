@@ -39,6 +39,7 @@ from .prompt import (
     free_leftovers,
 )
 from .stream_parse import PlanStreamParser
+from ..services.shopping import sync_uses
 from ..services.variants import with_detail
 
 logger = logging.getLogger("easy_week.planner")
@@ -834,7 +835,7 @@ async def edit_plan(
                 # Пишем в варианты (variants[модель] + active_model), а не только в плоские
                 # поля: иначе при следующем открытии рецепт брался из старого варианта и
                 # правка «терялась».
-                work[idx] = with_detail(dish, gate.key, detail)
+                work[idx] = sync_uses(with_detail(dish, gate.key, detail), leftovers)
                 changed.append(f"рецепт «{dish.get('name')}» обновлён ({change})")
         elif op == "create_plan":
             # Пересборка — новое меню: исходный запрос (в context) и история avoid сохраняются,

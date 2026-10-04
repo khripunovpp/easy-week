@@ -38,6 +38,7 @@ from ..services import appstate
 from ..services import summary as chat_summary
 from ..services.history import conversation_rejected, variety_avoid
 from ..services.recipebook import attach, attach_all, book_index, book_names
+from ..services.shopping import sync_uses
 from ..services.mapping import to_week_plan
 
 import logging
@@ -263,7 +264,8 @@ async def chat_stream(
         week_label=week or _week_label(),
         status="draft",
         provider=provider,
-        dishes=dishes,
+        # Блюда из книги рецептов уже с ингредиентами — uses по ним, а не по плану модели.
+        dishes=[sync_uses(d, leftovers) for d in dishes],
         leftovers=leftovers or None,
     )
     session.add(plan_row)
@@ -331,7 +333,7 @@ async def chat(req: ChatRequest, session: SessionDep) -> ChatResponse:
         week_label=data["week_label"],
         status="draft",
         provider=data.get("provider", ""),
-        dishes=attach_all(data["dishes"], book),
+        dishes=[sync_uses(d, data.get("leftovers")) for d in attach_all(data["dishes"], book)],
         leftovers=data.get("leftovers") or None,
     )
     session.add(plan_row)
@@ -501,6 +503,7 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
             model=req.recipe_model,
         )
 
+    new_leftovers = result.get("leftovers") or leftovers
     # Правка создаёт НОВУЮ версию плана (копию), исходный план остаётся доступен по ссылке.
     new_plan = PlanRow(
         id=uuid4().hex,
@@ -514,8 +517,11 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
         provider=result.get("provider") or row.provider,
         parent_id=row.id,
         # Новые блюда, совпавшие по названию с книгой рецептов, — сразу с готовым рецептом.
-        dishes=attach_all(result["dishes"], book_index(session)),
-        leftovers=result.get("leftovers") or leftovers or None,
+        dishes=[
+            sync_uses(d, new_leftovers)
+            for d in attach_all(result["dishes"], book_index(session))
+        ],
+        leftovers=new_leftovers or None,
     )
     session.add(new_plan)
     # Исходная версия заменена новой — сразу отменяем её (остаётся доступной по ссылке,

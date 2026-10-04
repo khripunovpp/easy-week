@@ -37,7 +37,7 @@ from ..services.regenerate import (
     regenerate_shopping,
     shopping_base,
 )
-from ..services.shopping import aggregate_ingredients, group_items
+from ..services.shopping import aggregate_ingredients, group_items, sync_uses
 from ..services.variants import apply_variant, now_iso, variant_from_detail
 from ..services.variants import dish_variants as variants_of  # имя dish_variants занято роутом
 
@@ -304,7 +304,8 @@ async def _resolve_dish_detail(
             raise HTTPException(status_code=502, detail=f"Не удалось получить рецепт: {exc}") from exc
         variants[target] = variant_from_detail(detail)
 
-    dish = apply_variant(dish, target, variants)
+    # uses — по фактическим ингредиентам варианта (карточка плана показывает правду).
+    dish = sync_uses(apply_variant(dish, target, variants), row.leftovers)
     dishes[idx] = dish
     row.dishes = dishes
     session.add(row)
