@@ -30,6 +30,7 @@ from ..ai.prompt import (
 from ..db import get_session
 from ..models import Conversation, MessageRow, PlanRow
 from ..schemas import DiscussRequest, DiscussResponse
+from ..services import recipestore
 from ..services import summary as chat_summary
 from ..services.discussion import TARGETS, discuss_turns
 from ..services.planstore import PlanConflict
@@ -77,6 +78,14 @@ def _context(session: Session, row: PlanRow, target: str, dish_id: str | None) -
     return discuss_shopping_context(list(items), names, request)
 
 
+def _dish_recipe_id(row: PlanRow, dish_id: str | None) -> str | None:
+    """Рецепт блюда (закрепление recipe_id в JSON, пока миграция рецептов применена)."""
+    if not dish_id:
+        return None
+    dish = next((d for d in (row.dishes or []) if d.get("id") == dish_id), None)
+    return dish.get("recipe_id") if dish else None
+
+
 @router.post("/chat/discuss")
 async def chat_discuss(req: DiscussRequest, session: SessionDep) -> DiscussResponse:
     target = (req.target or "").lower()
@@ -105,10 +114,15 @@ async def chat_discuss(req: DiscussRequest, session: SessionDep) -> DiscussRespo
         context += "\n\n" + chat_memory_block("", conv_row.summary)
     # Прошлые реплики обсуждения этой цели — до сохранения текущей (она идёт вопросом).
     turns = discuss_turns(session, conv_id, target, dish_id)
+    user_msg_id = uuid4().hex
     session.add(MessageRow(
-        id=uuid4().hex, conversation_id=conv_id, role="user", text=req.message.strip(),
+        id=user_msg_id, conversation_id=conv_id, role="user", text=req.message.strip(),
         discuss_target=target, dish_id=dish_id,
     ))
+    # Реплика обсуждения рецепта → рецепт блюда (ветки пока по беседе + блюду, как раньше).
+    recipe_id = _dish_recipe_id(row, dish_id)
+    session.flush()
+    recipestore.link_message(session, user_msg_id, recipe_id)
     session.commit()
     chat_summary.schedule(conv_id)  # сводка беседы — фоном, дебаунс 5 с
 
@@ -165,6 +179,9 @@ async def chat_discuss(req: DiscussRequest, session: SessionDep) -> DiscussRespo
         id=msg_id, conversation_id=conv_id, role="assistant", text=reply,
         model=reply_model, discuss_target=target, dish_id=dish_id,
     ))
+    session.flush()
+    # После правки у блюда мог впервые появиться рецепт — берём свежее блюдо.
+    recipestore.link_message(session, msg_id, _dish_recipe_id(row, dish_id) or recipe_id)
     session.commit()
     out.message_id = msg_id
     logger.info("discuss: target=%s op=%s provider=%s", target, op, res.get("provider"))

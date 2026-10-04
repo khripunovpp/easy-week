@@ -17,7 +17,7 @@ from ..ai.observe import record_rating, record_rating_reasons
 from ..db import get_session
 from ..models import RatingRow
 from ..schemas import RatingBody, RatingOut, RatingReasonsBody
-from ..services import rating_reasons
+from ..services import rating_reasons, recipestore
 
 logger = logging.getLogger("easy_week.ratings")
 
@@ -82,6 +82,12 @@ async def rate(body: RatingBody, session: SessionDep) -> RatingOut:
     row.dish_id = body.dish_id
     row.conversation_id = body.conversation_id
     session.add(row)
+    if body.target_type == "recipe":
+        # Рецепт и ТА версия, за которую голосуют (закрепление модели голоса в этой версии
+        # плана) — пишем рядом; поиск голоса пока прежний (блюдо + модель).
+        session.flush()
+        recipestore.link_rating(session, row.id, body.plan_id, body.dish_id or body.target_id,
+                                body.model or "")
     session.commit()
     record_rating(body.target_type, body.model, body.vote)
     return _out(row)

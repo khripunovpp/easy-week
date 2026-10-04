@@ -8,9 +8,10 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 from . import auth
 from .config import settings
-from .db import init_db
+from .db import engine, init_db
 from .routers import chat, discuss, plans, ratings, recipes, tts
 from .routers import settings as settings_router
+from .services import recipestore
 from .services.planstore import PlanConflict, PlanNotFound
 
 # Логи приложения (plan via DeepSeek, валидатор, ошибки провайдеров) видны в контейнере.
@@ -25,6 +26,9 @@ logging.getLogger("easy_week").setLevel(logging.INFO)
 async def lifespan(app: FastAPI):
     init_db()
     auth.log_startup_state()
+    # Таблицы рецептов: только проверка на чтение (маркер + сверка с JSON → лог и /api/health).
+    # Миграцию приложение на старте НЕ делает — её применяет deploy/update.sh (app/migrations).
+    recipestore.startup_check(engine)
     yield
 
 
@@ -76,4 +80,7 @@ async def health() -> dict[str, object]:
         "status": "ok",
         "cfConfigured": settings.cf_configured,
         "model": settings.cf_model,
+        # Хранилище рецептов: маркер миграции, откуда читаем (фаза 1 — всегда json) и итог
+        # сверки таблиц с JSON на старте.
+        "recipes": recipestore.health(),
     }

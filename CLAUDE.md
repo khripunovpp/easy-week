@@ -205,6 +205,24 @@ GET с текстом в query, а не POST. TTS-модели OpenRouter в о�
   чате служебный план не берёт (`_latest_plan`), `/chat/edit` в беседе `library` без черновика
   плана → 409; `history.original_request('library')` → `''`.
 
+### Таблицы рецептов (фаза 1: двойная запись, чтение — по-прежнему JSON)
+- `recipe` (рецепт блюда: линия версий плана / свой рецепт) и `recipe_revision` (неизменная версия
+  текста, триггер `recipe_revision_immutable`) — `models.py`, своя MetaData
+  (`RECIPE_METADATA`): `init_db` их НЕ создаёт. Создаёт и наполняет только CLI
+  `python -m app.migrations` (`app/migrations/recipes_v1.py`, маркер `recipes_v1` в
+  `schema_migration`); он же добавляет `ratingrow.recipe_id/revision_id`,
+  `favoriterecipe.recipe_id`, `messagerow.recipe_id` (не поля ORM — пишутся Core-UPDATE).
+- Блюдо плана получает только `recipe_id` + `rev_ids` ({модель: id версии}); остальной JSON не
+  меняется и остаётся источником для чтения. Логика — `services/recipestore.py` (логгер
+  `easy_week.recipes`): id детерминированы (uuid5 от ключа линии `lin:<первое появление>/<dish_id>/
+  <name_key>` / `own:<id>` и от рецепт|модель|content_hash|meta_hash), правила поиска рецепта —
+  `recipe_for` (никогда только по dish_id или только по названию).
+- При маркере `planstore.patch_dishes` / `new_row` в той же транзакции вызывают
+  `recipestore.dual_write*` в SAVEPOINT: сбой → ERROR + метрика, JSON всё равно пишется,
+  догоняет `migrations sync`. Новые 👍/👎 рецепта, ★ и реплики обсуждения рецепта пишут
+  recipe_id/revision_id (поиск — пока прежний). На старте — сверка только на чтение → `/api/health`.
+- `hydrate_rows` / `book_entries` (чтение из таблиц) пока только для сверки V1–V10 и фазы 2.
+
 ## Дизайн (обязательно)
 
 **Перед любой задачей по вёрстке/UI — сверяйся с `GUIDEBOOK.md`.** Это источник правды по
@@ -263,8 +281,14 @@ ssh pi5 'cd ~/easy-week && bash deploy/update.sh'
   пароль не нужен. Прямой `pashtitto@192.168.1.230` без ключа не пускает — используем `pi5`.
 - `deploy/update.sh` делает всё: бэкап (`deploy/backup.sh` → `easy-week-predeploy-*`, ротация
   отдельно от ночных; упал — деплой стоп, осознанно без него — `EW_SKIP_BACKUP=1`) →
-  `git pull --ff-only` → пересборка бэка (venv+pip) и фронта (`npm ci && npm run build`) →
-  `systemctl restart easy-week-backend` + `nginx reload`.
+  `git pull --ff-only` → бэк (venv+pip) → `python -m app.migrations rehearse` (репетиция миграций
+  на копии базы; провал — стоп ДО сборки и рестарта) → фронт (`npm ci && npm run build`) →
+  `systemctl stop` → `migrations apply --live` (своя копия, одна транзакция, сверка, затем sync)
+  → `systemctl start` ВСЕГДА (trap; сбой миграции — ненулевой код 1/2/3 и `status --live`) →
+  `nginx reload`. Изменился сам `update.sh` в pull — перезапускается новой версией (`exec`);
+  первый деплой фазы 1 — `git pull --ff-only && bash deploy/update.sh` (скрипт фазы 0 этого не
+  умеет). Команды миграций, защита живой базы (в т.ч. из worktree) и откат L0–L4 —
+  `deploy/README.md`.
   Копия бэкапа вне Пая, учебное восстановление и уровни отката — `deploy/README.md` → «Откат».
 - Локально в сети: `http://192.168.1.230:8080`. Логи: `ssh pi5 'journalctl -u easy-week-backend -f'`.
 - **HTTPS/офлайн PWA:** service worker не регистрируется по LAN-http → офлайн не работает. Решение —

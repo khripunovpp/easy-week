@@ -39,6 +39,8 @@ def init_db() -> None:
     # Импорт моделей, чтобы таблицы зарегистрировались в метаданных.
     from . import models  # noqa: F401
 
+    # Таблицы рецептов (models.RECIPE_METADATA — своя MetaData) и колонки ссылок на рецепт
+    # здесь НЕ создаются: только CLI миграции (app/migrations), при остановленном сервисе.
     SQLModel.metadata.create_all(engine)
     _ensure_columns()
 

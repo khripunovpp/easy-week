@@ -215,8 +215,13 @@ backend/app/services/
   discussion.py  # реплики обсуждения цели: контекст перегенерации и мульти-тёрн
   regenerate.py  # (пере)генерация рецепта / плана готовки / покупок, бэкфилл деталей
   planstore.py   # ЕДИНСТВЕННАЯ запись planrow.dishes/cooking_plan: перечитать + CAS по версии
+  recipestore.py # таблицы recipe/recipe_revision: двойная запись из planstore (SAVEPOINT),
+                 #   закрепления блюд recipe_id/rev_ids, hydrate/book_entries (сверка, фаза 2)
   summary.py     # сводка беседы: дебаунс 5 с, одна на беседу; memory() — первое сообщение + сводка
   variants.py    # варианты рецепта по моделям (variants + active_model) + метаданные генерации
+backend/app/migrations/  # CLI `python -m app.migrations` — только из deploy/update.sh / руками
+  __main__.py    # status · rehearse · apply · verify · sync · strip · drop; защита живой базы
+  recipes_v1.py  # шаг recipes_v1: перенос рецептов в таблицы, ссылки, сверка V1–V10
 backend/app/routers/
   settings.py    # GET/PUT /api/settings
   discuss.py     # POST /api/chat/discuss

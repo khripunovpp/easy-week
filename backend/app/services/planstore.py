@@ -17,6 +17,10 @@
 - patch_cooking(…) — вариант плана готовки вливается в свежепрочитанный кэш (две модели,
   собранные параллельно, не затирают друг друга).
 
+Когда миграция рецептов применена (маркер recipes_v1), patch_dishes и new_row в той же
+транзакции закрепляют блюда за версиями в таблицах рецептов (services/recipestore.dual_write —
+в SAVEPOINT: сбой таблиц запись JSON не роняет). Читается пока только JSON.
+
 Присваивать row.dishes / row.cooking_plan и передавать PlanRow(dishes=…) вне этого модуля
 нельзя — это ловит tests/test_planstore.py::test_no_direct_plan_writes.
 """
@@ -30,6 +34,7 @@ from sqlalchemy.orm.util import identity_key
 from sqlmodel import Session, select
 
 from ..models import PlanRow
+from . import recipestore
 
 logger = logging.getLogger("easy_week.planstore")
 
@@ -130,6 +135,9 @@ def patch_dishes(
             .execution_options(synchronize_session=False)
         )
         if res.rowcount == 1:
+            # UPDATE уже открыл транзакцию — двойная запись в таблицы рецептов идёт в ней же
+            # (SAVEPOINT) и дописывает в блюда закрепления recipe_id/rev_ids.
+            new = recipestore.dual_write(session, plan_id, new)
             session.commit()
             _expire(session, plan_id)
             return new
@@ -141,9 +149,12 @@ def patch_dishes(
 
 
 def new_row(session: Session, *, dishes: list[dict], **fields) -> PlanRow:
-    """Новая строка плана (добавляется в сессию; коммит — вместе с сообщениями у вызывающего)."""
+    """Новая строка плана (добавляется в сессию; коммит — вместе с сообщениями у вызывающего).
+    С миграцией рецептов строка сразу уходит в базу (flush) и её блюда закрепляются за
+    версиями — в той же транзакции вызывающего."""
     row = PlanRow(dishes=list(dishes), dishes_version=0, **fields)
     session.add(row)
+    recipestore.dual_write_new(session, row)
     return row
 
 

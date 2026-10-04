@@ -13,15 +13,19 @@ from app.models import Conversation, FavoriteRecipe, PlanRow
 @pytest.fixture()
 def session():
     """Временная файловая база тестов (conftest → DB_PATH): та же, что видит приложение из
-    потока TestClient. Планы и избранное чистим — список рецептов берёт все принятые планы."""
+    потока TestClient. Планы, избранное и таблицы рецептов чистим — список рецептов берёт
+    все принятые планы."""
     from sqlmodel import Session, delete
 
     from app.db import engine, init_db
+    from app.models import Recipe, RecipeRevision
 
     init_db()
     with Session(engine) as s:
         s.exec(delete(FavoriteRecipe))
         s.exec(delete(PlanRow))
+        s.exec(delete(RecipeRevision))
+        s.exec(delete(Recipe))
         s.commit()
         yield s
 

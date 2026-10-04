@@ -45,15 +45,21 @@ def library_row(session: Session) -> PlanRow:
     return row
 
 
-def book_index(session: Session) -> dict[str, dict]:
-    """norm_name → блюдо с рецептом: сначала свои рецепты, дальше самый свежий принятый план."""
+def book_rows(session: Session) -> list[PlanRow]:
+    """Планы Книги в её порядке: «Мои рецепты» первыми, дальше принятые — свежие первыми
+    (по дате принятия, иначе создания). Общий порядок для book_index и списка «Рецепты»."""
     plans = session.exec(
         select(PlanRow).where(PlanRow.status.in_(("accepted", LIBRARY_STATUS)))
     ).all()
     plans.sort(key=lambda r: (r.status == LIBRARY_STATUS, r.decided_at or r.created_at),
                reverse=True)
+    return plans
+
+
+def book_index(session: Session) -> dict[str, dict]:
+    """norm_name → блюдо с рецептом: сначала свои рецепты, дальше самый свежий принятый план."""
     out: dict[str, dict] = {}
-    for row in plans:
+    for row in book_rows(session):
         for d in row.dishes or []:
             key = norm_name(str(d.get("name") or ""))
             if key and key not in out and d.get("steps") and d.get("ingredients"):

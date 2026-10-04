@@ -22,7 +22,7 @@ from ..ai.limits import LimitError
 from ..ai.observe import set_ai_context
 from ..ai.planner import generate_custom_recipe, improve_recipe_text
 from ..db import get_session
-from ..models import FavoriteRecipe, PlanRow
+from ..models import FavoriteRecipe
 from ..schemas import (
     CustomRecipeOut,
     FavoriteBody,
@@ -31,9 +31,9 @@ from ..schemas import (
     RecipeTextBody,
     RecipeTextOut,
 )
-from ..services import planstore
+from ..services import planstore, recipestore
 from ..services.history import norm_name
-from ..services.recipebook import LIBRARY_STATUS, library_row
+from ..services.recipebook import book_rows, library_row
 from ..services.variants import with_detail
 
 router = APIRouter(prefix="/api/recipes", tags=["recipes"])
@@ -59,14 +59,9 @@ def _int(v, default: int = 0) -> int:
 @router.get("")
 async def list_recipes(session: SessionDep) -> list[RecipeItem]:
     favs = {f.key for f in session.exec(select(FavoriteRecipe)).all()}
-    plans = session.exec(
-        select(PlanRow).where(PlanRow.status.in_(("accepted", LIBRARY_STATUS)))
-    ).all()
-    # «Мои рецепты» первыми, дальше свежие планы: по дате принятия, иначе по дате создания.
-    plans.sort(key=lambda r: (r.status == LIBRARY_STATUS, r.decided_at or r.created_at),
-               reverse=True)
     out: list[RecipeItem] = []
-    for row in plans:
+    # «Мои рецепты» первыми, дальше свежие планы: по дате принятия, иначе по дате создания.
+    for row in book_rows(session):
         for d in row.dishes or []:
             name = str(d.get("name") or "").strip()
             if not name or not d.get("id"):
@@ -100,6 +95,9 @@ async def set_favorite(body: FavoriteBody, session: SessionDep) -> FavoriteOut:
         session.add(FavoriteRecipe(
             key=key, name=" ".join(body.name.split()), plan_id=body.plan_id, dish_id=body.dish_id,
         ))
+        # Рецепт отмеченного блюда — рядом (★ пока по названию, как раньше).
+        session.flush()
+        recipestore.link_favorite(session, key, body.plan_id, body.dish_id)
         session.commit()
     elif not body.favorite and row is not None:
         session.delete(row)
