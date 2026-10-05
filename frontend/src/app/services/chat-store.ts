@@ -3,6 +3,7 @@ import { ChatMessage, DiscussTarget, WeekPlan } from '../models/plan.model';
 import { EasyWeekApi } from './api';
 import { ModelSettings } from './model-settings';
 import { PlanWizard, composeRequest } from '../shared/plan-wizard';
+import { aiFailText } from '../shared/ai-error';
 import { ALL_MODELS, RecipeModel } from './preferences';
 
 // Действие, инициированное кнопкой карточки, — «висит» бейджем в композере до отправки.
@@ -12,6 +13,19 @@ export type PendingAction =
   | { kind: 'replace'; id: string; name: string }
   | { kind: 'add' }
   | { kind: 'discuss'; target: DiscussTarget; planId: string; dishId?: string; name: string };
+
+// Упавший запрос — для кнопки «↻ Переотправить» под последней репликой пользователя
+// (GUIDEBOOK «Переотправить»): что и каким путём слать повторно.
+type EditOpts = { replaceDishId?: string; addDish?: boolean };
+export type FailedSend =
+  | { kind: 'stream'; userMsgId: string; text: string }
+  | { kind: 'edit'; userMsgId: string; text: string; opts: EditOpts }
+  | {
+      kind: 'discuss';
+      userMsgId: string;
+      text: string;
+      pending: Extract<PendingAction, { kind: 'discuss' }>;
+    };
 
 // Параметры входа в режим обсуждения со страницы.
 export interface DiscussStart {
@@ -51,6 +65,8 @@ export class ChatStore {
   readonly loading = signal(false);
   // id сообщения-плана, который сейчас стримится (лоадер живёт внутри его карточки)
   readonly streamingMsgId = signal<string | null>(null);
+  // Ответ на последнюю реплику не пришёл (лимит, сбой модели, нет связи) — «↻ Переотправить».
+  readonly failed = signal<FailedSend | null>(null);
   // Тик для прокрутки ленты вниз (к новой карточке плана после правки).
   readonly scrollBump = signal(0);
   readonly dishCount = signal(5);
@@ -81,6 +97,7 @@ export class ChatStore {
     this.draft.set('');
     this.loading.set(false);
     this.pending.set(null); // бейдж прошлого чата (замена/обсуждение) в новый не переносим
+    this.failed.set(null);
     this.recipeModel.set(this.modelSettings.models().chat);
   }
 
@@ -109,6 +126,7 @@ export class ChatStore {
   // model — явная модель чата (обсуждение варианта конкретной модели); иначе — модель плана.
   loadConversation(conversationId: string, model?: RecipeModel): void {
     this.conversationId = conversationId;
+    this.failed.set(null);
     this.draft.set('');
     this.loading.set(true);
     this.recipeModel.set(this.modelSettings.models().chat);
@@ -182,6 +200,7 @@ export class ChatStore {
     }
     if ((!text && !pending) || this.loading()) return;
     this.wizard.reset();
+    this.failed.set(null); // новая реплика — прошлый упавший запрос больше не повторяем
 
     // Режим «Обсуждение» — ДО ветки правки плана: версий плана не создаём, бейдж остаётся.
     if (pending?.kind === 'discuss') {
@@ -190,10 +209,8 @@ export class ChatStore {
     }
 
     const userText = this.pendingLabel(pending, text);
-    this.messages.update((list) => [
-      ...list,
-      { id: `u-${this.seq++}`, role: 'user', text: userText },
-    ]);
+    const userMsgId = `u-${this.seq++}`;
+    this.messages.update((list) => [...list, { id: userMsgId, role: 'user', text: userText }]);
     this.draft.set('');
     this.loading.set(true);
 
@@ -204,21 +221,46 @@ export class ChatStore {
     const editable = !!lastPlan && lastPlan.status !== 'rejected';
     if (this.conversationId && (pending || editable)) {
       this.pending.set(null);
-      const opts =
+      const opts: EditOpts =
         pending?.kind === 'replace'
           ? { replaceDishId: pending.id }
           : pending?.kind === 'add'
             ? { addDish: true }
             : {};
-      this.editCurrentPlan(text, opts);
+      this.editCurrentPlan(text, opts, userMsgId);
       return;
     }
+    this.streamPlan(text, userMsgId);
+  }
 
-    // Потоковый приём: сначала meta (карточка плана), потом блюда по одному.
+  // «↻ Переотправить»: тот же запрос моделью, выбранной сейчас в шапке, — без нового пузыря;
+  // бабл ошибки и пустую карточку плана убираем. Сервер с resend реплику второй раз не пишет.
+  resend(): void {
+    const f = this.failed();
+    if (!f || this.loading()) return;
+    this.failed.set(null);
+    this.messages.update((list) => {
+      const i = list.findIndex((m) => m.id === f.userMsgId);
+      return i < 0 ? list : list.slice(0, i + 1);
+    });
+    this.loading.set(true);
+    if (f.kind === 'edit') this.editCurrentPlan(f.text, f.opts, f.userMsgId, true);
+    else if (f.kind === 'discuss') this.discussRequest(f.pending, f.text, f.userMsgId, true);
+    else this.streamPlan(f.text, f.userMsgId, true);
+  }
+
+  // Бабл ошибки ответа (под ним — ничего; «Переотправить» — под репликой пользователя).
+  private pushError(text: string): void {
+    this.messages.update((list) => [...list, { id: `e-${this.seq++}`, role: 'assistant', text }]);
+  }
+
+  // Новый план потоком: сначала meta (карточка плана), потом блюда по одному.
+  private streamPlan(text: string, userMsgId: string, resend = false): void {
     const msgId = `a-${this.seq++}`;
     let planStarted = false;
+    const model = this.recipeModel();
 
-    void this.api.chatStream(text, this.conversationId, this.dishCount(), this.recipeModel(), {
+    void this.api.chatStream(text, this.conversationId, this.dishCount(), model, {
       onMeta: (m) => {
         this.conversationId = m.conversationId;
         planStarted = true;
@@ -268,31 +310,46 @@ export class ChatStore {
           this.dishCount.set(info.dishesCount);
         }
       },
-      onError: (message) => {
+      onError: (message, conversationId) => {
         this.streamingMsgId.set(null);
-        if (!planStarted) {
-          this.messages.update((list) => [
-            ...list,
-            {
-              id: `e-${this.seq++}`,
-              role: 'assistant',
-              text:
-                message === 'Не удалось составить план'
-                  ? 'Не получилось составить план этой моделью. Переключите модель выше или попробуйте ещё раз.'
-                  : `${message}. Переключите модель выше или попробуйте ещё раз.`,
-            },
-          ]);
-        }
+        // Новый чат упал до meta — беседа на сервере уже есть: повтор пойдёт в неё же.
+        if (conversationId && !this.conversationId) this.conversationId = conversationId;
+        // Карточка без блюд (поток оборвался после meta) — не показываем пустой план.
+        this.messages.update((list) =>
+          list.filter((m) => m.id !== msgId || (m.plan?.dishes.length ?? 0) > 0),
+        );
+        this.pushError(this.streamFailText(message, model));
+        this.failed.set({ kind: 'stream', userMsgId, text });
         this.loading.set(false);
       },
-    });
+    }, resend);
+  }
+
+  // Ошибка потока: короткий текст бэка (дневной лимит, нет связи) — как есть; сырой ответ
+  // провайдера («Gemini 503: {…}») — понятным текстом по смыслу (aiFailText).
+  private streamFailText(message: string, model: RecipeModel): string {
+    if (message !== 'Не удалось составить план' && message.length <= 200 && !message.includes('{')) {
+      return message;
+    }
+    return aiFailText({ status: 502, error: { detail: message } }, model, 'план не составлен');
   }
 
   // Реплика в режиме обсуждения: ответ бота + ссылка на цель; «замени блюдо» → кнопка замены.
   private sendDiscuss(pending: Extract<PendingAction, { kind: 'discuss' }>, text: string): void {
-    this.messages.update((list) => [...list, { id: `u-${this.seq++}`, role: 'user', text }]);
+    const userMsgId = `u-${this.seq++}`;
+    this.messages.update((list) => [...list, { id: userMsgId, role: 'user', text }]);
     this.draft.set('');
     this.loading.set(true);
+    this.discussRequest(pending, text, userMsgId);
+  }
+
+  private discussRequest(
+    pending: Extract<PendingAction, { kind: 'discuss' }>,
+    text: string,
+    userMsgId: string,
+    resend = false,
+  ): void {
+    const model = this.recipeModel();
     this.api
       .discuss({
         conversationId: this.conversationId,
@@ -300,7 +357,8 @@ export class ChatStore {
         target: pending.target,
         dishId: pending.dishId,
         message: text,
-        recipeModel: this.recipeModel(),
+        recipeModel: model,
+        resend,
       })
       .subscribe({
         next: (res) => {
@@ -328,17 +386,8 @@ export class ChatStore {
           this.scrollBump.update((n) => n + 1);
         },
         error: (err) => {
-          const detail = err?.error?.detail as string | undefined;
-          this.messages.update((list) => [
-            ...list,
-            {
-              id: `e-${this.seq++}`,
-              role: 'assistant',
-              text:
-                detail ||
-                'Обсуждение недоступно этой моделью. Переключите модель выше или попробуйте ещё раз.',
-            },
-          ]);
+          this.pushError(aiFailText(err, model, 'ответа нет'));
+          this.failed.set({ kind: 'discuss', userMsgId, text, pending });
           this.loading.set(false);
         },
       });
@@ -358,16 +407,14 @@ export class ChatStore {
   }
 
   // Правка текущего плана: обновляем карточку на месте + добавляем реплику бота.
-  private editCurrentPlan(
-    text: string,
-    opts: { replaceDishId?: string; addDish?: boolean } = {},
-  ): void {
+  private editCurrentPlan(text: string, opts: EditOpts, userMsgId: string, resend = false): void {
     const convId = this.conversationId;
     if (!convId) {
       this.loading.set(false);
       return;
     }
-    this.api.editPlan(convId, text, this.recipeModel(), opts).subscribe({
+    const model = this.recipeModel();
+    this.api.editPlan(convId, text, model, { ...opts, resend }).subscribe({
       next: (res) => {
         const msgId = `a-${this.seq++}`;
         this.messages.update((list) => {
@@ -401,18 +448,9 @@ export class ChatStore {
         this.scrollBump.update((n) => n + 1);
       },
       error: (err) => {
-        // 429 (дневной лимит Claude) и пр. — показываем текст с бэка, если есть
-        const detail = err?.error?.detail as string | undefined;
-        this.messages.update((list) => [
-          ...list,
-          {
-            id: `e-${this.seq++}`,
-            role: 'assistant',
-            text:
-              detail ||
-              'Не получилось изменить план этой моделью. Переключите модель выше или попробуйте ещё раз.',
-          },
-        ]);
+        // 429 (дневной лимит Claude) — текст бэка; сырой ответ провайдера — по смыслу
+        this.pushError(aiFailText(err, model, 'план не изменён'));
+        this.failed.set({ kind: 'edit', userMsgId, text, opts });
         this.loading.set(false);
       },
     });

@@ -34,7 +34,7 @@ from ..services import recipestore
 from ..services import summary as chat_summary
 from ..services.discussion import TARGETS, discuss_turns
 from ..services.planstore import PlanConflict
-from ..services.history import original_request
+from ..services.history import is_repeat, original_request
 from ..services.mapping import to_cook_plan, to_dish
 from ..services.regenerate import (
     regenerate_cooking,
@@ -78,6 +78,16 @@ def _context(session: Session, row: PlanRow, target: str, dish_id: str | None) -
     return discuss_shopping_context(list(items), names, request)
 
 
+def _without_last_question(turns: list[dict[str, str]], question: str) -> list[dict[str, str]]:
+    """Прошлые реплики без хвостового вопроса пользователя (повтор «Переотправить»): иначе он
+    ушёл бы модели дважды — прошлой репликой и текущим вопросом. Подряд идущие реплики
+    пользователя discuss_turns склеивает через пустую строку — снимаем только хвост."""
+    if not turns or turns[-1]["role"] != "user" or not turns[-1]["content"].endswith(question):
+        return turns
+    rest = turns[-1]["content"][: -len(question)].rstrip()
+    return turns[:-1] + ([{"role": "user", "content": rest}] if rest else [])
+
+
 def _dish_recipe_id(row: PlanRow, dish_id: str | None) -> str | None:
     """Рецепт блюда (закрепление recipe_id в JSON, пока миграция рецептов применена)."""
     if not dish_id:
@@ -114,17 +124,22 @@ async def chat_discuss(req: DiscussRequest, session: SessionDep) -> DiscussRespo
         context += "\n\n" + chat_memory_block("", conv_row.summary)
     # Прошлые реплики обсуждения этой цели — до сохранения текущей (она идёт вопросом).
     turns = discuss_turns(session, conv_id, target, dish_id)
-    user_msg_id = uuid4().hex
-    session.add(MessageRow(
-        id=user_msg_id, conversation_id=conv_id, role="user", text=req.message.strip(),
-        discuss_target=target, dish_id=dish_id,
-    ))
     # Реплика обсуждения рецепта → рецепт блюда (ветки пока по беседе + блюду, как раньше).
     recipe_id = _dish_recipe_id(row, dish_id)
-    session.flush()
-    recipestore.link_message(session, user_msg_id, recipe_id)
-    session.commit()
-    chat_summary.schedule(conv_id)  # сводка беседы — фоном, дебаунс 5 с
+    if req.resend and is_repeat(session, conv_id, req.message):
+        # «Переотправить»: реплика уже в истории (ответа не было) — второй раз не пишем, а из
+        # прошлых реплик её убираем: она идёт вопросом.
+        turns = _without_last_question(turns, req.message.strip())
+    else:
+        user_msg_id = uuid4().hex
+        session.add(MessageRow(
+            id=user_msg_id, conversation_id=conv_id, role="user", text=req.message.strip(),
+            discuss_target=target, dish_id=dish_id,
+        ))
+        session.flush()
+        recipestore.link_message(session, user_msg_id, recipe_id)
+        session.commit()
+        chat_summary.schedule(conv_id)  # сводка беседы — фоном, дебаунс 5 с
 
     # Реплику пишет модель чата (пусто → дефолт «Чат и план»). Применение правки/пересборки —
     # той же явно выбранной моделью, а если модель не передана — дефолтом задачи цели

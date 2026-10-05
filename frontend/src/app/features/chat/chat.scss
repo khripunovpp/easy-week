@@ -199,6 +199,13 @@
   border-bottom-right-radius: 7px;
 }
 
+/* «↻ Переотправить» под репликой пользователя, ответ на которую не пришёл */
+.msg-resend {
+  align-self: flex-end;
+  margin-top: -4px;
+  padding: 2px 4px;
+}
+
 /* Markdown внутри реплики бота — сбрасываем внешние отступы, аккуратные списки/код */
 .markdown > :first-child {
   margin-top: 0;

@@ -173,6 +173,19 @@ def conversation_rejected(session: Session, conversation_id: str) -> list[str]:
     return _dedupe(out)
 
 
+def is_repeat(session: Session, conversation_id: str | None, text: str) -> bool:
+    """Повтор упавшего запроса (кнопка «Переотправить», resend): последняя реплика беседы — эта
+    же реплика пользователя, ответа на неё нет — второй раз в историю её не пишем."""
+    if not conversation_id:
+        return False
+    last = session.exec(
+        select(MessageRow)
+        .where(MessageRow.conversation_id == conversation_id)
+        .order_by(MessageRow.created_at.desc())
+    ).first()
+    return last is not None and last.role == "user" and last.text.strip() == text.strip()
+
+
 def original_request(session: Session, conversation_id: str | None) -> str:
     """Первое содержательное сообщение пользователя в беседе (исходный запрос плана).
 

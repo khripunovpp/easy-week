@@ -23,7 +23,17 @@ class LimitError(AIError):
     """Дневной лимит генерации на модель исчерпан."""
 
 
-_KIND_RU = {"plan": "планов", "recipe": "рецептов"}
+_KIND_RU = {"plan": ("план", "плана", "планов"), "recipe": ("рецепт", "рецепта", "рецептов")}
+
+
+def _count_word(n: int, kind: str) -> str:
+    """«1 план» / «2 плана» / «5 планов» (было «2 планов в день»)."""
+    one, few, many = _KIND_RU.get(kind, (kind, kind, kind))
+    if n % 10 == 1 and n % 100 != 11:
+        return f"{n} {one}"
+    if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
+        return f"{n} {few}"
+    return f"{n} {many}"
 
 
 def _limit_for(kind: str) -> int:
@@ -120,7 +130,7 @@ def enforce_daily(gate, kind: str) -> None:
     used = int(data.get(key, 0))
     if used >= limit:
         raise LimitError(
-            f"Дневной лимит Claude исчерпан: {limit} {_KIND_RU.get(kind, kind)} в день. "
+            f"Дневной лимит Claude исчерпан: {_count_word(limit, kind)} в день. "
             f"Переключитесь на DeepSeek или Gemini, либо попробуйте завтра."
         )
     data[key] = used + 1

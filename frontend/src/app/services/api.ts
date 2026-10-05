@@ -143,7 +143,8 @@ export interface ChatStreamHandlers {
   onMeta: (meta: ChatStreamMeta) => void;
   onDish: (dish: Dish) => void;
   onDone: (info: ChatStreamDone) => void;
-  onError: (message: string) => void;
+  // conversationId — беседа на сервере (у нового чата, упавшего до meta, иначе неизвестна)
+  onError: (message: string, conversationId?: string) => void;
 }
 
 export interface ShoppingListItem {
@@ -305,7 +306,7 @@ export class EasyWeekApi {
     conversationId: string,
     message: string,
     recipeModel: RecipeModel,
-    opts: { replaceDishId?: string; removeDishId?: string; addDish?: boolean } = {},
+    opts: { replaceDishId?: string; removeDishId?: string; addDish?: boolean; resend?: boolean } = {},
   ): Observable<ChatResponse> {
     return this.http.post<ChatResponse>(`${API_BASE}/chat/edit`, {
       message,
@@ -323,6 +324,7 @@ export class EasyWeekApi {
     dishesCount: number,
     recipeModel: RecipeModel,
     handlers: ChatStreamHandlers,
+    resend = false, // «Переотправить»: сервер не пишет реплику пользователя второй раз
   ): Promise<void> {
     await this.openSse(
       `${API_BASE}/chat/stream`,
@@ -335,6 +337,7 @@ export class EasyWeekApi {
           dishesCount,
           gender: this.prefs.gender(),
           recipeModel,
+          resend,
         }),
       },
       handlers.onError,
@@ -343,8 +346,10 @@ export class EasyWeekApi {
         else if (event === 'dish') handlers.onDish(payload as Dish);
         else if (event === 'done')
           handlers.onDone(payload as ChatStreamDone);
-        else if (event === 'error')
-          handlers.onError((payload as { message?: string }).message ?? 'Ошибка генерации');
+        else if (event === 'error') {
+          const p = payload as { message?: string; conversationId?: string };
+          handlers.onError(p.message ?? 'Ошибка генерации', p.conversationId);
+        }
       },
     );
   }
@@ -536,6 +541,7 @@ export class EasyWeekApi {
     dishId?: string;
     message: string;
     recipeModel: RecipeModel;
+    resend?: boolean;
   }): Observable<DiscussResponse> {
     return this.http.post<DiscussResponse>(`${API_BASE}/chat/discuss`, {
       ...body,

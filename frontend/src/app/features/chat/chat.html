@@ -115,6 +115,12 @@
   @for (m of store.messages(); track m.id) {
     @if (m.role === 'user') {
       <div class="msg msg--user">{{ m.text }}</div>
+      @if (store.failed()?.userMsgId === m.id && !store.loading()) {
+        <!-- Ответ не пришёл — тот же запрос моделью из шапки (GUIDEBOOK «Переотправить») -->
+        <button class="link-btn msg-resend" type="button" (click)="store.resend()">
+          ↻ Переотправить · {{ modelLabel(store.recipeModel()) }}
+        </button>
+      }
     } @else {
       @if (m.text) {
         <div class="msg-wrap" [class.msg-wrap--tip]="tipId() === m.serverId">

@@ -238,6 +238,8 @@ class ChatRequest(CamelModel):
     # Модель, выбранная в чате/профиле: deepseek | gemini | cloudflare | anthropic | openrouter.
     # Пусто → дефолт задачи из настроек. Без фолбэков между моделями.
     recipe_model: str = ""
+    # Повтор упавшего запроса (кнопка «Переотправить»): реплику пользователя не пишем второй раз.
+    resend: bool = False
 
 
 class ChatResponse(CamelModel):
@@ -329,6 +331,7 @@ class DiscussRequest(CamelModel):
     message: str
     recipe_model: str = ""
     gender: str = "f"
+    resend: bool = False  # «Переотправить»: реплику пользователя не пишем второй раз
 
 
 class DiscussResponse(CamelModel):

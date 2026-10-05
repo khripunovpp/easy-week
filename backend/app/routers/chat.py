@@ -37,7 +37,7 @@ from ..schemas import (
 )
 from ..services import appstate, planstore
 from ..services import summary as chat_summary
-from ..services.history import conversation_rejected, variety_avoid
+from ..services.history import conversation_rejected, is_repeat, variety_avoid
 from ..services.recipebook import (
     LIBRARY_ID,
     LIBRARY_STATUS,
@@ -205,13 +205,9 @@ async def chat_stream(
         session.add(conv)
         session.commit()
         record_conversation()
-    session.add(
-        MessageRow(id=uuid4().hex, conversation_id=conv.id, role="user", text=req.message)
-    )
-    session.commit()
-
-    prefs.learn_async(req.message)  # фоново запоминаем предпочтения из сообщения (CF, бесплатно)
-    chat_summary.schedule(conv.id)  # сводка беседы — фоном, дебаунс 5 с
+    if _save_user_message(session, conv.id, req.message, resend=req.resend):
+        prefs.learn_async(req.message)  # фоново запоминаем предпочтения (CF, бесплатно)
+        chat_summary.schedule(conv.id)  # сводка беседы — фоном, дебаунс 5 с
     # «Недавно ели или отвергли» — свежие принятые, заменённые/удалённые, 👎, черновики.
     avoid = variety_avoid(session, exclude_conversation=conv.id)
     # Память беседы: первое сообщение (если это не оно само) + последняя сводка.
@@ -266,8 +262,11 @@ async def chat_stream(
         logger.warning("chat_stream оборвался: %s", str(exc)[:150])
 
     if not dishes:
+        # conversationId — чтобы «Переотправить» повторил запрос в этой же беседе (у нового чата
+        # meta не пришла, и фронт id беседы не знает), а не завёл ещё одну.
         yield ServerSentEvent(
-            event="error", data={"message": err_msg or "Не удалось составить план"}
+            event="error",
+            data={"message": err_msg or "Не удалось составить план", "conversationId": conv.id},
         )
         return
 
@@ -319,13 +318,9 @@ async def chat(req: ChatRequest, session: SessionDep) -> ChatResponse:
         session.commit()
         record_conversation()
 
-    session.add(
-        MessageRow(id=uuid4().hex, conversation_id=conv.id, role="user", text=req.message)
-    )
-    session.commit()
-
-    prefs.learn_async(req.message)  # фоново запоминаем предпочтения из сообщения (CF, бесплатно)
-    chat_summary.schedule(conv.id)  # сводка беседы — фоном, дебаунс 5 с
+    if _save_user_message(session, conv.id, req.message, resend=req.resend):
+        prefs.learn_async(req.message)  # фоново запоминаем предпочтения (CF, бесплатно)
+        chat_summary.schedule(conv.id)  # сводка беседы — фоном, дебаунс 5 с
     avoid = variety_avoid(session, exclude_conversation=conv.id)
     memory = chat_summary.memory(session, conv.id, req.message)
     book = book_index(session)
@@ -385,6 +380,16 @@ def _latest_plan(
     if not with_library:
         q = q.where(PlanRow.status != LIBRARY_STATUS)
     return session.exec(q.order_by(PlanRow.created_at.desc())).first()
+
+
+def _save_user_message(session: Session, conversation_id: str, text: str, *, resend: bool) -> bool:
+    """Реплика пользователя в историю беседы. Повтор упавшего запроса («Переотправить») её второй
+    раз не пишет — она уже последняя в беседе. True — записали новую."""
+    if resend and is_repeat(session, conversation_id, text):
+        return False
+    session.add(MessageRow(id=uuid4().hex, conversation_id=conversation_id, role="user", text=text))
+    session.commit()
+    return True
 
 
 def _user_said(session: Session, conversation_id: str) -> str:
@@ -466,11 +471,9 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
             user_text += f": {req.message.strip()}"
 
     # Крестик (удаление) — мгновенное действие без реплики: пользовательское сообщение не пишем.
-    if not req.remove_dish_id:
-        session.add(
-            MessageRow(id=uuid4().hex, conversation_id=conv.id, role="user", text=user_text)
-        )
-        session.commit()
+    if not req.remove_dish_id and _save_user_message(
+        session, conv.id, user_text, resend=req.resend
+    ):
         chat_summary.schedule(conv.id)  # сводка беседы — фоном, дебаунс 5 с
 
     context = _edit_context(session, conv.id, req.message)
