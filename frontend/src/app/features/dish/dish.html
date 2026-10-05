@@ -105,18 +105,28 @@
       </div>
     </div>
 
-    <section class="card card--frost">
+    <!-- Карточка хранения (GUIDEBOOK «Карточка хранения»): ❄️ заготовка / 🌿 свежее + памятка по строкам -->
+    <section class="card" [class.card--frost]="d.storage.freeze" [class.card--fresh]="!d.storage.freeze">
       <div class="card__head">
-        <span class="card__ic">❄️</span>
+        <span class="card__ic">{{ d.storage.freeze ? '❄️' : '🌿' }}</span>
         <div>
           <p class="card__title">Хранение</p>
-          <p class="card__sub muted">
-            @if (d.storage.vacuum) { Вакуум · } Заморозка до {{ d.storage.shelfLifeDays }} дней
-          </p>
+          <p class="card__sub muted">{{ storageSub() }}</p>
         </div>
       </div>
-      @if (d.storage.note) {
-        <p class="card__note">{{ d.storage.note }}</p>
+      @if (noteRows().length) {
+        <ul class="store">
+          @for (r of noteRows(); track $index) {
+            <li class="store__row" [class.store__row--fresh]="r.label === 'В день подачи'">
+              @if (r.label) {
+                <span class="store__ic" aria-hidden="true">{{ r.icon }}</span>
+                <span><b class="store__label">{{ r.label }}:</b> {{ r.text }}</span>
+              } @else {
+                <span>{{ r.text }}</span>
+              }
+            </li>
+          }
+        </ul>
       }
     </section>
 
@@ -145,11 +155,19 @@
     </section>
 
     <section class="block">
-      <p class="block__label">Ингредиенты · {{ d.servings }} порции</p>
+      <p class="block__label">
+        Ингредиенты · {{ d.servings }} порции
+        @if (hasFresh()) { <span class="ing__legend">· 🌿 в день подачи</span> }
+      </p>
       <div class="card card--tight">
-        @for (ing of d.ingredients; track ing.name) {
+        @for (ing of d.ingredients; track $index) {
           <div class="ing">
-            <span class="ing__name">{{ ing.name }}</span>
+            <span class="ing__name">
+              {{ ing.name }}
+              @if (ing.fresh) {
+                <span class="ing__fresh" title="Не в заготовку: готовится или добавляется в день подачи">🌿</span>
+              }
+            </span>
             <span class="ing__qty">{{ ing.qty }} {{ ing.unit }}</span>
           </div>
         }

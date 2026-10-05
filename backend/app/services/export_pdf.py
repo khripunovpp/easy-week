@@ -81,12 +81,19 @@ def build_plan_pdf(
             meta = f"Подготовка {d.prep_min} мин · Готовка {d.cook_min} мин · {d.servings} порц."
             if d.storage.freeze:
                 meta += f" · Заморозка до {d.storage.shelf_life_days} дн"
+            else:  # «свежее» — пользователь просил не замораживать
+                days = d.storage.shelf_life_days
+                meta += " · Свежее, не замораживать" + (
+                    f" · холодильник до {days} дн" if days else " · съесть сразу"
+                )
             pdf.set_font(fam, "", 9.5)
             pdf.set_text_color(*MUTE)
             _mc(pdf, 5, meta)
             if d.storage.note:
                 pdf.set_text_color(*FROST)
-                _mc(pdf, 5, f"Хранение: {d.storage.note}")
+                # Памятка по строкам («Морозилка: …\nРазогрев: …») — каждая с новой строки.
+                sep = "\n" if "\n" in d.storage.note else " "
+                _mc(pdf, 5, f"Хранение:{sep}{d.storage.note}")
 
             if d.ingredients:
                 pdf.ln(1)
@@ -96,7 +103,8 @@ def build_plan_pdf(
                 pdf.set_font(fam, "", 10.5)
                 pdf.set_text_color(*INK)
                 for ing in d.ingredients:
-                    _mc(pdf, 5.5, f"•  {ing.name} — {_num(ing.qty)} {ing.unit}")
+                    fresh = " (в день подачи)" if ing.fresh else ""
+                    _mc(pdf, 5.5, f"•  {ing.name} — {_num(ing.qty)} {ing.unit}{fresh}")
 
             if d.steps:
                 pdf.ln(1)

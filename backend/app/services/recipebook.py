@@ -94,6 +94,11 @@ def _find(name: str, index: dict[str, dict]) -> dict | None:
     return best
 
 
+def _is_fresh(dish: dict) -> bool:
+    """Режим блюда «свежее» (🌿, storage.freeze=false); по умолчанию — заготовка."""
+    return (dish.get("storage") or {}).get("freeze") is False
+
+
 def attach(dish: dict, index: dict[str, dict]) -> dict:
     """Блюдо без рецепта, совпавшее по названию с книгой, → копия рецепта из книги.
     Остальное блюдо (id, эмодзи, uses — какие остатки в него идут) — из нового плана."""
@@ -101,6 +106,11 @@ def attach(dish: dict, index: dict[str, dict]) -> dict:
         return dish
     src = _find(str(dish.get("name") or ""), index)
     if src is None:
+        return dish
+    # Рецепт писали под режим блюда (❄️ заготовка / 🌿 свежее — шаги разные). Новое блюдо в
+    # другом режиме («а сегодня салат», а в книге он заготовкой) рецепт из книги не берёт —
+    # его соберёт модель под нужный режим. Свой рецепт (source) — всегда: режим задаёт он.
+    if not src.get("source") and _is_fresh(src) != _is_fresh(dish):
         return dish
     copied = {f: src[f] for f in _RECIPE_FIELDS if f in src}
     copied["variants"] = dish_variants(src)  # legacy-деталь без variants — тоже вариант

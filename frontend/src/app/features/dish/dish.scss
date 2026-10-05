@@ -86,6 +86,10 @@
   background: var(--frost-soft);
   box-shadow: none;
 }
+.card--fresh {
+  background: var(--fresh-soft);
+  box-shadow: none;
+}
 
 .card--tight {
   padding: 4px 16px;
@@ -116,11 +120,36 @@
   margin: 2px 0 0;
 }
 
-.card__note {
+/* Памятка хранения по строкам: «❄️ Морозилка: …», «🌿 В день подачи: …» */
+.store {
+  list-style: none;
   margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   font-size: 14px;
   line-height: 1.5;
   color: var(--frost-ink);
+}
+.card--fresh .store {
+  color: var(--fresh-ink);
+}
+.store__row {
+  display: flex;
+  gap: 8px;
+}
+.store__ic {
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+}
+.store__label {
+  font-weight: 600;
+}
+/* «В день подачи» — то, что не морозится: зелёным и в карточке заготовки (как 🌿 у ингредиентов) */
+.store__row--fresh {
+  color: var(--fresh-ink);
 }
 
 .tips {
@@ -211,6 +240,15 @@
 .ing__name {
   font-size: 15px;
   font-weight: 500;
+}
+/* Продукт «в день подачи» (не в заготовку) — 🌿 после названия */
+.ing__fresh {
+  margin-left: 4px;
+  font-size: 13px;
+}
+.ing__legend {
+  color: var(--fresh);
+  font-weight: 600;
 }
 .ing__qty {
   font-size: 15px;

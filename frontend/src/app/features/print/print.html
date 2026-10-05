@@ -59,9 +59,7 @@
             </div>
             <p class="recipe__meta">
               Подготовка {{ d.prepMin }} мин · Готовка {{ d.cookMin }} мин · {{ d.servings }} порции
-              @if (d.storage.freeze) {
-                · ❄ Заморозка до {{ d.storage.shelfLifeDays }} дней
-              }
+              · {{ d.storage.freeze ? '❄' : '🌿' }} {{ storageSub(d.storage) }}
             </p>
             @if (d.storage.note) {
               <p class="recipe__note">Хранение: {{ d.storage.note }}</p>
@@ -71,8 +69,8 @@
               <div class="recipe__ing">
                 <h4>Ингредиенты</h4>
                 <ul>
-                  @for (ing of d.ingredients; track ing.name) {
-                    <li>{{ ing.name }} — {{ ing.qty }} {{ ing.unit }}</li>
+                  @for (ing of d.ingredients; track $index) {
+                    <li>{{ ing.name }} — {{ ing.qty }} {{ ing.unit }}@if (ing.fresh) { · 🌿 в день подачи }</li>
                   }
                 </ul>
               </div>

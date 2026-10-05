@@ -217,6 +217,11 @@ async def _gen_dish(i: int, name: str, emoji: str, user_message: str) -> dict[st
         build_dish_messages(name, user_message), schema=DISH_SCHEMA, max_tokens=800,
         label=f"спеки блюда: {name}",
     )
+    # Режим (❄️/🌿) спекер не решает — он видит запрос целиком, а не своё блюдо в плане;
+    # «свежее» ставит меню (_generate_plan_cloudflare). Его «свежие» дни — холодильные, не берём.
+    spec = _as_dict(parsed.get("storage"))
+    if not _clean_storage(spec)["freeze"]:
+        spec = {k: v for k, v in spec.items() if k != "shelf_life_days"}
     return {
         "id": _slug(name, i),
         "name": name,
@@ -225,8 +230,7 @@ async def _gen_dish(i: int, name: str, emoji: str, user_message: str) -> dict[st
         "prep_min": parsed.get("prep_min", 15),
         "cook_min": parsed.get("cook_min", 30),
         "tags": parsed.get("tags", []),
-        "storage": parsed.get("storage")
-        or {"vacuum": True, "freeze": True, "shelf_life_days": 30, "note": ""},
+        "storage": _clean_storage({**spec, "freeze": True}, default_days=30),
         "ingredients": parsed.get("ingredients", []),
         "steps": [],
         "tips": [],
@@ -275,7 +279,38 @@ async def _validate_and_fix(dishes: list[dict], user_message: str, gate=None) ->
             dishes[i] = fixed
 
 
-_DEFAULT_STORAGE = {"vacuum": True, "freeze": True, "shelf_life_days": 45, "note": ""}
+def _as_dict(raw: Any) -> dict:
+    return raw if isinstance(raw, dict) else {}
+
+
+def _is_true(raw: Any) -> bool:
+    """Булев флаг от модели: true или "true" (null, "false", 1 и прочее — нет)."""
+    return raw is True or str(raw).strip().lower() == "true"
+
+
+def _int_or(raw: Any, default: int) -> int:
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return default
+
+
+def _clean_storage(raw: Any, default_days: int = 45) -> dict:
+    """Режим хранения блюда от модели. По умолчанию — заготовка под заморозку (❄️,
+    shelf_life_days — срок в морозилке); freeze=false — «свежее» по просьбе пользователя (🌿,
+    shelf_life_days — дни в холодильнике, 0 — съесть сразу). Сомнительное значение — заморозка."""
+    s = _as_dict(raw)
+    fresh = s.get("freeze") is False or str(s.get("freeze")).strip().lower() == "false"
+    if fresh:
+        days = max(0, min(_int_or(s.get("shelf_life_days"), 1), 5))
+    else:
+        days = max(7, min(_int_or(s.get("shelf_life_days"), default_days), 180))
+    return {
+        "vacuum": not fresh or s.get("vacuum") is True,
+        "freeze": not fresh,
+        "shelf_life_days": days,
+        "note": str(s.get("note") or "").strip(),
+    }
 
 
 def _clean_dish(i: int, d: dict) -> dict:
@@ -291,7 +326,7 @@ def _clean_dish(i: int, d: dict) -> dict:
         "garnish": str(d.get("garnish") or "").strip(),
         "uses": _clean_list(d.get("uses"), 8),
         "desc": _clip_desc(d.get("desc")),
-        "storage": d.get("storage") or dict(_DEFAULT_STORAGE),
+        "storage": _clean_storage(d.get("storage")),
         "ingredients": d.get("ingredients", []),
         "steps": d.get("steps", []),
         "tips": d.get("tips", []),
@@ -491,6 +526,11 @@ async def _generate_plan_cloudflare(
     for d, e in zip(dishes, entries):  # после валидатора: он пересобирает блюдо целиком
         d["uses"] = _clean_list(e.get("uses"), 8)
         d["desc"] = _clip_desc(e.get("desc"))
+        if _is_true(e.get("fresh")):  # «свежее» — по просьбе пользователя, решает меню
+            d["storage"] = _clean_storage({
+                "freeze": False, "shelf_life_days": e.get("fresh_days"),
+                "note": d["storage"].get("note"),
+            })
 
     if not dishes:
         raise AIError("Cloudflare вернул пустой план")
@@ -576,13 +616,10 @@ async def generate_custom_recipe(text: str, model: str = "") -> tuple[dict, dict
     detail = _clean_detail(parsed, gate, gen_id)
     if not detail["ingredients"] or not detail["steps"]:
         raise AIError(f"{gate.provider} вернул рецепт без ингредиентов или шагов")
-    try:
-        shelf = int(parsed.get("shelf_life_days") or 60)
-    except (TypeError, ValueError):
-        shelf = 60
-    head = _clean_dish(0, {**parsed, "storage": {
-        "vacuum": True, "freeze": True, "shelf_life_days": max(7, min(shelf, 180)), "note": "",
-    }})
+    head = _clean_dish(0, {**parsed, "storage": _clean_storage(
+        {"freeze": parsed.get("freeze"), "shelf_life_days": parsed.get("shelf_life_days")},
+        default_days=60,
+    )})
     head = {k: v for k, v in head.items() if k not in _DETAIL_BODY}
     return head, detail, gate.key
 
@@ -591,14 +628,38 @@ async def generate_custom_recipe(text: str, model: str = "") -> tuple[dict, dict
 _DETAIL_BODY = ("ingredients", "steps", "tips")
 
 
+def _clean_ingredients(raw: Any) -> list:
+    """Ингредиенты детали как есть, кроме пометки fresh («в день подачи», 🌿 в рецепте):
+    оставляем только явное true (модели пишут и "true", и null, и false у каждого)."""
+    out = []
+    for x in raw if isinstance(raw, list) else []:
+        if isinstance(x, dict):
+            fresh = _is_true(x.get("fresh"))
+            x = {k: v for k, v in x.items() if k != "fresh"}
+            if fresh:
+                x["fresh"] = True
+        out.append(x)
+    return out
+
+
+def _clean_note(raw: Any) -> str:
+    """Памятка хранения строкой. Просим строки «Метка: текст» с переводом строки, но модель
+    может вернуть их списком или объектом {метка: текст} — склеиваем, а не падаем."""
+    if isinstance(raw, list):
+        return "\n".join(str(x).strip() for x in raw if str(x).strip())
+    if isinstance(raw, dict):
+        return "\n".join(f"{k}: {str(v).strip()}" for k, v in raw.items() if str(v).strip())
+    return str(raw or "").strip()
+
+
 def _clean_detail(parsed: dict, gate, gen_id: str = "") -> dict:
     """Деталь рецепта + кто её сделал: model — ключ провайдера (слот варианта), model_ref —
     точная модель, gen_id — вызов в AI-логе."""
     return {
-        "ingredients": parsed.get("ingredients") or [],
+        "ingredients": _clean_ingredients(parsed.get("ingredients")),
         "steps": parsed.get("steps") or [],
         "tips": parsed.get("tips") or [],
-        "note": (parsed.get("note") or "").strip(),
+        "note": _clean_note(parsed.get("note")),
         "provider": getattr(gate, "provider", "") or "",
         "model": getattr(gate, "key", "") or "",
         "model_ref": model_ref(gate),
@@ -660,7 +721,7 @@ async def generate_cooking_plan(
         parsed, _ = await gate.complete_json(messages, max_tokens=max_tokens, label=label)
     return {
         "steps": _clean_cook_steps(parsed.get("steps") or []),
-        "note": (parsed.get("note") or "").strip(),
+        "note": _clean_note(parsed.get("note")),
         "provider": gate.provider,
     }
 

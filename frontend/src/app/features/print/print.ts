@@ -3,6 +3,7 @@ import { Component, computed, effect, inject, input, signal } from '@angular/cor
 import { WeekPlan } from '../../models/plan.model';
 import { EasyWeekApi, ShoppingGroup } from '../../services/api';
 import { CookingLoader } from '../../shared/cooking-loader';
+import { storageSub } from '../../shared/storage';
 
 @Component({
   selector: 'ew-print',
@@ -11,6 +12,7 @@ import { CookingLoader } from '../../shared/cooking-loader';
   styleUrl: './print.scss',
 })
 export class PrintPage {
+  readonly storageSub = storageSub;
   private readonly api = inject(EasyWeekApi);
   private readonly location = inject(Location);
 

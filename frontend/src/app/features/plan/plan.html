@@ -87,9 +87,7 @@
               <h3 class="dish__name">{{ d.name }}</h3>
               <div class="dish__meta">
                 <span class="meta-chip">{{ totalTime(d.prepMin, d.cookMin) }} мин</span>
-                @if (d.storage.freeze) {
-                  <span class="badge-frost">❄️ {{ d.storage.shelfLifeDays }} дн</span>
-                }
+                <ew-storage-badge [storage]="d.storage" />
                 <span class="meta-chip">{{ d.servings }} порц.</span>
               </div>
               @if (d.uses?.length) {

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 from pydantic.alias_generators import to_camel
 
 
@@ -16,10 +16,19 @@ class Ingredient(CamelModel):
     qty: float
     unit: str
     category: str
+    # Компонент не идёт в заготовку — готовится/добавляется в день подачи (🌿 в рецепте).
+    fresh: bool = False
+
+    @field_validator("fresh", mode="before")
+    @classmethod
+    def _fresh(cls, v):
+        return v is True or str(v).strip().lower() == "true"
 
 
 class Storage(CamelModel):
     vacuum: bool = True
+    # True — заготовка под заморозку (❄️, shelf_life_days — дни в морозилке, по умолчанию);
+    # False — «свежее» по просьбе пользователя (🌿, shelf_life_days — дни в холодильнике, 0 — сразу).
     freeze: bool = True
     shelf_life_days: int
     note: str | None = None

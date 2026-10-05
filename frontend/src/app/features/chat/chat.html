@@ -226,9 +226,7 @@
                       {{ totalTime(d.prepMin, d.cookMin) }} мин
                     </span>
 
-                    @if (d.storage.freeze) {
-                      <span class="badge-frost">❄️ {{ d.storage.shelfLifeDays }} дн</span>
-                    }
+                    <ew-storage-badge [storage]="d.storage" />
 
                     <span class="meta-chip">{{ d.servings }} порц.</span>
                   </div>

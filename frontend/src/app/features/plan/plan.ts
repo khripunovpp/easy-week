@@ -8,11 +8,12 @@ import { CookingLoader } from '../../shared/cooking-loader';
 import { dishColorClass } from '../../shared/dish-color';
 import { leftoverChips } from '../../shared/leftovers';
 import { formatDuration, formatGeneratedAt } from '../../shared/format';
+import { StorageBadge } from '../../shared/storage';
 import { Vote } from '../../shared/vote';
 
 @Component({
   selector: 'ew-plan',
-  imports: [RouterLink, CookingLoader, Vote],
+  imports: [RouterLink, CookingLoader, Vote, StorageBadge],
   templateUrl: './plan.html',
   styleUrl: './plan.scss',
 })

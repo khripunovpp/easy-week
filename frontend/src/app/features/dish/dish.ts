@@ -13,6 +13,7 @@ import { aiFailText } from '../../shared/ai-error';
 import { ModelName } from '../../shared/model-name';
 import { TtsBtn } from '../../shared/tts-btn';
 import { Modal } from '../../shared/modal';
+import { NoteRow, parseStorageNote, storageSub } from '../../shared/storage';
 
 @Component({
   selector: 'ew-dish',
@@ -50,6 +51,14 @@ export class DishPage {
   readonly isOwn = computed(() => this.planId() === LIBRARY_PLAN_ID);
 
   readonly dish = signal<Dish | null>(null);
+  // Карточка хранения: подпись режима (❄️ заготовка / 🌿 свежее) + памятка по строкам.
+  readonly storageSub = computed(() => {
+    const d = this.dish();
+    return d ? storageSub(d.storage) : '';
+  });
+  readonly noteRows = computed<NoteRow[]>(() => parseStorageNote(this.dish()?.storage.note));
+  // Есть ли в рецепте продукты «в день подачи» — тогда в заголовке ингредиентов легенда 🌿.
+  readonly hasFresh = computed(() => !!this.dish()?.ingredients.some((i) => i.fresh));
   readonly loading = signal(true);
   readonly failed = signal(false);
   readonly errorMsg = signal('');

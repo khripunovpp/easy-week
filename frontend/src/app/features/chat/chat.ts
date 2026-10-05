@@ -11,13 +11,14 @@ import { CookingLoader } from '../../shared/cooking-loader';
 import { dishColorClass } from '../../shared/dish-color';
 import { leftoverChips } from '../../shared/leftovers';
 import { renderMarkdown } from '../../shared/markdown';
+import { StorageBadge } from '../../shared/storage';
 import { Vote } from '../../shared/vote';
 import { ModelName } from '../../shared/model-name';
 import { PlanWizardCard } from './plan-wizard';
 
 @Component({
   selector: 'ew-chat',
-  imports: [FormsModule, RouterLink, CookingLoader, Vote, ModelName, PlanWizardCard, ClampText],
+  imports: [FormsModule, RouterLink, CookingLoader, Vote, ModelName, PlanWizardCard, ClampText, StorageBadge],
   templateUrl: './chat.html',
   styleUrl: './chat.scss',
 })

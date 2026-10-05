@@ -21,13 +21,14 @@ export interface Ingredient {
   qty: number;
   unit: string; // г, кг, шт, мл, ст.л. …
   category: IngredientCategory;
+  fresh?: boolean; // не идёт в заготовку — готовится/добавляется в день подачи (🌿)
 }
 
 export interface Storage {
   vacuum: boolean;
-  freeze: boolean;
-  shelfLifeDays: number; // срок хранения в заморозке
-  note?: string; // как разморозить / разогреть
+  freeze: boolean; // true — заготовка под заморозку (по умолчанию); false — «свежее» (просил пользователь)
+  shelfLifeDays: number; // заморозка — дни в морозилке; свежее — дни в холодильнике (0 — съесть сразу)
+  note?: string; // памятка: строки «Морозилка: … / Холодильник: … / В день подачи: … / Разогрев: … / Важно: …»
 }
 
 export interface Dish {

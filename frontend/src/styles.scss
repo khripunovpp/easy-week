@@ -23,6 +23,9 @@
   --frost: #4a9cd6; /* «заморозка» */
   --frost-soft: #e4f1fa;
   --frost-ink: #3f6b88; /* текст заметок о хранении */
+  --fresh: #4e9a5c; /* «свежее»: не замораживать, в день подачи (🌿) */
+  --fresh-soft: #e6f2e5;
+  --fresh-ink: #3d6a45;
   --done: #7c6ef0; /* отмечено */
   --done-soft: #edeafd;
 
@@ -114,6 +117,9 @@
   --frost: #6bb2e6;
   --frost-soft: #1e2f3b;
   --frost-ink: #9cc4de;
+  --fresh: #82c48c;
+  --fresh-soft: #1f3122;
+  --fresh-ink: #a6d3ad;
   --done: #9b8ff5;
   --done-soft: #262138;
 
@@ -856,8 +862,9 @@ ul {
   height: 14px;
 }
 
-/* ===== Бейдж заморозки ===== */
-.badge-frost {
+/* ===== Бейдж режима хранения: ❄️ заготовка под заморозку / 🌿 свежее (ew-storage-badge) ===== */
+.badge-frost,
+.badge-fresh {
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -867,6 +874,10 @@ ul {
   background: var(--frost-soft);
   padding: 3px 9px;
   border-radius: var(--r-pill);
+}
+.badge-fresh {
+  color: var(--fresh);
+  background: var(--fresh-soft);
 }
 
 /* Индикатор загрузки — кулинарный лоадер ew-cooking (shared/cooking-loader). */
