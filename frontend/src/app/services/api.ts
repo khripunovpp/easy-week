@@ -136,6 +136,7 @@ export interface ChatStreamDone {
   messageId?: string;
   model?: string;
   leftovers?: string[];
+  reply?: string; // итоговая реплика: сервер мог поправить её после meta (выдуманные остатки)
 }
 
 export interface ChatStreamHandlers {

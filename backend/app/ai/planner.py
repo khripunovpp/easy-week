@@ -39,6 +39,7 @@ from .prompt import (
     build_shop_normalize_messages,
     build_single_dish_messages,
     build_validate_messages,
+    drop_leftover_sentences,
     free_leftovers,
 )
 from .stream_parse import PlanStreamParser
@@ -355,6 +356,33 @@ def _clean_leftovers(raw: Any) -> list[str]:
     return _clean_list(raw, 12)
 
 
+_DEFAULT_REPLY = "Готово — вот план на неделю."
+
+
+def _ground_text(user_message: str, user_text: str | None, leftovers: list[str] | None) -> str:
+    """Что пользователь сам написал (вся беседа, если роутер передал) + уже известные остатки
+    плана — по этому тексту проверяются остатки, которые выделила модель."""
+    return "\n".join([user_text if user_text is not None else user_message, *(leftovers or [])])
+
+
+def _ground_plan(data: dict[str, Any], text: str) -> dict[str, Any]:
+    """Остатки плана и uses блюд — только продукты, названные пользователем (основа слова есть в
+    его тексте, prefs.grounded). Haiku на «В день подачи» «пристроила остатки творога и
+    колбасок» — взяла их из «недавно ели» и книги рецептов. Фразу реплики о них вырезаем."""
+    raw = data.get("leftovers") or []
+    kept = _prefs.grounded(raw, text)
+    dropped = [x for x in raw if x not in kept]
+    out = {
+        **data,
+        "leftovers": kept,
+        "dishes": [{**d, "uses": _prefs.grounded(d.get("uses"), text)} for d in data["dishes"]],
+    }
+    if dropped:
+        logger.warning("план: остатки не из текста пользователя отброшены: %s", dropped)
+        out["reply"] = drop_leftover_sentences(str(data.get("reply") or ""), dropped) or _DEFAULT_REPLY
+    return out
+
+
 def _resolve_variety(avoid_titles: list[str], variety: str | None) -> str:
     """variety=None → новое серверное зерно (и запись в AI-контекст для логов);
     строка (в т.ч. пустая) — как есть (правки передают свою лёгкую подсказку)."""
@@ -370,6 +398,7 @@ async def generate_plan(
     model: str = "", count_plan: bool = True, *,
     in_plan: list[str] | None = None, context: str = "", variety: str | None = None,
     book: list[str] | None = None, leftovers: list[str] | None = None,
+    user_text: str | None = None,
 ) -> dict[str, Any]:
     """План выбранной моделью. Без фолбэков: модель либо отвечает, либо кидает AIError.
 
@@ -378,18 +407,20 @@ async def generate_plan(
     in_plan — блюда текущего плана (для add), context — контекст беседы (исходный запрос),
     variety — None: новое серверное зерно разнообразия; строка — готовая подсказка.
     book — книга рецептов семьи (узнать названное пользователем блюдо), leftovers — уже
-    известные остатки (правка/пересборка). В ответе leftovers — остатки, выделенные моделью.
+    известные остатки (правка/пересборка). В ответе leftovers — остатки, выделенные моделью и
+    названные пользователем: user_text — всё, что он написал в беседе (нет — user_message).
     """
     gate = gate_for(model)
     if count_plan:
         enforce_daily(gate, "plan")  # дневной лимит на Claude (no-op для остальных)
     variety = _resolve_variety(avoid_titles, variety)
+    ground = _ground_text(user_message, user_text, leftovers)
     if _is_cf(gate):
-        return await _generate_plan_cloudflare(
+        return _ground_plan(await _generate_plan_cloudflare(
             user_message, avoid_titles, count, gender,
             in_plan=in_plan, context=context, variety=variety, gate=gate,
             book=book, leftovers=leftovers,
-        )
+        ), ground)
 
     parsed, _ = await gate.complete_json(
         build_ds_plan_messages(
@@ -405,37 +436,41 @@ async def generate_plan(
     if not dishes:
         raise AIError(f"{gate.provider} вернул пустой план")
     logger.info("plan via %s: dishes=%d", gate.provider, len(dishes))
-    return {
-        "reply": parsed.get("reply") or "Готово — вот план на неделю.",
+    return _ground_plan({
+        "reply": parsed.get("reply") or _DEFAULT_REPLY,
         "title": _clean_title(parsed.get("title") or "План на неделю"),
         "week_label": _week_label(),
         "dishes": dishes,
         "leftovers": _clean_leftovers(parsed.get("leftovers")),
         "provider": gate.provider,
-    }
+    }, ground)
 
 
 async def generate_plan_stream(
     user_message: str, avoid_titles: list[str], count: int = 5, gender: str = "f",
     model: str = "", *, context: str = "", book: list[str] | None = None,
+    user_text: str | None = None,
 ) -> AsyncIterator[tuple[str, Any]]:
     """Потоковый план: yield ('meta', {reply,title,week_label,provider}) → ('dish', dish)…
-    → ('leftovers', [остатки]) в конце.
+    → ('leftovers', [остатки]) в конце (+ ('reply', текст), если реплику пришлось поправить).
 
     Стриминговые модели (DeepSeek/Gemini) отдают блюда по мере генерации; Cloudflare
     (без стрима) собирает план пайплайном и отдаёт теми же событиями. Без фолбэков —
     падение модели пробрасывается наверх (роутер отдаёт event: error).
     context — память беседы (первое сообщение + сводка, services/summary.memory),
-    book — книга рецептов семьи (services/recipebook.book_names)."""
+    book — книга рецептов семьи (services/recipebook.book_names), user_text — всё, что
+    пользователь написал в беседе: остатки и uses — только названные им (_ground_plan)."""
     week = _week_label()
     gate = gate_for(model)
     enforce_daily(gate, "plan")  # дневной лимит на Claude (no-op для остальных)
     variety = _resolve_variety(avoid_titles, None)  # новое зерно на каждый новый план
+    ground = _ground_text(user_message, user_text, None)
 
     if gate.supports_stream:
         parser = PlanStreamParser()
         emitted = 0
         meta_sent = False
+        reply = _DEFAULT_REPLY
         async for delta in gate.stream_json(
             build_ds_plan_messages(
                 user_message, avoid_titles, count, gender,
@@ -450,8 +485,9 @@ async def generate_plan_stream(
                 meta = parser.meta()
                 if meta:
                     meta_sent = True
+                    reply = meta["reply"] or _DEFAULT_REPLY
                     yield "meta", {
-                        "reply": meta["reply"] or "Готово — вот план на неделю.",
+                        "reply": reply,
                         "title": _clean_title(meta["title"] or "План на неделю"),
                         "week_label": week,
                         "provider": gate.provider,
@@ -462,24 +498,33 @@ async def generate_plan_stream(
                 if not meta_sent:
                     meta_sent = True
                     yield "meta", {
-                        "reply": "Готово — вот план на неделю.",
+                        "reply": _DEFAULT_REPLY,
                         "title": "План на неделю",
                         "week_label": week,
                         "provider": gate.provider,
                     }
-                yield "dish", _clean_dish(emitted, d)
+                dish = _clean_dish(emitted, d)
+                # uses — только названные пользователем остатки (блюдо уходит на экран сразу)
+                yield "dish", {**dish, "uses": _prefs.grounded(dish["uses"], ground)}
                 emitted += 1
         if not emitted:
             raise AIError(f"{gate.provider} вернул пустой план")
         logger.info("plan stream via %s: dishes=%d", gate.provider, emitted)
-        yield "leftovers", _clean_leftovers(parser.leftovers())
+        # Реплика уже на экране — если в ней выдуманные остатки, отдаём исправленную в конце.
+        fixed = _ground_plan(
+            {"reply": reply, "dishes": [], "leftovers": _clean_leftovers(parser.leftovers())},
+            ground,
+        )
+        yield "leftovers", fixed["leftovers"]
+        if fixed["reply"] != reply:
+            yield "reply", fixed["reply"]
         return
 
     # Нестриминговые гейты (Cloudflare-пайплайн, Gemini — у него стрим JSON рвётся):
     # собираем план целиком и отдаём теми же событиями. count_plan=False — лимит уже учтён выше.
     data = await generate_plan(
         user_message, avoid_titles, count, gender, model, count_plan=False, variety=variety,
-        context=context, book=book,
+        context=context, book=book, user_text=user_text,
     )
     yield "meta", {
         "reply": data["reply"],
@@ -863,8 +908,11 @@ async def generate_single_dish(
     picked = _pick_one(candidates, query, exclude)
     if picked is None:
         return None
+    dish = _clean_dish(0, picked)
+    # uses — только из данных остатков (не пристроенных в план), не выдуманные моделью
+    dish["uses"] = _prefs.grounded(dish["uses"], "\n".join(leftovers or []))
     return {
-        "dish": _clean_dish(0, picked),
+        "dish": dish,
         "reply": str(parsed.get("reply") or "").strip(),
         "provider": gate.provider,
     }
@@ -874,6 +922,7 @@ async def edit_plan(
     dishes: list[dict], title: str, user_message: str, gender: str = "f", model: str = "",
     context: str = "", *, avoid: list[str] | None = None, rejected: list[str] | None = None,
     leftovers: list[str] | None = None, book: list[str] | None = None,
+    user_text: str | None = None,
 ) -> dict[str, Any]:
     """Правит существующий план по просьбе выбранной моделью.
 
@@ -883,7 +932,8 @@ async def edit_plan(
     какое блюдо имеется в виду; в пограничных случаях модель задаёт уточняющий вопрос.
     avoid — «недавно ели или отвергли» (history.variety_avoid), rejected — отвергнутое
     в этой беседе (history.conversation_rejected): для add/replace/create.
-    leftovers — остатки плана: новые блюда пристраивают ещё не пристроенные, пересборка — все."""
+    leftovers — остатки плана: новые блюда пристраивают ещё не пристроенные, пересборка — все.
+    user_text — всё, что пользователь написал в беседе: новые остатки — только названные им."""
     gate = gate_for(model)
     work = [dict(d) for d in dishes]
     avoid = avoid or []
@@ -924,7 +974,7 @@ async def edit_plan(
                 gen = await generate_plan(
                     args.get("query", ""), avoid, cnt, gender, model, count_plan=False,
                     in_plan=_dish_names(work), context=context, variety=_NEIGHBOR_HINT,
-                    leftovers=free_leftovers(leftovers, work), book=book,
+                    leftovers=free_leftovers(leftovers, work), book=book, user_text=user_text,
                 )
                 new = gen["dishes"][:cnt]
             for j, d in enumerate(new):
@@ -978,6 +1028,7 @@ async def edit_plan(
             gen = await generate_plan(
                 args.get("note", user_message), avoid + _dish_names(work), cnt, gender, model,
                 count_plan=False, context=context, leftovers=leftovers, book=book,
+                user_text=user_text,
             )
             work = gen["dishes"]
             leftovers = gen.get("leftovers") or leftovers

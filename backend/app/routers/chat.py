@@ -233,7 +233,7 @@ async def chat_stream(
     try:
         async for kind, payload in generate_plan_stream(
             req.message, avoid, req.dishes_count, req.gender, req.recipe_model, context=memory,
-            book=book_names(session, index=book),
+            book=book_names(session, index=book), user_text=_user_said(session, conv.id),
         ):
             if kind == "meta":
                 title, week, reply = payload["title"], payload["week_label"], payload["reply"]
@@ -251,6 +251,8 @@ async def chat_stream(
                 )
             elif kind == "leftovers":
                 leftovers = payload
+            elif kind == "reply":  # реплику поправили (выдуманные остатки) — её и сохраним
+                reply = payload
             elif kind == "dish":
                 payload = attach(payload, book)
                 dishes.append(payload)
@@ -302,6 +304,7 @@ async def chat_stream(
             "messageId": msg_id,
             "model": req.recipe_model,
             "leftovers": leftovers,
+            "reply": reply,  # итоговая реплика (могла измениться после meta)
         },
     )
 
@@ -331,7 +334,7 @@ async def chat(req: ChatRequest, session: SessionDep) -> ChatResponse:
     try:
         data = await generate_plan(
             req.message, avoid, req.dishes_count, req.gender, req.recipe_model, context=memory,
-            book=book_names(session, index=book),
+            book=book_names(session, index=book), user_text=_user_said(session, conv.id),
         )
     except LimitError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
@@ -382,6 +385,17 @@ def _latest_plan(
     if not with_library:
         q = q.where(PlanRow.status != LIBRARY_STATUS)
     return session.exec(q.order_by(PlanRow.created_at.desc())).first()
+
+
+def _user_said(session: Session, conversation_id: str) -> str:
+    """Всё, что пользователь сам написал в беседе: остатки плана принимаем, только если продукт
+    есть здесь (planner._ground_plan) — модель не выдумывает их из «недавно ели» и книги."""
+    texts = session.exec(
+        select(MessageRow.text).where(
+            MessageRow.conversation_id == conversation_id, MessageRow.role == "user"
+        )
+    ).all()
+    return "\n".join(t for t in texts if t)
 
 
 def _edit_context(session: Session, conversation_id: str, current_text: str, max_recent: int = 2) -> str:
@@ -503,6 +517,7 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
             result = await edit_plan(
                 dishes, row.title, req.message, req.gender, req.recipe_model, context,
                 avoid=avoid, rejected=rejected, leftovers=leftovers, book=book,
+                user_text=_user_said(session, conv.id),
             )
     except LimitError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc

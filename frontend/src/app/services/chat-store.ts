@@ -251,11 +251,14 @@ export class ChatStore {
         if (info.leftovers?.length) {
           this.updatePlan(msgId, (plan) => ({ ...plan, leftovers: info.leftovers }));
         }
-        // Проставляем серверный id + модель стримленному сообщению — чтобы можно было оценить.
+        // Проставляем серверный id + модель стримленному сообщению — чтобы можно было оценить;
+        // реплику — итоговую (сервер вырезает фразы про остатки, которых пользователь не называл).
         if (info.messageId) {
           this.messages.update((list) =>
             list.map((m) =>
-              m.id === msgId ? { ...m, serverId: info.messageId, model: info.model } : m,
+              m.id === msgId
+                ? { ...m, serverId: info.messageId, model: info.model, text: info.reply || m.text }
+                : m,
             ),
           );
         }

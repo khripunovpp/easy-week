@@ -152,7 +152,7 @@ def _is_review(message: str) -> bool:
     return any(m in t for m in ("понрав", "вкусн")) and not any(m in t for m in ("любл", "обожа"))
 
 
-def _grounded(items, message: str) -> list[str]:
+def grounded(items, message: str) -> list[str]:
     """Только продукты, которые реально есть в тексте (основа слова ≥3 букв) — модель не
     должна додумывать «картошка с бабами» из «картошка ой»."""
     t = _norm_text(message)
@@ -385,7 +385,7 @@ async def extract_and_merge(message: str, context: str = "") -> None:
         parsed, _ = await gate.complete_json(
             messages, **cf_kw, max_tokens=250, temperature=0.1, label="извлечение предпочтений",
         )
-        got = {k: _grounded(parsed.get(k), msg) for k in PREFS_SCHEMA["properties"]}
+        got = {k: grounded(parsed.get(k), msg) for k in PREFS_SCHEMA["properties"]}
         d, l, a = got["dislikes"], got["likes"], got["allergies"]
         md, ml = got["maybe_dislikes"], got["maybe_likes"]
         if _is_temporary(msg):

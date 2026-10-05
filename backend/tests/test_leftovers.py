@@ -111,8 +111,8 @@ def test_generate_plan_returns_clean_leftovers_and_uses(monkeypatch):
                    {"name": "Котлеты по-киевски", "emoji": "🍗"}],
     })
     monkeypatch.setattr(planner, "gate_for", lambda m, task="chat": gate)
-    data = asyncio.run(planner.generate_plan("меню", [], 2, count_plan=False, variety="",
-                                             book=["Борщ"]))
+    data = asyncio.run(planner.generate_plan("меню, остались порей и сельдерей", [], 2,
+                                             count_plan=False, variety="", book=["Борщ"]))
     assert data["leftovers"] == ["порей", "сельдерей"]
     assert data["dishes"][0]["uses"] == ["порей"] and data["dishes"][1]["uses"] == []
     assert "Книга рецептов семьи: " not in gate.calls[0][0][0]["content"]  # книга — в user
