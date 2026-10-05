@@ -56,3 +56,18 @@ export function dayGroupLabel(iso: string | null | undefined): string {
   });
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
+
+// Склонение по числу: plural(5, ['запрос', 'запроса', 'запросов']) → «запросов».
+export function plural(n: number, forms: [string, string, string]): string {
+  const m10 = n % 10;
+  const m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return forms[0];
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return forms[1];
+  return forms[2];
+}
+
+// Стоимость в долларах: «$0.14»; меньше цента — «<$0.01»; ноль — пусто (бесплатные модели).
+export function formatUsd(v: number): string {
+  if (!v) return '';
+  return v < 0.01 ? '<$0.01' : `$${v.toFixed(2)}`;
+}

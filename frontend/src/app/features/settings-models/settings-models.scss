@@ -2,3 +2,47 @@
 :host {
   display: contents;
 }
+
+/* Статистика запросов к моделям по дням (GUIDEBOOK «Экраны настроек» → «Статистика запросов») */
+.setting__hint b {
+  color: var(--ink);
+  font-weight: 650;
+}
+.usage__day {
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.usage__day:last-child {
+  padding-bottom: 0;
+}
+.usage__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.usage__date {
+  font-size: 15px;
+  font-weight: 600;
+}
+.usage__sum {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.usage__sum b {
+  color: var(--ink);
+  font-weight: 650;
+}
+.usage__models {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+.usage__model {
+  white-space: nowrap;
+}
+.usage__err {
+  color: var(--no);
+}

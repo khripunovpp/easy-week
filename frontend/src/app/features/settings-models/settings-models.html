@@ -75,7 +75,7 @@
             </p>
           }
         }
-        @if (usesClaude() && limits(); as l) {
+        @if (usesClaude() && claudeLimited() && limits(); as l) {
           <p class="setting__hint setting__limit">
             Дневной лимит Claude: планы <b>{{ l.anthropic.plans.used }}/{{ l.anthropic.plans.limit }}</b>,
             рецепты <b>{{ l.anthropic.recipes.used }}/{{ l.anthropic.recipes.limit }}</b>
@@ -83,6 +83,39 @@
           </p>
         }
       </section>
+
+      <!-- Статистика запросов к моделям по дням (GUIDEBOOK «Экраны настроек» → «Статистика запросов») -->
+      @if (usage(); as u) {
+        <section class="card setting usage">
+          <h2 class="setting__label">Запросы к моделям</h2>
+          @if (usageDays().length) {
+            <p class="setting__hint">
+              За 7 дней: <b>{{ calls(u.total.calls) }}</b>
+              @if (u.total.errors) { · {{ errors(u.total.errors) }} }
+              @if (usd(u.total.costUsd)) { · <b>{{ usd(u.total.costUsd) }}</b> }.
+              Сбой — неудачная попытка, повторы считаются; стоимость — по ценам моделей.
+            </p>
+            @for (d of usageDays(); track d.date) {
+              <div class="usage__day">
+                <div class="usage__head">
+                  <span class="usage__date">{{ dayLabel(d) }}</span>
+                  <span class="usage__sum">
+                    <b>{{ d.calls }}</b> {{ callsWord(d.calls) }}@if (usd(d.costUsd)) { · {{ usd(d.costUsd) }}}
+                  </span>
+                </div>
+                <!-- «DeepSeek 29 ($0.06) · Gemini 2, 17 сбоев» — провайдеры по убыванию запросов -->
+                <p class="usage__models">
+                  @for (p of d.providers; track p.provider; let last = $last) {
+                    <span class="usage__model">{{ p.provider }} {{ p.calls }}@if (providerCost(p)) {<span> ({{ providerCost(p) }})</span>}@if (p.errors) {<span class="usage__err">, {{ errors(p.errors) }}</span>}</span>@if (!last) {<span> · </span>}
+                  }
+                </p>
+              </div>
+            }
+          } @else {
+            <p class="setting__hint">Пока нет запросов за неделю.</p>
+          }
+        </section>
+      }
     </div>
   </div>
 </div>

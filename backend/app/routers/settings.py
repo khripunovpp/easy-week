@@ -5,13 +5,16 @@ GET /api/settings  → {models: {chat, recipe, shopping, cooking, prefs}, initia
 PUT /api/settings  ← {models: {...}} — ключи моделей валидирует схема (Literal ключей GATES),
                       соответствие задаче — карта TASK_MODELS (не подходит → 422).
 GET/PUT /api/settings/prices — цены моделей для учёта затрат (USD за 1M токенов).
+GET /api/settings/usage?days=7 — статистика запросов к моделям по дням (services/usage.py).
 Хранение — `services/settings.py` (settings.json рядом с БД, атомарная запись).
 """
 
 from fastapi import APIRouter, HTTPException
 
-from ..schemas import ModelDefaults, ModelPrice, PricesBody, SettingsBody, SettingsOut
-from ..services import model_catalog, prices
+from ..schemas import (
+    ModelDefaults, ModelPrice, PricesBody, SettingsBody, SettingsOut, UsageOut,
+)
+from ..services import model_catalog, prices, usage
 from ..services import settings as app_settings
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
@@ -81,3 +84,12 @@ async def put_prices(body: PricesBody) -> PricesBody:
         raise HTTPException(status_code=422, detail="Неизвестные модели: " + ", ".join(unknown))
     saved = prices.save({k: v.model_dump() for k, v in body.prices.items()})
     return PricesBody(prices={k: ModelPrice.model_validate(v) for k, v in saved.items()})
+
+
+# --- Статистика запросов к моделям по дням (services/usage.py) ---
+
+
+@router.get("/usage")
+async def get_usage(days: int = 7) -> UsageOut:
+    """Последние days дней (до 31): запросы, сбои и стоимость по провайдерам — из AI-логов."""
+    return UsageOut.model_validate(usage.daily(days))

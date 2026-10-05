@@ -47,8 +47,10 @@ class Settings(BaseSettings):
 
     # Дневные лимиты генерации на Claude (дорогая модель), 0 = без лимита.
     # Задаются через .env: ANTHROPIC_DAILY_PLANS / ANTHROPIC_DAILY_RECIPES.
-    anthropic_daily_plans: int = 2
-    anthropic_daily_recipes: int = 10
+    # Дневные лимиты Claude: 0 — без лимита (по умолчанию; расход видно в статистике запросов,
+    # Профиль → Модели). Включить — ANTHROPIC_DAILY_PLANS / ANTHROPIC_DAILY_RECIPES в .env.
+    anthropic_daily_plans: int = 0
+    anthropic_daily_recipes: int = 0
 
     # OpenRouter — один API ко многим моделям (в т.ч. бесплатным «:free»). Пробуем как замену
     # Cloudflare на дешёвых задачах (покупки, извлечение предпочтений). Модель — любая чатовая

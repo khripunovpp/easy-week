@@ -210,6 +210,26 @@ export interface LimitsStatus {
   tts?: DailyLimit; // озвучка шагов: новых генераций в сутки (limit 0 — без лимита)
 }
 
+// Статистика запросов к моделям по дням (GET /api/settings/usage, из AI-логов): calls — удачные
+// вызовы, errors — неудачные попытки (повторы считаются), costUsd — по таблице цен.
+export interface UsageCount {
+  calls: number;
+  errors: number;
+  costUsd: number;
+}
+export interface UsageProvider extends UsageCount {
+  provider: string; // как в логе: DeepSeek | Gemini | Claude | Cloudflare | OpenRouter
+  key: string;
+}
+export interface UsageDay extends UsageCount {
+  date: string; // ГГГГ-ММ-ДД (день сервера)
+  providers: UsageProvider[];
+}
+export interface UsageStats {
+  days: UsageDay[]; // свежие первыми, пустые дни — с нулями
+  total: UsageCount;
+}
+
 // Доступна ли новая генерация озвучки (свой дневной лимит / лимит бесплатных моделей OpenRouter).
 export interface TtsStatus {
   available: boolean;
@@ -422,6 +442,10 @@ export class EasyWeekApi {
   }
   putPrices(prices: Record<string, ModelPrice>): Observable<{ prices: Record<string, ModelPrice> }> {
     return this.http.put<{ prices: Record<string, ModelPrice> }>(`${API_BASE}/settings/prices`, { prices });
+  }
+
+  usage(days = 7): Observable<UsageStats> {
+    return this.http.get<UsageStats>(`${API_BASE}/settings/usage`, { params: { days } });
   }
 
   limits(): Observable<LimitsStatus> {

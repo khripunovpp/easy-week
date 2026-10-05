@@ -199,6 +199,30 @@ class PricesBody(CamelModel):
     prices: dict[str, ModelPrice]
 
 
+class UsageCount(CamelModel):
+    # Запросы к модели: calls — удачные вызовы, errors — неудачные попытки (повторы считаются),
+    # cost_usd — стоимость удачных вызовов по таблице цен (services/prices).
+    calls: int = 0
+    errors: int = 0
+    cost_usd: float = 0.0
+
+
+class UsageProvider(UsageCount):
+    provider: str  # как в логе: DeepSeek | Gemini | Claude | Cloudflare | OpenRouter
+    key: str  # ключ модели: deepseek | gemini | anthropic | cloudflare | openrouter
+
+
+class UsageDay(UsageCount):
+    date: str  # ГГГГ-ММ-ДД (локальная дата сервера — день файла AI-лога)
+    providers: list[UsageProvider] = []
+
+
+class UsageOut(CamelModel):
+    # Статистика запросов к моделям по дням (Профиль → Модели), свежие дни первыми.
+    days: list[UsageDay]
+    total: UsageCount
+
+
 class ShoppingItem(CamelModel):
     name: str
     qty: float

@@ -119,6 +119,18 @@ def _category(label: str) -> str:
     return (label or "?").split(":")[0].strip() or "?"
 
 
+def call_cost(provider: str, model: str, usage: dict) -> float:
+    """Стоимость вызова (USD) по текущей таблице цен: метки провайдера из лога → ключ цены.
+    Нужна метрикам и статистике по дням (у старых записей лога cost_usd нет)."""
+    key = _PROVIDER_KEY.get((provider or "").lower(), "")
+    return prices.cost_usd(key, _norm_cache(usage), model)
+
+
+def provider_key(provider: str) -> str:
+    """Метка провайдера в логе («Claude») → ключ модели («anthropic»); неизвестная — как есть."""
+    return _PROVIDER_KEY.get((provider or "").lower(), provider or "")
+
+
 def _record_metrics(provider: str, model: str, label: str, usage: dict) -> float:
     """Счётчики вызова/токенов/затрат. Возвращает стоимость вызова (USD) — для JSONL."""
     _calls.labels(provider, model, _category(label)).inc()
@@ -135,7 +147,7 @@ def _record_metrics(provider: str, model: str, label: str, usage: dict) -> float
         if val:
             _tokens.labels(provider, model, kind).inc(val)
     try:
-        cost = prices.cost_usd(_PROVIDER_KEY.get((provider or "").lower(), ""), u, model)
+        cost = call_cost(provider, model, u)
     except Exception as exc:  # noqa: BLE001 — учёт затрат не должен ронять запрос
         logger.warning("не посчитали стоимость вызова: %s", str(exc)[:150])
         cost = 0.0
