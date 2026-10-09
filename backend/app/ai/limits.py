@@ -15,13 +15,9 @@ from datetime import date
 from pathlib import Path
 
 from ..config import settings
-from .base import AIError
+from .base import LimitError  # noqa: F401 — живёт в base (её пробрасывает complete_json)
 
 logger = logging.getLogger("easy_week.limits")
-
-
-class LimitError(AIError):
-    """Дневной лимит генерации на модель исчерпан."""
 
 
 _KIND_RU = {"plan": ("план", "плана", "планов"), "recipe": ("рецепт", "рецепта", "рецептов")}

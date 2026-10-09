@@ -7,7 +7,7 @@ from typing import Any
 import httpx
 
 from ..config import settings
-from .base import AIError, AINonRetryable, ModelGate, loads_lenient
+from .base import AIError, AINonRetryable, ModelGate, loads_lenient, parse_details
 from .observe import log_ai_call
 
 logger = logging.getLogger("easy_week.anthropic")
@@ -107,13 +107,7 @@ def _norm_usage(u: dict | None) -> dict[str, Any]:
     }
 
 
-def _parse_details(text: str, stop_reason: str) -> dict:
-    """Поля для JSONL-лога битого ответа: причина остановки + начало/конец сырого текста."""
-    return {
-        "stop_reason": stop_reason or "",
-        "raw_head": text[:300],
-        "raw_tail": text[-200:] if len(text) > 300 else "",
-    }
+_parse_details = parse_details  # общие поля JSONL-лога битого ответа (ai/base.py)
 
 
 class AnthropicGate(ModelGate):
@@ -171,7 +165,7 @@ class AnthropicGate(ModelGate):
         try:
             return _loads_lenient(text), _norm_usage(body.get("usage"))
         except json.JSONDecodeError as exc:
-            details = _parse_details(text, stop)
+            details = _parse_details(text, stop, exc)
             logger.warning("Claude: не JSON (stop_reason=%s): %r", stop, text[:200])
             if stop == "max_tokens":
                 # Обрезан по лимиту — повтор тем же входом снова обрежется.
@@ -191,7 +185,7 @@ class AnthropicGate(ModelGate):
         except json.JSONDecodeError as exc:
             raise AINonRetryable(
                 f"Claude: не JSON и после корректирующей попытки: {exc}",
-                _parse_details(text2, body2.get("stop_reason") or ""),
+                _parse_details(text2, body2.get("stop_reason") or "", exc),
             ) from exc
         # usage суммируем по обеим попыткам — чтобы метрики токенов были честными.
         u1, u2 = _norm_usage(body.get("usage")), _norm_usage(body2.get("usage"))
