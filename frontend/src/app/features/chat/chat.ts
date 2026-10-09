@@ -86,13 +86,12 @@ export class Chat {
   private readonly composerInput = viewChild<ElementRef<HTMLTextAreaElement>>('composerInput');
   private lastBump = 0;
 
-  /** Поле ввода выросло больше одной строки — row скругляется мягче (см. .composer__row--multi). */
-  readonly composerMulti = signal(false);
-
   constructor() {
     this.modelSettings.ensureLoaded();
     // Автовысота поля: на каждое изменение черновика (ввод, очистка после отправки,
     // смена чата) пересчитываем высоту. Потолок в 3 строки — max-height в chat.scss.
+    // Пустое поле — ровно одна строка (rows="1"): высоту задаёт текст, а не плейсхолдер —
+    // длинный плейсхолдер переносился, и пустое поле на входе в чат вырастало до 2 строк.
     effect(() => {
       this.store.draft();
       const el = this.composerInput()?.nativeElement;
@@ -100,9 +99,7 @@ export class Chat {
       // ngModel пишет значение в DOM через промис — меряем в следующем кадре, когда оно уже там.
       requestAnimationFrame(() => {
         el.style.height = 'auto';
-        el.style.height = `${el.scrollHeight}px`;
-        // 44px = одна строка (22px) + вертикальные паддинги (2 × 11px)
-        this.composerMulti.set(el.scrollHeight > 44);
+        el.style.height = el.value ? `${el.scrollHeight}px` : '';
       });
     });
     // При входе в чат — прижимаем ленту к низу, чтобы сразу видеть последние сообщения.
@@ -237,10 +234,10 @@ export class Chat {
 
   composerPlaceholder(): string {
     if (this.wizardOn()) {
-      return this.store.wizard.choice() ? 'Уточнение (важнее выбора)…' : 'Или просто напишите, чего хочется…';
+      return this.store.wizard.choice() ? 'Уточнение (важнее выбора)…' : 'Или напишите, чего хочется…';
     }
     const p = this.store.pending();
-    if (p?.kind === 'replace') return 'Пожелания к замене (необязательно)…';
+    if (p?.kind === 'replace') return 'Пожелания к замене…';
     if (p?.kind === 'add') return 'Какое блюдо добавить?…';
     if (p?.kind === 'discuss') {
       if (p.target === 'cooking') return 'Спросите про план готовки…';

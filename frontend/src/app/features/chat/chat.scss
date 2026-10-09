@@ -638,14 +638,11 @@
   align-items: flex-end;
   gap: 10px;
   background: var(--surface);
-  border-radius: var(--r-pill);
+  /* Скругление постоянное в любом состоянии: 28px = половина высоты поля в одну строку
+     (44px кнопки + 2 × 6px) — в одну строку это пилюля, при росте до 3 строк углы текст не режут */
+  border-radius: var(--r-card);
   padding: 6px 6px 6px 18px;
   box-shadow: var(--shadow-card);
-  transition: border-radius 0.15s ease;
-}
-/* Многострочное поле: «пилюля» на высоком блоке съедает углы текста — скругляем мягче */
-.composer__row--multi {
-  border-radius: var(--r-md);
 }
 
 .composer__input {
@@ -666,8 +663,12 @@
   max-height: calc(22px * 3 + 22px);
   overflow-y: auto;
 }
+/* Плейсхолдер — в одну строку (длинный — с многоточием): высоту поля задаёт только текст */
 .composer__input::placeholder {
   color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Крестик «очистить» — тихая кнопка между полем и «Отправить», по центру последней строки */
