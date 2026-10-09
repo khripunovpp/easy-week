@@ -16,12 +16,13 @@ from datetime import datetime, timezone
 from sqlmodel import Session
 
 from ..ai.gates import gate_for
-from ..ai.planner import generate_cooking_plan, generate_dish_detail, normalize_shopping
+from ..ai.planner import fix_recipe, generate_cooking_plan, generate_dish_detail, normalize_shopping
 from ..models import PlanRow
 from ..services.mapping import to_week_plan
 from . import planstore, singleflight
 from .discussion import discussion_text
 from .history import original_request, reply_mention
+from .recipestore import content_hash
 from .shopping import aggregate_ingredients, sync_uses
 from .variants import dish_variants, now_iso, variant_summary, with_detail
 
@@ -184,6 +185,58 @@ async def regenerate_dish(
     logger.info("dish regenerated: plan=%s dish=%s model=%s kind=%s change=%s", plan_id, dish_id,
                 key, kind, bool(change))
     return new
+
+
+class NoRecipe(LookupError):
+    """У блюда ещё нет рецепта — исправлять нечего."""
+
+
+class FixNothing(ValueError):
+    """Модель не нашла, что менять (продукта в рецепте нет / просьба непонятна)."""
+
+
+async def fix_dish(
+    session: Session, row: PlanRow, dish_id: str, request: str, model: str = ""
+) -> tuple[dict, str]:
+    """«Исправить»: точечная правка активного варианта рецепта (убрать/заменить продукт) —
+    модель задачи «Правка рецепта» отдаёт только изменения строк, текст остального рецепта
+    остаётся дословно. Новая версия — в тот же слот (модель, писавшая рецепт), kind fix,
+    change = просьба, fix_ref — модель правки. Пока правили, рецепт поменяли (↻ на другом
+    устройстве) — PlanConflict (409), ничего не пишем. Возвращает (блюдо, reply модели)."""
+    dish = next((d for d in (row.dishes or []) if d.get("id") == dish_id), None)
+    if dish is None:
+        raise DishNotFound(dish_id)
+    variants = dish_variants(dish)
+    slot = dish.get("active_model") if dish.get("active_model") in variants else next(iter(variants), "")
+    if not slot or not dish.get("ingredients"):
+        raise NoRecipe(dish_id)
+    plan_id, leftovers = row.id, row.leftovers
+    base = variants[slot]
+    fixed = await fix_recipe(dish, request, model)
+    if not fixed["changed"]:
+        raise FixNothing(fixed["reply"] or "Модель не нашла, что поменять в рецепте.")
+    detail = {**fixed, "provider": base.get("provider") or dish.get("detail_provider") or "",
+              "model_ref": base.get("model_ref") or ""}
+    change = request.strip()
+
+    def apply(cur: dict) -> dict:
+        now = dish_variants(cur).get(slot) or {}
+        if content_hash(now) != content_hash(base):
+            raise planstore.PlanConflict("рецепт изменился, пока его правили — повторите правку")
+        new = sync_uses(
+            with_detail(cur, slot, detail, kind="fix", change=change, basis=dish), leftovers
+        )
+        if new.get("source"):  # свой рецепт: правка — часть рецепта (как уточнение ↻)
+            new["source"] = f"{new['source'].rstrip()}\n\nУточнение: {change}"
+        return new
+
+    dishes = planstore.patch_dishes(session, plan_id, {dish_id: apply})
+    new = next((d for d in dishes if d.get("id") == dish_id), None)
+    if new is None:
+        raise DishNotFound(dish_id)
+    logger.info("dish fixed: plan=%s dish=%s slot=%s by=%s changes=%d", plan_id, dish_id, slot,
+                fixed["fix_ref"], fixed["changed"])
+    return new, fixed["reply"]
 
 
 async def regenerate_cooking(

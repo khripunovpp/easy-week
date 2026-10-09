@@ -444,6 +444,18 @@ class RecipeItem(CamelModel):
     favorite: bool = False
 
 
+class FixRequest(CamelModel):
+    # «Исправить» на странице рецепта: что поменять («убери лук»); модель — пусто → дефолт
+    # задачи «Правка рецепта».
+    request: str = Field(min_length=2, max_length=500)
+    recipe_model: str = ""
+
+
+class FixOut(CamelModel):
+    dish: Dish
+    reply: str = ""  # что сделала модель — одной фразой
+
+
 class ShoppingCheckedBody(CamelModel):
     # Отметки «куплено»: что отметить и что снять (ключи продуктов) — изменения, а не весь
     # список, чтобы два устройства в магазине не затирали отметки друг друга.

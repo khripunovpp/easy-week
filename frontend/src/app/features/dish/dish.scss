@@ -317,3 +317,21 @@
 .regen__actions {
   margin-top: 14px;
 }
+
+/* Заголовок блока с действием справа («Ингредиенты · …» + «✎ Исправить») */
+.block__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 10px 0;
+}
+.block__head .block__label {
+  margin: 0;
+}
+.block__action {
+  flex-shrink: 0;
+}
+.block__action:disabled {
+  opacity: 0.5;
+}

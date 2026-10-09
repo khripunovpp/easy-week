@@ -274,6 +274,74 @@ def build_shop_normalize_messages(items: list[dict], discussion: str = "") -> li
     ]
 
 
+# «Исправить» на странице рецепта: точечная правка готового рецепта («убери лук»). Модель
+# возвращает ТОЛЬКО изменения по номерам строк — ответ короткий, справляются и дешёвые модели;
+# применяет их код (planner.apply_fix), остальной текст рецепта остаётся дословно.
+FIX_RECIPE_SYSTEM = (
+    "Ты точечно правишь готовый рецепт по просьбе пользователя. Меняй ТОЛЬКО то, чего требует "
+    "просьба, остальное оставь как есть: не улучшай рецепт, не переписывай стиль, не меняй "
+    "количества других продуктов. На входе — описание, ингредиенты [номер], шаги [номер], "
+    "советы [номер] и памятка хранения. Верни ТОЛЬКО изменения, СТРОГО JSON вида: "
+    '{"ingredients": [{"i": 3, "remove": true}, {"i": 2, "name": "продукт", "qty": 200, '
+    '"unit": "г", "category": "Овощи"}, {"add": true, "name": "продукт", "qty": 1, "unit": "шт", '
+    '"category": "Прочее"}], "steps": [{"i": 4, "text": "новый текст шага целиком"}, '
+    '{"i": 6, "remove": true}], "tips": [{"i": 1, "text": "новый текст"}], '
+    '"note": "", "desc": "", "reply": "одно короткое предложение: что сделано"}. '
+    "Правила: 1) «Убери X» — удали строку X из ingredients и перепиши КАЖДЫЙ шаг, совет, памятку "
+    "и описание, где X упомянут в любой форме («лук», «луковицу», «обжарь лук до золотистого»), "
+    "— без X; в таком шаге остальной текст сохрани дословно, убери только X и действия с ним. "
+    "Шаг, который был только про X, удали. 2) «Замени X на Y» — замени строку X (name, разумные "
+    "qty, unit, category) и упоминания X в шагах, советах, памятке и описании на Y. "
+    "3) «Добавь Y» — новая строка ингредиента (add) и Y в подходящем шаге. 4) Единицы — 'г', "
+    "'мл', 'шт'. 5) note и desc — новый текст целиком, только если в них было что менять, иначе "
+    "\"\". 6) Строки, которые не меняются, в ответ не включай. Просьбу выполнить нельзя или "
+    "менять нечего (X в рецепте нет) — пустые изменения и объяснение в reply."
+)
+
+
+_FIX_LINE = {"type": "object", "properties": {
+    "i": {"type": "integer"}, "remove": {"type": "boolean"}, "text": {"type": "string"}}}
+# Схема ответа правки для Cloudflare (строгая json_schema); остальные — по описанию в промпте.
+FIX_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "ingredients": {"type": "array", "items": {"type": "object", "properties": {
+            "i": {"type": "integer"}, "remove": {"type": "boolean"}, "add": {"type": "boolean"},
+            "name": {"type": "string"}, "qty": {"type": "number"}, "unit": {"type": "string"},
+            "category": {"type": "string"}}}},
+        "steps": {"type": "array", "items": _FIX_LINE},
+        "tips": {"type": "array", "items": _FIX_LINE},
+        "note": {"type": "string"},
+        "desc": {"type": "string"},
+        "reply": {"type": "string"},
+    },
+    "required": ["ingredients", "steps", "reply"],
+}
+
+
+def build_fix_messages(dish: dict, desc: str, request: str) -> list[dict[str, str]]:
+    """Рецепт активного варианта с номерами строк + просьба пользователя."""
+    ings = [
+        f"[{i}] {x.get('name')} — {x.get('qty')} {x.get('unit')} ({x.get('category')})"
+        + (" — в день подачи" if x.get("fresh") else "")
+        for i, x in enumerate(dish.get("ingredients") or [], 1)
+    ]
+    steps = [f"[{i}] {s}" for i, s in enumerate(dish.get("steps") or [], 1)]
+    tips = [f"[{i}] {s}" for i, s in enumerate(dish.get("tips") or [], 1)]
+    note = (dish.get("storage") or {}).get("note") or ""
+    content = (
+        f"Блюдо: {dish.get('name')}.\nОписание: {desc or '—'}\n"
+        "Ингредиенты:\n" + "\n".join(ings) + "\nШаги:\n" + "\n".join(steps)
+        + ("\nСоветы:\n" + "\n".join(tips) if tips else "")
+        + (f"\nПамятка хранения:\n{note}" if note else "")
+        + f"\n\nПросьба пользователя: {request.strip()}"
+    )
+    return [
+        {"role": "system", "content": FIX_RECIPE_SYSTEM},
+        {"role": "user", "content": content},
+    ]
+
+
 # Свои товары в покупках (мимо рецептов): свободный текст пользователя → позиции по отделам.
 # Схема ответа та же, что у нормализатора (SHOP_SCHEMA); отделы шире, чем у рецептов, — в
 # магазин идут и хлеб, и фрукты, и губки. Чистка ответа — services/shopping.clean_extras.

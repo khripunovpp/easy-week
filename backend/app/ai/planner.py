@@ -36,6 +36,8 @@ from .prompt import (
     build_edit_action_messages,
     build_edit_messages,
     build_names_messages,
+    FIX_SCHEMA,
+    build_fix_messages,
     build_shop_extras_messages,
     build_shop_normalize_messages,
     build_single_dish_messages,
@@ -45,7 +47,7 @@ from .prompt import (
 )
 from .stream_parse import PlanStreamParser
 from ..services.shopping import clean_extras, reconcile_normalized, sync_uses
-from ..services.variants import with_detail
+from ..services.variants import active_desc, with_detail
 
 logger = logging.getLogger("easy_week.planner")
 
@@ -1250,6 +1252,113 @@ async def normalize_shopping(
         # Количества — кодом из базы (модель только склеивает/называет/раскладывает по отделам).
         out.extend(reconcile_normalized(chunk, got, keep_missing=not discussion))
     return out
+
+
+def _fix_list(items: list, changes: Any, clean) -> tuple[list, int]:
+    """Правки модели к пронумерованному списку (1..n): {"i", "remove"} / {"i", ...новое} /
+    {"add", ...} (добавление — только если clean это умеет). Возвращает (список, число правок).
+    Номер вне списка — пропускаем (модель ошиблась), остальное применяем."""
+    out: list = list(items)
+    removed: set[int] = set()
+    adds: list = []
+    n = 0
+    for ch in changes if isinstance(changes, list) else []:
+        if not isinstance(ch, dict):
+            continue
+        if ch.get("add"):
+            new = clean(None, ch)
+            if new is not None:
+                adds.append(new)
+                n += 1
+            continue
+        try:
+            i = int(ch.get("i")) - 1
+        except (TypeError, ValueError):
+            continue
+        if not 0 <= i < len(items):
+            continue
+        if ch.get("remove"):
+            removed.add(i)
+            n += 1
+            continue
+        new = clean(items[i], ch)
+        if new is not None and new != items[i]:
+            out[i] = new
+            n += 1
+    return [x for i, x in enumerate(out) if i not in removed] + adds, n
+
+
+# Правка шага сохраняет остальной текст дословно — новый текст похож на старый. Непохожий —
+# модель сдвинула номера или переписала шаг целиком (Cloudflare: шаг 6 → текст шага 7):
+# такую правку не применяем вовсе, рецепт цел.
+_FIX_MIN_SIMILARITY = 0.45
+
+
+def _fix_text(old: str | None, ch: dict) -> str | None:
+    text = " ".join(str(ch.get("text") or "").split())
+    if not text:
+        return None
+    if old and difflib.SequenceMatcher(None, old, text).ratio() < _FIX_MIN_SIMILARITY:
+        raise AIError("правка переписала шаг целиком, а не поправила его — не применяем; "
+                      "попробуйте другую модель")
+    return text
+
+
+def _fix_ingredient(old: dict | None, ch: dict) -> dict | None:
+    name = " ".join(str(ch.get("name") or (old or {}).get("name") or "").split())
+    if not name:
+        return None
+    try:
+        qty = float(ch["qty"]) if ch.get("qty") is not None else float((old or {}).get("qty") or 0)
+    except (TypeError, ValueError):
+        qty = float((old or {}).get("qty") or 0)
+    new = {
+        **(old or {}),
+        "name": name,
+        "qty": int(qty) if qty == int(qty) else round(qty, 2),
+        "unit": str(ch.get("unit") or (old or {}).get("unit") or "г"),
+        "category": str(ch.get("category") or (old or {}).get("category") or "Прочее"),
+    }
+    return new
+
+
+def apply_fix(dish: dict, desc: str, diff: dict) -> tuple[dict, int]:
+    """Правки модели → текст рецепта (ingredients/steps/tips/note/desc активного варианта).
+    Возвращает (рецепт, число правок); 0 — менять нечего."""
+    ings, n1 = _fix_list(dish.get("ingredients") or [], diff.get("ingredients"), _fix_ingredient)
+    steps, n2 = _fix_list(dish.get("steps") or [], diff.get("steps"), _fix_text)
+    tips, n3 = _fix_list(dish.get("tips") or [], diff.get("tips"), _fix_text)
+    note_old = (dish.get("storage") or {}).get("note") or ""
+    note_new = _clean_note(diff.get("note")) if str(diff.get("note") or "").strip() else note_old
+    desc_new = _clip_desc(diff.get("desc")) or desc
+    n = n1 + n2 + n3 + (note_new != note_old) + (desc_new != desc)
+    if not ings or not steps:
+        raise AIError("правка убрала все ингредиенты или шаги — не применяем")
+    return {"ingredients": _clean_ingredients(ings), "steps": steps, "tips": tips,
+            "note": note_new, "desc": desc_new}, n
+
+
+async def fix_recipe(dish: dict, request: str, model: str = "") -> dict:
+    """«Исправить»: точечная правка активного варианта рецепта моделью задачи «Правка
+    рецепта» (model — выпадашка в окне; пусто → дефолт задачи). Ответ модели — только
+    изменения строк, применяет их apply_fix. Возвращает деталь для варианта: текст + reply,
+    changed (число правок), fix_ref/gen_id; слот и model_ref ставит вызывающий (прежние)."""
+    gate = gate_for(model, "fix")
+    desc = active_desc(dish)
+    gen_id = uuid4().hex
+    cf_kw = {"schema": FIX_SCHEMA, "model": cf_main(gate)} if _is_cf(gate) else {}
+    with ai_scope(gen_id=gen_id):
+        parsed, _ = await gate.complete_json(
+            build_fix_messages(dish, desc, request),
+            **cf_kw,
+            max_tokens=1500,
+            temperature=0.2,
+            label=f"правка рецепта: {dish.get('name', '')} ({request.strip()[:40]})",
+        )
+    recipe, changed = apply_fix(dish, desc, parsed)
+    reply = " ".join(str(parsed.get("reply") or "").split())[:300]
+    return {**recipe, "reply": reply, "changed": changed, "fix_ref": model_ref(gate),
+            "gen_id": gen_id}
 
 
 async def parse_shopping_extras(text: str, model: str = "") -> list[dict]:

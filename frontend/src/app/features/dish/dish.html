@@ -169,10 +169,16 @@
     </section>
 
     <section class="block">
-      <p class="block__label">
-        Ингредиенты · {{ d.servings }} порции
-        @if (hasFresh()) { <span class="ing__legend">· 🌿 в день подачи</span> }
-      </p>
+      <div class="block__head">
+        <p class="block__label">
+          Ингредиенты · {{ d.servings }} порции
+          @if (hasFresh()) { <span class="ing__legend">· 🌿 в день подачи</span> }
+        </p>
+        <!-- «Исправить»: точечная правка (убрать/заменить продукт) без перегенерации -->
+        <button class="link-btn block__action" type="button" [disabled]="busy()" (click)="fixOpen.set(true)">
+          ✎ Исправить
+        </button>
+      </div>
       <div class="card card--tight">
         @for (ing of d.ingredients; track $index) {
           <div class="ing">
@@ -231,6 +237,8 @@
           <span class="page__footer-error">{{ e.text }}</span>
           <button class="link-btn" type="button" (click)="retrySwitch()">Повторить</button>
         </div>
+      } @else if (fixDone()) {
+        <div class="page__footer-status">✓ {{ fixDone() }}</div>
       }
       <!-- Свой рецепт («Мои рецепты») живёт вне беседы плана — обсуждать там нечего: кнопок нет,
            футер только для статуса ↻ -->
@@ -245,6 +253,10 @@
         </div>
       }
     </footer>
+  }
+
+  @if (fixOpen()) {
+    <ew-recipe-fix [planId]="planId()" [dishId]="dishId()" (fixed)="onFixed($event)" (closed)="fixOpen.set(false)" />
   }
 
   @if (regenAskOpen()) {

@@ -43,7 +43,7 @@ ModelKey = Literal["deepseek", "gemini", "anthropic", "cloudflare", "openrouter"
 MODEL_KEYS: tuple[str, ...] = get_args(ModelKey)
 
 # Задачи, для которых в настройках задаётся модель по умолчанию.
-Task = Literal["chat", "recipe", "shopping", "cooking", "prefs", "summary"]
+Task = Literal["chat", "recipe", "shopping", "cooking", "prefs", "summary", "fix"]
 TASKS: tuple[str, ...] = get_args(Task)
 
 # «Большие» модели — годятся на всё.
@@ -69,6 +69,11 @@ TASK_MODELS: dict[str, tuple[str, ...]] = {
     # DeepSeek/Gemini (Claude — дорогой и лимитированный). По умолчанию Cloudflare: у бесплатных
     # моделей OpenRouter дневной лимит запросов, а сводка — самый частый вызов.
     "summary": ("cloudflare", "openrouter", "deepseek", "gemini"),
+    # Точечная правка рецепта («Исправить»: убрать лук) — ответ короткий: только изменённые
+    # строки (prompt.FIX_RECIPE_SYSTEM), применяет их код. По умолчанию DeepSeek (дёшево и
+    # аккуратно); Cloudflare mistral — нет: на «убери перец» убрал и лук и сдвинул номера шагов
+    # (текст шага 6 пропал) — прогон 2026-10-09. OpenRouter — проба.
+    "fix": _FULL + ("openrouter",),
 }
 
 # Дефолт задачи, если модель из .env (RECIPE_MODEL_DEFAULT) для неё не годится.
@@ -88,7 +93,8 @@ def builtin_defaults() -> dict[str, str]:
     """Дефолты, пока настройки не сохранены: рецептные задачи — модель из .env
     (RECIPE_MODEL_DEFAULT, если она годится для задачи), покупки и предпочтения — Cloudflare."""
     base = config.recipe_model_default if config.recipe_model_default in MODEL_KEYS else _FALLBACK_FULL
-    out = {"shopping": "cloudflare", "prefs": "cloudflare", "summary": "cloudflare"}
+    out = {"shopping": "cloudflare", "prefs": "cloudflare", "summary": "cloudflare",
+           "fix": "deepseek"}
     for task in ("chat", "recipe", "cooking"):
         out[task] = base if allowed(task, base) else _FALLBACK_FULL
     return out

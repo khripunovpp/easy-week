@@ -23,6 +23,8 @@ from ..schemas import (
     Dish,
     DishShopping,
     DishVariant,
+    FixOut,
+    FixRequest,
     PlanSummary,
     RenameRequest,
     ShoppingChecked,
@@ -41,8 +43,11 @@ from ..services.mapping import to_cook_plan, to_dish, to_summary, to_week_plan
 from ..services.recipebook import LIBRARY_ID, LIBRARY_STATUS
 from ..services.regenerate import (
     DishNotFound,
+    FixNothing,
+    NoRecipe,
     backfill_all,
     cook_sig,
+    fix_dish,
     regenerate_cooking,
     regenerate_dish,
     regenerate_shopping,
@@ -353,6 +358,31 @@ async def dish_details(
     return await single_flight(
         key, lambda: _resolve_dish_detail(plan_id, dish_id, req, action, session, key)
     )
+
+
+@router.post("/{plan_id}/dishes/{dish_id}/fix")
+async def dish_fix(plan_id: str, dish_id: str, req: FixRequest, session: SessionDep) -> FixOut:
+    """«Исправить»: точечная правка рецепта («убери лук») моделью задачи «Правка рецепта» —
+    меняются только нужные строки ингредиентов/шагов/советов, остальное дословно. Одинаковые
+    параллельные просьбы склеиваются. Модель не нашла, что менять, — 422 с её объяснением."""
+    set_ai_context(plan_id=plan_id, dish_id=dish_id, endpoint="dish_fix")
+    row = _get_plan(session, plan_id)
+    key = (plan_id, dish_id, "fix", gate_for(req.recipe_model, "fix").key, req.request.strip())
+    try:
+        new, reply = await single_flight(
+            key, lambda: fix_dish(session, row, dish_id, req.request, req.recipe_model)
+        )
+    except DishNotFound as exc:
+        raise HTTPException(status_code=404, detail="Блюдо не найдено") from exc
+    except NoRecipe as exc:
+        raise HTTPException(status_code=409, detail="У блюда ещё нет рецепта") from exc
+    except FixNothing as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except LimitError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+    except AIError as exc:
+        raise HTTPException(status_code=502, detail=f"Не удалось исправить рецепт: {exc}") from exc
+    return FixOut(dish=to_dish(new), reply=reply)
 
 
 async def _resolve_dish_detail(

@@ -44,6 +44,7 @@ export class SettingsModelsPage {
     { task: 'cooking', label: 'План готовки', hint: 'порядок готовки всех блюд' },
     { task: 'prefs', label: 'Предпочтения из чата', hint: 'фоновое извлечение вкусов из сообщений' },
     { task: 'summary', label: 'Сводка чата', hint: 'краткая память беседы для ответов в чате' },
+    { task: 'fix', label: 'Правка рецепта', hint: '«Исправить» в рецепте: убрать или заменить продукт' },
   ];
 
   constructor() {

@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, shareReplay } from 'rxjs';
-import { withOfflineCopy } from '../shared/offline-copy';
+import { Observable, shareReplay, tap } from 'rxjs';
+import { saveOfflineCopy, withOfflineCopy } from '../shared/offline-copy';
 import {
   ChatMessage,
   DiscussTarget,
@@ -245,7 +245,7 @@ export interface TtsStatus {
 // chat — план/правки/обсуждение, recipe — рецепт блюда, shopping — нормализация покупок,
 // cooking — план готовки, prefs — фоновое извлечение предпочтений из чата, summary — фоновая
 // сводка беседы. initialized=false — ещё ни разу не сохраняли (встроенные дефолты).
-export type ModelTask = 'chat' | 'recipe' | 'shopping' | 'cooking' | 'prefs' | 'summary';
+export type ModelTask = 'chat' | 'recipe' | 'shopping' | 'cooking' | 'prefs' | 'summary' | 'fix';
 // Значение — ссылка на модель: «провайдер» (модель провайдера по умолчанию) или «провайдер:id»
 // (конкретная модель из каталога; id OpenRouter сам содержит «:» — режем по первому).
 export type ModelRef = string;
@@ -639,6 +639,21 @@ export class EasyWeekApi {
   // action: open — активный вариант (сгенерит первый, если детали нет);
   // select — сделать recipeModel активным (сгенерит его вариант, если ещё нет);
   // regenerate — новый вариант; note — уточнение из окна «Что учесть?» (необязательно).
+  // «Исправить»: точечная правка рецепта («убери лук») — новая версия активного варианта.
+  fixDish(
+    planId: string,
+    dishId: string,
+    request: string,
+    recipeModel: RecipeModel | string,
+  ): Observable<{ dish: Dish; reply: string }> {
+    return this.http
+      .post<{ dish: Dish; reply: string }>(`${API_BASE}/plans/${planId}/dishes/${dishId}/fix`, {
+        request,
+        recipeModel,
+      })
+      .pipe(tap((r) => saveOfflineCopy(`dish:${planId}:${dishId}`, r.dish)));
+  }
+
   dishDetails(
     planId: string,
     dishId: string,

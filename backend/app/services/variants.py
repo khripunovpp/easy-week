@@ -11,7 +11,8 @@
 - model_ref — точная модель «провайдер:id» (gates.model_ref); ключ варианта — провайдер;
 - kind — VARIANT_KINDS: generate (первое открытие/выбор модели), regenerate («↻», в т.ч.
   с «Что учесть?»), chat_edit (правка блюда в чате), discuss_edit (правка из обсуждения),
-  backfill (догенерация для покупок/PDF/готовки), custom (свой рецепт);
+  backfill (догенерация для покупок/PDF/готовки), custom (свой рецепт), fix («Исправить» —
+  точечная правка текста варианта: слот и model_ref — прежние, fix_ref — модель правки);
 - change — уточнение «Что учесть?» / правка из чата или обсуждения (пусто — без правки);
 - parent_id — ключ варианта, от которого шли (прежний вариант этой модели, иначе активный;
   None — рецепта ещё не было);
@@ -38,7 +39,7 @@ def now_iso() -> str:
 _PROVIDER_KEY = {g.provider: g.key for g in GATES.values()}
 
 
-VARIANT_KINDS = ("generate", "regenerate", "chat_edit", "discuss_edit", "backfill", "custom")
+VARIANT_KINDS = ("generate", "regenerate", "chat_edit", "discuss_edit", "backfill", "custom", "fix")
 
 
 def parent_key(dish: dict, model: str) -> str | None:
@@ -75,6 +76,7 @@ def variant_from_detail(
         "parent_id": parent_id,
         "ctx_uses": [str(u) for u in (ctx_uses or []) if u],
         "gen_id": detail.get("gen_id") or "",
+        **({"fix_ref": detail["fix_ref"]} if detail.get("fix_ref") else {}),
     }
 
 

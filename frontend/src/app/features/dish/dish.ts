@@ -1,13 +1,13 @@
 import { Location } from '@angular/common';
-import { Component, computed, effect, inject, input, signal } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, input, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { Dish, LIBRARY_PLAN_ID } from '../../models/plan.model';
 import { EasyWeekApi } from '../../services/api';
 import { ChatStore } from '../../services/chat-store';
 import { MODEL_LABELS, RecipeModel } from '../../services/preferences';
 import { ModelSettings } from '../../services/model-settings';
-import { LoaderModel } from '../../shared/cooking-loader';
-import { CookingLoader } from '../../shared/cooking-loader';
+import { CookingLoader, LoaderModel } from '../../shared/cooking-loader';
+import { RecipeFix } from './recipe-fix';
 import { Vote } from '../../shared/vote';
 import { formatGeneratedAt } from '../../shared/format';
 import { aiFailText } from '../../shared/ai-error';
@@ -18,7 +18,7 @@ import { NoteRow, parseStorageNote, storageSub } from '../../shared/storage';
 
 @Component({
   selector: 'ew-dish',
-  imports: [RouterLink, CookingLoader, Vote, ModelName, TtsBtn, Modal],
+  imports: [RouterLink, CookingLoader, Vote, ModelName, TtsBtn, Modal, RecipeFix],
   templateUrl: './dish.html',
   styleUrl: './dish.scss',
 })
@@ -240,6 +240,21 @@ export class DishPage {
         this.regenerating.set(false);
       },
     });
+  }
+
+  // ---- «Исправить» (у ингредиентов): точечная правка без перегенерации ----
+  readonly fixOpen = signal(false);
+  /** Что сделала правка — строкой в статусе футера на несколько секунд. */
+  readonly fixDone = signal('');
+  private fixDoneTimer: ReturnType<typeof setTimeout> | undefined;
+  private readonly fixCleanup = inject(DestroyRef).onDestroy(() => clearTimeout(this.fixDoneTimer));
+
+  onFixed(res: { dish: Dish; reply: string }): void {
+    this.fixOpen.set(false);
+    this.dish.set(res.dish);
+    this.fixDone.set(res.reply || 'Рецепт исправлен.');
+    clearTimeout(this.fixDoneTimer);
+    this.fixDoneTimer = setTimeout(() => this.fixDone.set(''), 6000);
   }
 
   // «В чат» (футер): беседа плана + бейдж «Обсуждение: <блюдо>» в композере.

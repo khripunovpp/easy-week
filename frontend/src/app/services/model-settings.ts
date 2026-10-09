@@ -18,6 +18,7 @@ const BUILTIN: ModelDefaults = {
   cooking: 'deepseek',
   prefs: 'cloudflare',
   summary: 'cloudflare',
+  fix: 'deepseek',
 };
 
 // Карта «задача → модели» как на бэке (services/settings.TASK_MODELS) — пока сервер не ответил.
@@ -30,6 +31,8 @@ const BUILTIN_TASKS: TaskModels = {
   cooking: FULL,
   prefs: ['cloudflare', 'openrouter', 'deepseek', 'gemini'],
   summary: ['cloudflare', 'openrouter', 'deepseek', 'gemini'],
+  // Правка рецепта — короткий ответ-правки; Cloudflare сдвигал номера шагов — не предлагаем.
+  fix: [...FULL, 'openrouter'],
 };
 
 /** Ссылка «провайдер[:id]» → [провайдер, id или ""] (id OpenRouter содержит «:» — режем по первому). */
@@ -230,6 +233,7 @@ export class ModelSettings {
       cooking: forTask('cooking'),
       prefs: 'cloudflare',
       summary: 'cloudflare',
+      fix: 'deepseek',
     };
     this.refs.set(seeded);
     this.api.putSettings(seeded).subscribe({
