@@ -1,14 +1,21 @@
 import re
+from uuid import uuid4
 
 from ..schemas import Dish, ShoppingGroup, ShoppingItem
 
+# Категории рецептов + отделы, которые встречаются только у своих товаров (хлеб, фрукты,
+# напитки, хозтовары) — порядок групп в списке. Рецепты пишут только первые семь.
 CATEGORY_ORDER = [
     "Мясо и птица",
     "Рыба",
     "Овощи",
+    "Фрукты",
     "Молочное",
+    "Хлеб и выпечка",
     "Бакалея",
     "Специи",
+    "Напитки",
+    "Хозтовары",
     "Прочее",
 ]
 
@@ -139,9 +146,12 @@ def sync_uses(dish: dict, leftovers: list[str] | None) -> dict:
     return {**dish, "uses": uses}
 
 
-def group_items(items: list[dict], leftovers: list[str] | None = None) -> list[ShoppingGroup]:
+def group_items(
+    items: list[dict], leftovers: list[str] | None = None, extras: list[dict] | None = None
+) -> list[ShoppingGroup]:
     """Группирует позиции по категориям в заданном порядке; остатки плана — в группу
-    «Есть дома» последней."""
+    «Есть дома» последней. extras — свои товары (PlanRow.shopping_extras): в свои категории
+    рядом с продуктами рецептов, с пометкой extra; в «Есть дома» не уходят — их просили купить."""
     by_cat: dict[str, list[ShoppingItem]] = {}
     for it in items:
         cat = it.get("category") or "Прочее"
@@ -155,6 +165,18 @@ def group_items(items: list[dict], leftovers: list[str] | None = None) -> list[S
                 category=cat,
             )
         )
+    for it in extras or []:
+        cat = it.get("category") or "Прочее"
+        by_cat.setdefault(cat, []).append(
+            ShoppingItem(
+                name=str(it.get("name", "")).strip(),
+                qty=it.get("qty", 0),
+                unit=str(it.get("unit", "")).strip(),
+                category=cat,
+                extra=True,
+                id=str(it.get("id", "")),
+            )
+        )
     order = CATEGORY_ORDER + [c for c in by_cat if c not in CATEGORY_ORDER and c != HOME_CATEGORY]
     order.append(HOME_CATEGORY)
     return [
@@ -162,6 +184,66 @@ def group_items(items: list[dict], leftovers: list[str] | None = None) -> list[S
         for c in order
         if c in by_cat
     ]
+
+
+# --- Свои товары («мимо рецептов»: хлеб, йогурт…) ---
+# Пользователь пишет их свободным текстом, модель задачи «Список покупок» раскладывает по
+# отделам (planner.parse_shopping_extras), здесь — чистка ответа и слияние с уже добавленными.
+
+EXTRAS_MAX = 100
+_EXTRA_UNITS = {"г", "кг", "мл", "л", "шт"}
+
+
+def clean_extras(items: list) -> list[dict]:
+    """Ответ модели → позиции {id, name, qty, unit, category}: имя с маленькой буквы, количество —
+    только названное (иначе qty 0 и без единицы), единица из короткого набора, отдел — из
+    CATEGORY_ORDER (незнакомый — «Прочее»). Одинаковые позиции ответа сливаются."""
+    out: list[dict] = []
+    for it in items or []:
+        if not isinstance(it, dict):
+            continue
+        name = " ".join(str(it.get("name") or "").split())[:60]
+        if not _canon_name(name):
+            continue
+        try:
+            qty = float(it.get("qty") or 0)
+        except (TypeError, ValueError):
+            qty = 0.0
+        unit = _norm_unit(str(it.get("unit") or ""))
+        if qty <= 0 or unit not in _EXTRA_UNITS:
+            qty, unit = 0.0, ""
+        cat = str(it.get("category") or "").strip()
+        out.append({
+            "id": uuid4().hex[:12],
+            "name": name[:1].lower() + name[1:] if not name[:2].isupper() else name,
+            "qty": int(qty) if qty == int(qty) else round(qty, 2),
+            "unit": unit,
+            "category": cat if cat in CATEGORY_ORDER else "Прочее",
+        })
+    return merge_extras([], out)
+
+
+def merge_extras(old: list[dict] | None, new: list[dict]) -> list[dict]:
+    """Добавить новые свои товары к уже добавленным: тот же продукт (каноничное имя) с той же
+    единицей — количества складываются («ещё молоко 1 л»), повтор без количества не дублируется,
+    количество у позиции без него — подставляется. Разные единицы — отдельные строки."""
+    out = [dict(it) for it in (old or [])]
+    for it in new:
+        key = _canon_name(str(it.get("name", "")))
+        same = next(
+            (o for o in out if _canon_name(str(o.get("name", ""))) == key
+             and (o.get("unit") == it.get("unit") or not o.get("qty") or not it.get("qty"))),
+            None,
+        )
+        if same is None:
+            out.append(dict(it))
+        elif it.get("qty"):
+            if same.get("qty") and same.get("unit") == it.get("unit"):
+                total = float(same["qty"]) + float(it["qty"])
+                same["qty"] = int(total) if total == int(total) else round(total, 2)
+            else:
+                same["qty"], same["unit"] = it["qty"], it["unit"]
+    return out[:EXTRAS_MAX]
 
 
 def build_shopping_list(dishes: list[Dish]) -> list[ShoppingGroup]:

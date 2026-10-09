@@ -225,9 +225,12 @@ class UsageOut(CamelModel):
 
 class ShoppingItem(CamelModel):
     name: str
-    qty: float
+    qty: float  # 0 — количество не названо (свой товар «хлеб»)
     unit: str
     category: str
+    # Свой товар (добавлен текстом мимо рецептов, PlanRow.shopping_extras) и его id — для удаления.
+    extra: bool = False
+    id: str = ""
 
 
 class ShoppingGroup(CamelModel):
@@ -438,6 +441,13 @@ class RecipeItem(CamelModel):
     # Когда сгенерирован активный вариант рецепта (группировка «По дате»; нет — дата плана).
     generated_at: datetime | None = None
     favorite: bool = False
+
+
+class ShoppingExtrasBody(CamelModel):
+    # Свои товары в покупках: список свободным текстом («хлеб, йогурт 2 шт, молоко 1 л»);
+    # модель — пусто → дефолт «Список покупок».
+    text: str = Field(min_length=2, max_length=2000)
+    recipe_model: str = ""
 
 
 class RecipeTextBody(CamelModel):

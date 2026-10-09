@@ -1145,6 +1145,34 @@ ul {
   width: 20px;
   height: 20px;
 }
+.icon-btn:disabled {
+  opacity: 0.55;
+}
+/* «↻ Перегенерировать» в шапке — круглая кнопка справа от выбора модели (Блюдо / Готовка /
+   Покупки), высотой с пилюлю .msel; пока идёт пересборка — стрелка крутится */
+.regen-btn {
+  width: 34px;
+  height: 34px;
+}
+.regen-btn svg {
+  width: 18px;
+  height: 18px;
+}
+.regen-btn--spin svg {
+  animation: msel-spin 0.9s linear infinite;
+}
+.page__actions:has(.regen-btn) {
+  gap: 6px;
+  max-width: none; /* модель + ↻ шире половины шапки — ужимается только при нехватке места */
+}
+/* Заголовок с датами недели + контролы справа (Покупки, Готовка): подзаголовок не переносим —
+   фикс-шапка не растёт; при нехватке места сжимается выпадашка модели (имя с многоточием) */
+.page__heading:has(+ .page__actions) {
+  flex-shrink: 0;
+}
+.page__actions .msel {
+  min-width: 0;
+}
 
 @media (prefers-reduced-motion: reduce) {
   * {

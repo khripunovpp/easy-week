@@ -9,7 +9,12 @@ from ..ai.base import AIError
 from ..ai.gates import gate_for
 from ..ai.limits import LimitError
 from ..ai.observe import set_ai_context
-from ..ai.planner import generate_cooking_plan, generate_dish_detail, normalize_shopping
+from ..ai.planner import (
+    generate_cooking_plan,
+    generate_dish_detail,
+    normalize_shopping,
+    parse_shopping_extras,
+)
 from ..db import get_session
 from ..models import PlanRow
 from ..schemas import (
@@ -21,7 +26,9 @@ from ..schemas import (
     DishVariant,
     PlanSummary,
     RenameRequest,
+    ShoppingExtrasBody,
     ShoppingGroup,
+    ShoppingItem,
     StatusRequest,
     WeekPlan,
 )
@@ -39,7 +46,7 @@ from ..services.regenerate import (
     regenerate_shopping,
     shopping_base,
 )
-from ..services.shopping import aggregate_ingredients, group_items, sync_uses
+from ..services.shopping import aggregate_ingredients, group_items, merge_extras, sync_uses
 from ..services.variants import apply_variant, now_iso, parent_key, variant_from_detail
 from ..services.variants import dish_variants as variants_of  # имя dish_variants занято роутом
 
@@ -136,7 +143,7 @@ async def shopping_list(plan_id: str, session: SessionDep) -> list[ShoppingGroup
 
     # Один вызов модели на план; дальше — из кэша.
     if row.shopping_sig == sig and row.shopping_cache:
-        return group_items(row.shopping_cache, row.leftovers)
+        return group_items(row.shopping_cache, row.leftovers, row.shopping_extras)
 
     try:
         items = await normalize_shopping(base)  # модель — дефолт «Список покупок» из настроек
@@ -144,16 +151,16 @@ async def shopping_list(plan_id: str, session: SessionDep) -> list[ShoppingGroup
         # Базу под этой подписью НЕ кэшируем — иначе сбой нормализации «застывал» навсегда
         # (кэш совпадает по sig, повторной попытки не было бы).
         logger.warning("shopping normalize failed, отдаём базу без кэша: %s", str(exc)[:150])
-        return group_items(base, row.leftovers)
+        return group_items(base, row.leftovers, row.shopping_extras)
     if not items:
-        return group_items(base, row.leftovers)
+        return group_items(base, row.leftovers, row.shopping_extras)
     row.shopping_cache = items
     row.shopping_sig = sig
     row.shopping_at = datetime.now(timezone.utc)
     row.shopping_model = gate_for("", "shopping").key  # GET нормализует дефолтом из настроек
     session.add(row)
     session.commit()
-    return group_items(items, row.leftovers)
+    return group_items(items, row.leftovers, row.shopping_extras)
 
 
 @router.get("/{plan_id}/shopping-list/by-dish")
@@ -193,7 +200,52 @@ async def shopping_regenerate(
         raise HTTPException(
             status_code=502, detail=f"Не удалось пересобрать список покупок: {exc}"
         ) from exc
-    return group_items(items, row.leftovers)
+    return group_items(items, row.leftovers, row.shopping_extras)
+
+
+def _extras_out(extras: list[dict] | None) -> list[ShoppingItem]:
+    return [it for g in group_items([], extras=extras) for it in g.items]
+
+
+@router.post("/{plan_id}/shopping-list/extras")
+async def shopping_extras_add(
+    plan_id: str, req: ShoppingExtrasBody, session: SessionDep
+) -> list[ShoppingItem]:
+    """Свои товары мимо рецептов («ещё хлеб, йогурт 2 шт»): текст разбирает модель списка
+    покупок (recipe_model — выпадашка страницы; пусто → дефолт задачи) по отделам, позиции
+    добавляются к уже добавленным (тот же продукт — количество складывается). Возвращает все
+    свои товары плана. Сбой модели — 502, ничего не пишем (без подмены моделью)."""
+    set_ai_context(plan_id=plan_id, endpoint="shopping_list", action="extras")
+    row = _get_plan(session, plan_id)
+    _not_library(row)
+    try:
+        new = await parse_shopping_extras(req.text, req.recipe_model)
+    except LimitError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+    except AIError as exc:
+        raise HTTPException(status_code=502, detail=f"Не удалось разобрать список: {exc}") from exc
+    # Пока модель думала, мог добавить кто-то ещё из семьи — сливаем со свежими из базы
+    # (дальше до коммита await нет).
+    session.refresh(row, attribute_names=["shopping_extras"])
+    row.shopping_extras = merge_extras(row.shopping_extras, new)
+    session.add(row)
+    session.commit()
+    logger.info("shopping extras: plan=%s +%d → %d", plan_id, len(new), len(row.shopping_extras))
+    return _extras_out(row.shopping_extras)
+
+
+@router.delete("/{plan_id}/shopping-list/extras/{item_id}")
+async def shopping_extras_delete(
+    plan_id: str, item_id: str, session: SessionDep
+) -> list[ShoppingItem]:
+    """Убрать свой товар из списка покупок (повторное удаление — не ошибка)."""
+    row = _get_plan(session, plan_id)
+    row.shopping_extras = [
+        it for it in (row.shopping_extras or []) if it.get("id") != item_id
+    ] or None
+    session.add(row)
+    session.commit()
+    return _extras_out(row.shopping_extras)
 
 
 @router.get("/{plan_id}/pdf")
@@ -208,7 +260,10 @@ async def plan_pdf(
     row = _get_plan(session, plan_id)
     await backfill_all(session, row, need_steps=recipes)
     plan = to_week_plan(row)
-    groups = group_items(aggregate_ingredients(plan.dishes), row.leftovers) if shopping else []
+    groups = (
+        group_items(aggregate_ingredients(plan.dishes), row.leftovers, row.shopping_extras)
+        if shopping else []
+    )
     pdf_bytes = build_plan_pdf(plan, groups, recipes=recipes, shop=shopping)
     return Response(
         content=pdf_bytes,

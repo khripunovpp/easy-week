@@ -7,7 +7,7 @@ import { aiFailText } from '../shared/ai-error';
 import { ALL_MODELS, RecipeModel } from './preferences';
 
 // Действие, инициированное кнопкой карточки, — «висит» бейджем в композере до отправки.
-// discuss — режим «Обсуждение: <что>» (кнопка «💬 Обсудить в чате» на странице рецепта /
+// discuss — режим «Обсуждение: <что>» (кнопка «В чат» в футере рецепта /
 // готовки / покупок): липкий — не снимается после отправки, только крестиком.
 export type PendingAction =
   | { kind: 'replace'; id: string; name: string }

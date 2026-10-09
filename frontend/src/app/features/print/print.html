@@ -100,7 +100,7 @@
               <h4>{{ group.category }}</h4>
               <ul>
                 @for (item of group.items; track item.name + item.unit) {
-                  <li>{{ item.name }} — {{ item.qty }} {{ item.unit }}</li>
+                  <li>{{ item.name }}@if (item.qty) { — {{ item.qty }} {{ item.unit }} }</li>
                 }
               </ul>
             </div>

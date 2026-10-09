@@ -36,6 +36,7 @@ from .prompt import (
     build_edit_action_messages,
     build_edit_messages,
     build_names_messages,
+    build_shop_extras_messages,
     build_shop_normalize_messages,
     build_single_dish_messages,
     build_validate_messages,
@@ -43,7 +44,7 @@ from .prompt import (
     free_leftovers,
 )
 from .stream_parse import PlanStreamParser
-from ..services.shopping import sync_uses
+from ..services.shopping import clean_extras, sync_uses
 from ..services.variants import with_detail
 
 logger = logging.getLogger("easy_week.planner")
@@ -1189,6 +1190,25 @@ async def normalize_shopping(
             raise AIError(f"{gate.provider} вернул пустой список покупок")
         out.extend(got)
     return out
+
+
+async def parse_shopping_extras(text: str, model: str = "") -> list[dict]:
+    """Свои товары в покупках: свободный текст пользователя («хлеб, йогурт 2 шт, молоко 1 л»)
+    → позиции по отделам магазина. model — пусто → модель списка покупок по умолчанию
+    (Cloudflare — со схемой, остальные — JSON-режим). Пустой разбор — AIError (роутер → 502)."""
+    gate = gate_for(model, "shopping")
+    cf_kw = {"schema": SHOP_SCHEMA, "model": cf_main(gate)} if _is_cf(gate) else {}
+    parsed, _ = await gate.complete_json(
+        build_shop_extras_messages(text),
+        **cf_kw,
+        max_tokens=min(300 + 12 * len(text), 3000),
+        temperature=0.2,
+        label="список покупок (свои товары)",
+    )
+    items = clean_extras(parsed.get("items") or [])
+    if not items:
+        raise AIError(f"{gate.provider} не разобрал список")
+    return items
 
 
 # --- Обсуждение цели в чате («💬 Обсудить в чате») ---

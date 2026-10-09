@@ -327,7 +327,7 @@ export class CookingPlanPage {
     });
   }
 
-  // «💬 Обсудить в чате»: беседа плана + бейдж «Обсуждение: план готовки».
+  // «В чат» (футер): беседа плана + бейдж «Обсуждение: план готовки».
   discuss(): void {
     const wp = this.weekPlan();
     if (!wp?.conversationId || this.busy()) return;

@@ -134,7 +134,9 @@ def build_plan_pdf(
             pdf.set_font(fam, "", 10.5)
             pdf.set_text_color(*INK)
             for it in g.items:
-                _mc(pdf, 5.5, f"•  {it.name} — {_num(it.qty)} {it.unit}")
+                # свой товар без количества («хлеб») — только название
+                qty = f" — {_num(it.qty)} {it.unit}" if it.qty else ""
+                _mc(pdf, 5.5, f"•  {it.name}{qty}")
             pdf.ln(2)
 
     return bytes(pdf.output())

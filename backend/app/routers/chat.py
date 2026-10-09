@@ -556,6 +556,11 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
     # иначе рецепт, догенерённый в родителе, пока модель правила план, терялся в новой версии.
     parent_now, _ = planstore.read_dishes(session, parent_id)
     carried = planstore.carry_current(snapshot, result["dishes"], parent_now)
+    # Свои товары покупок (хлеб, йогурт…) к блюдам не привязаны — переезжают в новую версию
+    # как есть, свежими из базы (могли добавить, пока модель правила план).
+    extras_now = session.exec(
+        select(PlanRow.shopping_extras).where(PlanRow.id == parent_id)
+    ).first()
     # Правка создаёт НОВУЮ версию плана (копию), исходный план остаётся доступен по ссылке.
     new_plan = planstore.new_row(
         session,
@@ -572,6 +577,7 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
         # Новые блюда, совпавшие по названию с книгой рецептов, — сразу с готовым рецептом.
         dishes=[sync_uses(d, new_leftovers) for d in attach_all(carried, index)],
         leftovers=new_leftovers or None,
+        shopping_extras=extras_now or None,
     )
     # Исходная версия заменена новой — сразу отменяем её (остаётся доступной по ссылке,
     # в истории/при перезагрузке чата свернётся как «отменён»).

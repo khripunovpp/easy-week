@@ -1,4 +1,4 @@
-<div class="page page--header-fixed" [class.page--footer-fixed]="!loading() && !!dish()">
+<div class="page page--header-fixed" [class.page--footer-fixed]="!loading() && !!dish() && !isOwn()">
   <header class="page__header page__header--fixed fade-top">
     <button class="icon-btn page__back" type="button" (click)="back()" aria-label="Назад">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -64,6 +64,20 @@
               </div>
             }
           </div>
+          <!-- «↻ Перегенерировать» — справа от выбора модели (GUIDEBOOK «Шапка: модель + ↻») -->
+          <button
+            class="icon-btn regen-btn"
+            type="button"
+            [class.regen-btn--spin]="regenerating()"
+            [disabled]="busy()"
+            aria-label="Перегенерировать"
+            title="Перегенерировать"
+            (click)="askRegenerate()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 12a8 8 0 1 1-2.34-5.66" stroke-linecap="round" />
+              <path d="M20 4v4.5h-4.5" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
         </div>
       }
     }
@@ -202,7 +216,7 @@
     </div>
   </div>
 
-  <!-- Футер действий (GUIDEBOOK «Футер действий страницы»): статус + ↻ / 💬 -->
+  <!-- Футер действий (GUIDEBOOK «Футер действий страницы»): статус + «В чат»; ↻ — в шапке -->
   @if (!loading() && dish()) {
     <footer class="page__footer page__footer--fixed fade-bottom">
       @if (regenerating()) {
@@ -218,13 +232,18 @@
           <button class="link-btn" type="button" (click)="retrySwitch()">Повторить</button>
         </div>
       }
-      <div class="page__footer-row">
-        <button class="btn-ghost" type="button" [disabled]="busy()" (click)="askRegenerate()">↻ Перегенерировать</button>
-        <!-- Свой рецепт («Мои рецепты») живёт вне беседы плана — обсуждать/заменять там нечего -->
-        @if (!isOwn()) {
-          <button class="btn-primary" type="button" [disabled]="busy()" (click)="discuss()">💬 Обсудить в чате</button>
-        }
-      </div>
+      <!-- Свой рецепт («Мои рецепты») живёт вне беседы плана — обсуждать там нечего: кнопок нет,
+           футер только для статуса ↻ -->
+      @if (!isOwn()) {
+        <div class="page__footer-row">
+          <button class="btn-primary" type="button" [disabled]="busy()" (click)="discuss()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v9A1.5 1.5 0 0 1 18.5 16H9l-4 3.5V16H5.5A1.5 1.5 0 0 1 4 14.5z" stroke-linejoin="round"/>
+              </svg>
+              В чат
+            </button>
+        </div>
+      }
     </footer>
   }
 

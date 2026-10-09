@@ -49,6 +49,10 @@ class PlanRow(SQLModel, table=True):
     shopping_at: datetime | None = None
     # Какая модель нормализовала закэшированный список (ключ) — для оценки 👍/👎 покупок.
     shopping_model: str = ""
+    # Свои товары мимо рецептов («ещё хлеб, йогурт»): [{id, name, qty, unit, category}] —
+    # разобраны моделью из текста пользователя, в список покупок добавляются к продуктам
+    # рецептов. Правка плана в чате переносит их в новую версию.
+    shopping_extras: list | None = Field(default=None, sa_column=Column(JSON))
     # Кэш единого плана готовки: {"variants": {model: {steps, note, provider}},
     # "active_model": str, "sig": str}. Варианты по моделям — для сравнения. Пишется через
     # planstore.patch_cooking (вариант модели вливается в свежепрочитанный кэш).

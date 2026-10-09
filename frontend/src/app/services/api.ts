@@ -149,9 +149,12 @@ export interface ChatStreamHandlers {
 
 export interface ShoppingListItem {
   name: string;
-  qty: number;
+  qty: number; // 0 — количество не названо (свой товар «хлеб»)
   unit: string;
   category: string;
+  // Свой товар (добавлен текстом мимо рецептов) и его id — для удаления.
+  extra?: boolean;
+  id?: string;
 }
 
 // Покупки одного блюда (режим «По рецептам»).
@@ -296,7 +299,7 @@ export interface RecipeItem {
 
 export interface ShoppingGroup {
   category: string;
-  items: { name: string; qty: number; unit: string; category: string }[];
+  items: ShoppingListItem[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -554,6 +557,20 @@ export class EasyWeekApi {
     return this.http.post<ShoppingGroup[]>(
       `${API_BASE}/plans/${planId}/shopping-list/regenerate`,
       { recipeModel },
+    );
+  }
+
+  // Свои товары мимо рецептов: текст разбирает модель списка покупок → все свои товары плана.
+  addShoppingExtras(planId: string, text: string, recipeModel: RecipeModel | string): Observable<ShoppingListItem[]> {
+    return this.http.post<ShoppingListItem[]>(`${API_BASE}/plans/${planId}/shopping-list/extras`, {
+      text,
+      recipeModel,
+    });
+  }
+
+  deleteShoppingExtra(planId: string, id: string): Observable<ShoppingListItem[]> {
+    return this.http.delete<ShoppingListItem[]>(
+      `${API_BASE}/plans/${planId}/shopping-list/extras/${encodeURIComponent(id)}`,
     );
   }
 

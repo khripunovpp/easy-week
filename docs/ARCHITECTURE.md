@@ -46,7 +46,7 @@ flowchart TD
     MS -. "дефолт" .-> PG
   end
   S <--> MS
-  C -- "recipeModel в теле запроса" --> API["/chat · /chat/stream · /chat/edit · /chat/discuss<br/>/plans/../dishes/../details · /cooking · /full · /shopping-list(/regenerate)"]
+  C -- "recipeModel в теле запроса" --> API["/chat · /chat/stream · /chat/edit · /chat/discuss<br/>/plans/../dishes/../details · /cooking · /full · /shopping-list(/regenerate · /extras)"]
   PG -- "recipeModel или пусто" --> API
   API --> GF{{"gate_for(recipeModel, task)<br/>пусто → дефолт задачи"}}
   S -. "default_model(task)" .-> GF
@@ -110,6 +110,7 @@ classDiagram
 | **Обсуждение** (`chat`; `/chat/discuss`: рецепт / готовка / покупки; применение — той же моделью чата, без неё — дефолт цели) | function calling (`DISCUSS_TOOLS`: update_recipe · replace_dish · regenerate) | structured JSON (`DISCUSS_SCHEMA`) | structured JSON (json_schema) |
 | **↻ Перегенерировать** (рецепт / план готовки) | выбранная (открытая) модель, всегда новый вариант с учётом обсуждения | ← | ← |
 | **↻ Перегенерировать** (покупки) | нормализация моделью из выпадашки страницы (дефолт `shopping`) мимо кэша, с учётом обсуждения | ← | ← |
+| **Свои покупки** (`shopping`; `POST /shopping-list/extras`) | текст пользователя → позиции по отделам, JSON-режим, форма в `SHOP_EXTRAS_SYSTEM` | ← | mistral + `SHOP_SCHEMA` |
 
 Метка провайдера сохраняется у плана (`provider`) и у детали блюда (`detail_provider`) — показывается бейджем.
 

@@ -38,10 +38,24 @@
                   @if (m === defaultShopModel()) { <span class="msel__tag">по умолчанию</span> }
                 </button>
               }
-              <p class="msel__hint">Сработает по «↻ Перегенерировать»</p>
+              <p class="msel__hint">Для ↻ и «Добавить» (свои покупки)</p>
             </div>
           }
         </div>
+        <!-- «↻ Перегенерировать» — справа от выбора модели (GUIDEBOOK «Шапка: модель + ↻») -->
+        <button
+          class="icon-btn regen-btn"
+          type="button"
+          [class.regen-btn--spin]="regenerating()"
+          [disabled]="busy()"
+          aria-label="Перегенерировать"
+          title="Перегенерировать"
+          (click)="regenerate()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 12a8 8 0 1 1-2.34-5.66" stroke-linecap="round" />
+            <path d="M20 4v4.5h-4.5" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </button>
       </div>
     }
   </header>
@@ -106,6 +120,18 @@
             }
           </section>
         }
+        @if (extras().length) {
+          <!-- Свои покупки — не из рецептов: отдельной секцией после блюд (пометка «своё» не нужна) -->
+          <section class="dish-sec dish-sec--extras">
+            <h2 class="dish-sec__title">
+              <span class="dish-sec__emoji">🛒</span>
+              <span>Свои покупки</span>
+            </h2>
+            @for (group of extrasGroups(); track group.category) {
+              <ng-container *ngTemplateOutlet="groupTpl; context: { $implicit: group, prefix: '' }" />
+            }
+          </section>
+        }
       }
 
       @if (loading()) {
@@ -117,7 +143,8 @@
     }
   </div>
 
-  <!-- Футер действий (GUIDEBOOK «Футер действий страницы»): статус + ↻ / 💬 -->
+  <!-- Футер действий (GUIDEBOOK «Футер действий страницы»): статус + «Добавить» (свои покупки) /
+       «В чат»; ↻ — в шапке -->
   @if (hasFooter()) {
     <footer class="page__footer page__footer--fixed fade-bottom">
       @if (regenerating()) {
@@ -129,10 +156,25 @@
         </div>
       }
       <div class="page__footer-row">
-        <button class="btn-ghost" type="button" [disabled]="busy()" (click)="regenerate()">↻ Перегенерировать</button>
-        <button class="btn-primary" type="button" [disabled]="busy()" (click)="discuss()">💬 Обсудить в чате</button>
+        <!-- Свои покупки мимо рецептов (хлеб, йогурт…): окно со свободным текстом -->
+        <button class="btn-ghost" type="button" [disabled]="busy() || !currentPlanId()" (click)="addOpen.set(true)">Добавить</button>
+        <button class="btn-primary" type="button" [disabled]="busy()" (click)="discuss()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v9A1.5 1.5 0 0 1 18.5 16H9l-4 3.5V16H5.5A1.5 1.5 0 0 1 4 14.5z" stroke-linejoin="round"/>
+          </svg>
+          В чат
+        </button>
       </div>
     </footer>
+  }
+
+  @if (addOpen()) {
+    <ew-shop-add
+      [planId]="currentPlanId()"
+      [extras]="extras()"
+      [(model)]="shopModel"
+      (changed)="onExtras($event)"
+      (closed)="addOpen.set(false)" />
   }
 </div>
 
@@ -160,7 +202,7 @@
             </span>
             <span class="group__name">{{ group.category }}</span>
           </button>
-          @for (item of group.items; track item.name + item.unit) {
+          @for (item of group.items; track item.name + item.unit + (item.id ?? '')) {
             <button
               (click)="toggle(item, prefix)"
               [class.row--done]="isChecked(item, prefix)"
@@ -173,7 +215,7 @@
                   </svg>
                 }
               </span>
-              <span class="row__name">{{ item.name }}</span>
+              <span class="row__name">{{ item.name }}@if (item.extra) {<span class="row__tag">своё</span>}</span>
               <span class="row__qty">{{ fmtQty(item) }}</span>
             </button>
           }

@@ -12,21 +12,27 @@ import { aiFailText } from '../../shared/ai-error';
 import { Vote } from '../../shared/vote';
 import { productKey, sameProduct } from '../../shared/product-key';
 import { ModelName } from '../../shared/model-name';
+import { ShopAdd } from './shop-add';
 
-// Порядок категорий в списке (как на бэке). Незнакомые — в конце.
+// Порядок категорий в списке (как на бэке, services/shopping.CATEGORY_ORDER): рецепты пишут
+// первые семь, отделы вроде «Хлеб и выпечка» / «Хозтовары» — у своих товаров. Незнакомые — в конце.
 const CATEGORY_ORDER = [
   'Мясо и птица',
   'Рыба',
   'Овощи',
+  'Фрукты',
   'Молочное',
+  'Хлеб и выпечка',
   'Бакалея',
   'Специи',
+  'Напитки',
+  'Хозтовары',
   'Прочее',
 ];
 
 @Component({
   selector: 'ew-shopping',
-  imports: [NgTemplateOutlet, CookingLoader, PlanPicker, Vote, ModelName],
+  imports: [NgTemplateOutlet, CookingLoader, PlanPicker, Vote, ModelName, ShopAdd],
   templateUrl: './shopping.html',
   styleUrl: './shopping.scss',
 })
@@ -72,6 +78,21 @@ export class Shopping {
   readonly modelMenuOpen = signal(false);
   // Модели, годные для нормализации покупок (карта задач с сервера).
   readonly allModels = this.modelSettings.modelsForSignal('shopping');
+
+  // ---- Свои покупки (мимо рецептов): «Добавить» в футере → окно, модель — та же, что для ↻ ----
+  readonly addOpen = signal(false);
+  /** Свои товары плана — приходят в общем списке с пометкой extra. */
+  readonly extras = computed(() => this.items().filter((it) => it.extra));
+  /** Свои товары по отделам — отдельная секция в режиме «По рецептам». */
+  readonly extrasGroups = computed(() => this.groupByCategory(this.extras(), ''));
+
+  /** Окно прислало новый полный список своих товаров (добавили/убрали) — меняем только их. */
+  onExtras(list: ShoppingListItem[]): void {
+    const pid = this.currentPlanId();
+    const items = [...this.items().filter((it) => !it.extra), ...list.map((it) => ({ ...it, extra: true }))];
+    this.items.set(items);
+    if (pid) this.saveItems(pid, items);
+  }
 
   // Отметки «куплено» — ОДНИ на оба режима: множество ключей продуктов (productKey).
   // Отметил лук в «Общем» — он отмечен и во всех блюдах в «По рецептам», и наоборот.
@@ -162,7 +183,10 @@ export class Shopping {
   // Счётчик «отмечено / всего» — по строкам текущего режима (отметки общие).
   private readonly visibleItems = computed(() =>
     this.mode() === 'dish'
-      ? this.byDish().flatMap((d) => d.items.map((it) => ({ it, dish: true })))
+      ? [
+          ...this.byDish().flatMap((d) => d.items.map((it) => ({ it, dish: true }))),
+          ...this.extras().map((it) => ({ it, dish: false })), // секция «Свои покупки»
+        ]
       : this.items().map((it) => ({ it, dish: false })),
   );
   readonly total = computed(() => this.visibleItems().length);
@@ -317,7 +341,7 @@ export class Shopping {
     this.modelMenuOpen.set(false);
   }
 
-  // «💬 Обсудить в чате»: беседа плана + бейдж «Обсуждение: список покупок».
+  // «В чат» (футер): беседа плана + бейдж «Обсуждение: список покупок».
   discuss(): void {
     const pid = this.currentPlanId();
     if (!pid || this.busy()) return;
@@ -402,8 +426,9 @@ export class Shopping {
     this.setChecked(group.items, !turnOff, prefix);
   }
 
+  // Свой товар без количества («хлеб») — справа пусто, а не «0».
   fmtQty(item: { qty: number; unit: string }): string {
-    return `${item.qty} ${item.unit}`;
+    return item.qty ? `${item.qty} ${item.unit}` : '';
   }
 
   private storageKey(planId: string): string {

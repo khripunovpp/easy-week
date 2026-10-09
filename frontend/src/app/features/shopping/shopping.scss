@@ -165,3 +165,22 @@
 .dish-sec__emoji {
   font-size: 20px;
 }
+
+/* Пометка своего товара в строке (не из рецептов) */
+.row__tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: var(--r-pill);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  vertical-align: 2px;
+}
+.row--done .row__tag {
+  opacity: 0.55;
+}
+.dish-sec--extras .row__tag {
+  display: none;
+}

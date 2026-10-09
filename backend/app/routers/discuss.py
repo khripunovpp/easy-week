@@ -173,7 +173,9 @@ async def chat_discuss(req: DiscussRequest, session: SessionDep) -> DiscussRespo
             await regenerate_cooking(session, row, model)
             out.cooking = to_cook_plan(row)
         elif op == "regenerate" and target == "shopping":
-            out.shopping = group_items(await regenerate_shopping(session, row, model), row.leftovers)
+            out.shopping = group_items(
+                await regenerate_shopping(session, row, model), row.leftovers, row.shopping_extras
+            )
         elif op == "replace":
             out.suggest_replace = True
             out.replace_query = res["query"]
