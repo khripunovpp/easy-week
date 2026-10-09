@@ -58,7 +58,8 @@ def test_get_defaults_when_missing():
                               "cooking": base, "prefs": "cloudflare", "summary": "cloudflare"}
     # Карта задач едет фронту — он строит по ней выпадашки.
     assert body["taskModels"]["recipe"] == ["deepseek", "gemini", "anthropic"]
-    assert "openrouter" in body["taskModels"]["shopping"]
+    assert "openrouter" not in body["taskModels"]["shopping"]  # путали количества
+    assert "openrouter" in body["taskModels"]["prefs"]
 
 
 def test_put_persists_atomically():
@@ -90,10 +91,13 @@ def test_stored_disallowed_model_falls_back_to_builtin():
     # settings.json, сохранённый до появления карты: Cloudflare на рецептах → встроенный дефолт.
     f = app_settings._file()
     f.parent.mkdir(parents=True, exist_ok=True)
-    f.write_text('{"models": {"recipe": "cloudflare", "shopping": "openrouter"}}', encoding="utf-8")
+    f.write_text('{"models": {"recipe": "cloudflare", "shopping": "openrouter", '
+                 '"prefs": "openrouter"}}', encoding="utf-8")
     models = app_settings.get_models()
     assert models["recipe"] == app_settings.builtin_defaults()["recipe"]
-    assert models["shopping"] == "openrouter"  # а где годится — берём как есть
+    # OpenRouter сняли с покупок — сохранённый раньше выбор тоже не берём.
+    assert models["shopping"] == "cloudflare"
+    assert models["prefs"] == "openrouter"  # а где годится — берём как есть
 
 
 def test_broken_file_falls_back_to_defaults():

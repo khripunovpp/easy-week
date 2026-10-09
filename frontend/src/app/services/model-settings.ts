@@ -26,7 +26,7 @@ const FULL: RecipeModel[] = ['deepseek', 'gemini', 'anthropic'];
 const BUILTIN_TASKS: TaskModels = {
   chat: [...FULL, 'cloudflare', 'openrouter'],
   recipe: FULL,
-  shopping: [...FULL, 'cloudflare', 'openrouter'],
+  shopping: [...FULL, 'cloudflare'],
   cooking: FULL,
   prefs: ['cloudflare', 'openrouter', 'deepseek', 'gemini'],
   summary: ['cloudflare', 'openrouter', 'deepseek', 'gemini'],

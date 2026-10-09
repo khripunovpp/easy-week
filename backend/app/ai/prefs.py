@@ -152,16 +152,34 @@ def _is_review(message: str) -> bool:
     return any(m in t for m in ("понрав", "вкусн")) and not any(m in t for m in ("любл", "обожа"))
 
 
+def has_permanent_marker(message: str) -> bool:
+    """«вообще», «никогда», «терпеть не могу»… — устойчивый вкус, даже в пожелании к кнопке."""
+    t = _norm_text(message)
+    return any(m in t for m in _PERMANENT_MARKERS)
+
+
+def _short_forms(w: str) -> set[str]:
+    """Падежи короткого слова: «щи» → щи, щей, щам, щами, щах."""
+    return {w} | {w[:-1] + end for end in ("ей", "ам", "ами", "ах")}
+
+
 def grounded(items, message: str) -> list[str]:
     """Только продукты, которые реально есть в тексте (основа слова ≥3 букв) — модель не
-    должна додумывать «картошка с бабами» из «картошка ой»."""
+    должна додумывать «картошка с бабами» из «картошка ой». Продукт из одних коротких слов
+    («щи») — целым словом или падежом: раньше он отбрасывался всегда (👎 «не люблю щи»)."""
     t = _norm_text(message)
+    tokens = set(re.findall(r"[а-яa-z]+", t))
     out: list[str] = []
     for x in items or []:
         if not isinstance(x, str):
             continue
-        words = [w for w in re.findall(r"[а-яa-z]+", _norm_text(x)) if len(w) >= 3]
-        if words and any(w[: max(3, len(w) - 2)] in t for w in words):
+        all_words = re.findall(r"[а-яa-z]+", _norm_text(x))
+        words = [w for w in all_words if len(w) >= 3]
+        if words:
+            ok = any(w[: max(3, len(w) - 2)] in t for w in words)
+        else:
+            ok = any(_short_forms(w) & tokens for w in all_words if len(w) == 2)
+        if ok:
             out.append(x)
     return out
 

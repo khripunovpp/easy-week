@@ -44,7 +44,7 @@ from .prompt import (
     free_leftovers,
 )
 from .stream_parse import PlanStreamParser
-from ..services.shopping import clean_extras, sync_uses
+from ..services.shopping import clean_extras, reconcile_normalized, sync_uses
 from ..services.variants import with_detail
 
 logger = logging.getLogger("easy_week.planner")
@@ -1103,28 +1103,86 @@ def remove_dish_by_id(dishes: list[dict], title: str, dish_id: str) -> dict[str,
             "dishes": work, "provider": "", "changed": changed}
 
 
+# Начало части, которая уточняет пожелание, а не называет блюдо: «лёгкое, без рыбы»,
+# «суп, но не борщ» — это одно блюдо, а не список.
+_NOT_DISH_START = frozenset(
+    "без не но и а или либо чтобы чтоб только лучше можно нужно желательно что что-то "
+    "что-нибудь какое-нибудь какой-нибудь какое какой какую любое любой одно один одну "
+    "два две три пару ещё еще тоже также на для до с со из под по к как типа например "
+    "пожалуйста плиз побольше поменьше острое острый попроще".split()
+)
+_LIST_SPLIT = re.compile(r"[,;\n]+")
+_BULLET = re.compile(r"^\s*(?:[-•*·]+|\d+[.)])\s*")
+_MAX_ADD = 6
+
+
+def split_dish_list(query: str) -> list[str]:
+    """«жаркое по-домашнему, суп с фрикадельками, салат крабовый» → три названия.
+    Список — только если частей ≥ 2 и каждая похожа на название блюда (не начинается с
+    уточнения вроде «без …»/«но …», не длиннее 8 слов). Иначе [] — одно блюдо по пожеланию."""
+    parts = [_BULLET.sub("", p).strip(" .!") for p in _LIST_SPLIT.split(query or "")]
+    parts = [p for p in parts if re.search(r"[а-яёa-z]", p, re.I)]
+    if len(parts) < 2:
+        return []
+    for p in parts:
+        words = p.split()
+        if len(words) > 8 or words[0].lower() in _NOT_DISH_START:
+            return []
+    if len(parts) > _MAX_ADD:
+        logger.warning("add dish: в списке %d блюд — добавляем первые %d", len(parts), _MAX_ADD)
+    return parts[:_MAX_ADD]
+
+
 async def add_dish_direct(
     dishes: list[dict], title: str, query: str, gender: str = "f", model: str = "",
     *, context: str = "", rejected: list[str] | None = None, avoid: list[str] | None = None,
     leftovers: list[str] | None = None, book: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Добавить одно блюдо в существующий план (кнопка «Добавить блюдо») — без выбора функции
-    моделью. query — пожелание пользователя (может быть пустым)."""
+    """Добавить блюдо в существующий план (кнопка «Добавить блюдо») — без выбора функции
+    моделью. query — пожелание пользователя (может быть пустым). Перечислено несколько
+    блюд через запятую/строки — добавляем каждое (параллельно, тем же промптом на одно блюдо;
+    раньше добавлялось одно из списка — 👎 2026-10-09)."""
     gate = gate_for(model)
     work = [dict(d) for d in dishes]
-    one = await generate_single_dish(
-        query, model=model, gender=gender, plan_dishes=work, rejected=rejected,
-        avoid_titles=avoid, context=context, leftovers=free_leftovers(leftovers, work),
-        book=book,
+    queries = split_dish_list(query) or [query]
+    free = free_leftovers(leftovers, work)
+    results = await asyncio.gather(
+        *(
+            generate_single_dish(
+                q, model=model, gender=gender, plan_dishes=work, rejected=rejected,
+                avoid_titles=avoid, context=context, leftovers=free, book=book,
+            )
+            for q in queries
+        ),
+        return_exceptions=True,
     )
-    if not one:
+    ids = {d["id"] for d in work}
+    changed: list[str] = []
+    failed: list[str] = []
+    first_exc: BaseException | None = None
+    for q, res in zip(queries, results):
+        if isinstance(res, BaseException):
+            if not isinstance(res, Exception):
+                raise res  # CancelledError и т.п. — не глотаем
+            first_exc = first_exc or res
+            failed.append(q)
+            continue
+        if not res:
+            failed.append(q)
+            continue
+        nd = _reid(res["dish"], len(work), ids)
+        work.append(nd)
+        changed.append(f"добавлено «{nd.get('name')}»")
+    if not changed:
+        if first_exc is not None:
+            raise first_exc  # ничего не добавили — ошибка модели как есть (502/429 в роутере)
         return {"reply": "Не удалось подобрать блюдо. Попробуйте ещё раз.", "title": title,
                 "dishes": dishes, "provider": gate.provider, "changed": []}
-    ids = {d["id"] for d in work}
-    nd = _reid(one["dish"], len(work), ids)
-    work.append(nd)
-    changed = [f"добавлено «{nd.get('name')}»"]
-    return {"reply": "Готово: " + changed[0] + ".", "title": title,
+    reply = "Готово: " + ", ".join(changed) + "."
+    if failed:
+        reply += " Не получилось добавить: " + ", ".join(f"«{q}»" for q in failed) + \
+            " — попробуйте ещё раз."
+    return {"reply": reply, "title": title,
             "dishes": work, "provider": gate.provider, "changed": changed}
 
 
@@ -1184,11 +1242,12 @@ async def normalize_shopping(
         for i, chunk in enumerate(chunks)
     ))
     out: list[dict] = []
-    for parsed, _ in results:
+    for chunk, (parsed, _) in zip(chunks, results):
         got = parsed.get("items") or []
         if not got:
             raise AIError(f"{gate.provider} вернул пустой список покупок")
-        out.extend(got)
+        # Количества — кодом из базы (модель только склеивает/называет/раскладывает по отделам).
+        out.extend(reconcile_normalized(chunk, got, keep_missing=not discussion))
     return out
 
 

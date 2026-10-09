@@ -205,6 +205,8 @@ async def chat_stream(
         session.add(conv)
         session.commit()
         record_conversation()
+    # Беседа — в контекст AI-лога ДО фоновых задач (задача копирует контекст при создании).
+    set_ai_context(conversation_id=conv.id, endpoint="chat_stream")
     if _save_user_message(session, conv.id, req.message, resend=req.resend):
         prefs.learn_async(req.message)  # фоново запоминаем предпочтения (CF, бесплатно)
         chat_summary.schedule(conv.id)  # сводка беседы — фоном, дебаунс 5 с
@@ -318,6 +320,7 @@ async def chat(req: ChatRequest, session: SessionDep) -> ChatResponse:
         session.commit()
         record_conversation()
 
+    set_ai_context(conversation_id=conv.id, endpoint="chat")  # до фоновых задач (см. выше)
     if _save_user_message(session, conv.id, req.message, resend=req.resend):
         prefs.learn_async(req.message)  # фоново запоминаем предпочтения (CF, бесплатно)
         chat_summary.schedule(conv.id)  # сводка беседы — фоном, дебаунс 5 с
@@ -481,13 +484,17 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
     leftovers = [str(x) for x in (row.leftovers or [])]
     if leftovers:
         context = "\n".join(p for p in (context, leftovers_status(leftovers, row.dishes or [])) if p)
-    # Вкусы извлекаем ТОЛЬКО из свободного текста правки в чате. Действия по кнопкам
-    # (replace/remove/add — даже с пожеланием «без рыбы») — разовые, не устойчивые вкусы:
-    # CF не дёргаем (раньше так в dislikes навсегда попадала «рыба»). Текстовые правки
-    # («без свинины») разбираем: экстрактору даём структурный хинт + контекст, чтобы «замени на
-    # не-суп»/«где суп» не улетали в предпочтения (см. prefs._EXTRACT_SYSTEM).
+    # Вкусы извлекаем из свободного текста правки в чате. Пожелание к кнопке
+    # (replace/add — «без рыбы») — разовое: экстрактор не зовём (раньше так в dislikes навсегда
+    # попадала «рыба»), КРОМЕ слов про постоянство («макс не любит тыкву вообще», «никогда»).
+    # Текстовые правки («без свинины») разбираем: экстрактору даём структурный хинт + контекст,
+    # чтобы «замени на не-суп»/«где суп» не улетали в предпочтения (см. prefs._EXTRACT_SYSTEM).
     if req.message.strip() and not button:
         prefs.learn_async(req.message, "Это правка уже составленного плана.\n" + context)
+    elif req.message.strip() and button and prefs.has_permanent_marker(req.message):
+        prefs.learn_async(
+            req.message, "Это пожелание к замене/добавлению блюда по кнопке.\n" + context
+        )
     # Память беседы для add/replace/create: что уже отвергнуто здесь + общая история.
     rejected = conversation_rejected(session, conv.id) if not req.remove_dish_id else []
     avoid = variety_avoid(session, exclude_conversation=conv.id) if not req.remove_dish_id else []

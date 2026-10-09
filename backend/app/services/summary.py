@@ -35,7 +35,7 @@ from ..ai.prompt import (
 )
 from ..config import settings
 from ..db import engine
-from ..models import Conversation, MessageRow, PlanRow
+from ..models import Conversation, MessageRow
 from .history import original_request
 
 logger = logging.getLogger("easy_week.summary")
@@ -75,13 +75,20 @@ async def _debounced(conversation_id: str) -> None:
             logger.warning("summary failed for %s: %s", conversation_id, str(exc)[:150])
 
 
-def _line(m: MessageRow, plan_names: dict[str, list[str]]) -> str:
+# Операции над планом — не пожелания: реплики кнопок (лейблы из routers/chat.chat_edit) и
+# подтверждения «Готово: …». Дешёвая модель пересказывала их состоянием плана, причём неверно
+# («добавить: жаркое, салат», когда они уже добавлены), а состав плана генерации и так знают.
+# Устойчивый вкус из пожелания к кнопке ловит экстрактор предпочтений.
+_OP_PREFIXES = {"user": ("Добавить блюдо", "Замена «", "Замена блюда"), "assistant": ("Готово:",)}
+
+
+def _line(m: MessageRow) -> str:
+    # Состав плана в промпт сводки тоже не даём (см. _OP_PREFIXES).
+    if (m.text or "").lstrip().startswith(_OP_PREFIXES.get(m.role, ())):
+        return ""
     who = "Пользователь" if m.role == "user" else "Ассистент"
     text = _clip(m.text or "", MSG_CLIP)
     tag = f" ({_TARGET_RU[m.discuss_target]})" if m.discuss_target in _TARGET_RU else ""
-    names = plan_names.get(m.plan_id or "")
-    if m.role == "assistant" and names:
-        text = (text + " " if text else "") + f"[план: {', '.join(names[:8])}]"
     return f"{who}{tag}: {text}" if text else ""
 
 
@@ -110,13 +117,7 @@ async def summarize(conversation_id: str, session: Session | None = None) -> str
     if not any(m.role == "user" for m in new):
         return None  # с прошлой сводки пользователь ничего не писал
 
-    plan_ids = {m.plan_id for m in new if m.plan_id}
-    plan_names: dict[str, list[str]] = {}
-    for pid in plan_ids:
-        row = session.get(PlanRow, pid)
-        if row is not None:
-            plan_names[pid] = [str(d.get("name")) for d in (row.dishes or []) if d.get("name")]
-    lines = [ln for m in new if (ln := _line(m, plan_names))]
+    lines = [ln for m in new if (ln := _line(m))]
     if not lines:
         return None
 

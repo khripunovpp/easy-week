@@ -67,7 +67,9 @@ def test_summary_incremental_and_single(session, conv, monkeypatch):
     assert out == "- 5 ужинов\n- без рыбы" and seen == ["summary"]
     user_prompt = gate.calls[0][0][1]["content"]
     assert "Прошлая сводка" not in user_prompt  # первой сводке нечего продолжать
-    assert "[план: Борщ, Плов]" in user_prompt and "Пользователь: убери рыбу" in user_prompt
+    # Состав плана в сводку не идёт (модель пересказывала его неверно), реплики — идут.
+    assert "Борщ" not in user_prompt and "Пользователь: убери рыбу" in user_prompt
+    assert "Ассистент: Готово" in user_prompt
     c = session.get(Conversation, conv)
     assert c.summary == out and c.summary_upto == "m3"
 
@@ -188,3 +190,20 @@ def test_plan_stream_passes_context(monkeypatch):
     user = gate.messages[1]["content"]
     assert "Первое сообщение пользователя (с чего начался чат): 5 ужинов" in user
     assert "- без рыбы" in user
+
+
+def test_plan_operations_not_in_summary_prompt(session, conv, monkeypatch):
+    # Кнопки и «Готово: …» — операции над планом: модель пересказывала их неверным состоянием.
+    gate = FakeGate("- славянская кухня")
+    monkeypatch.setattr(summary, "gate_for", lambda m, task="chat": gate)
+    _msg(session, conv, 1, "user", "хочу славянскую кухню")
+    _msg(session, conv, 2, "assistant", "Вот план")
+    _msg(session, conv, 3, "user", "Добавить блюдо: жаркое, салат крабовый")
+    _msg(session, conv, 4, "assistant", "Готово: добавлено «Жаркое».")
+    _msg(session, conv, 5, "user", "Замена «Щи»: что-то полегче")
+    _msg(session, conv, 6, "user", "не люблю щи")
+    asyncio.run(summary.summarize(conv, session))
+    user_prompt = gate.calls[0][0][1]["content"]
+    assert "Пользователь: не люблю щи" in user_prompt and "Ассистент: Вот план" in user_prompt
+    assert "Добавить блюдо" not in user_prompt and "Готово" not in user_prompt
+    assert "Замена" not in user_prompt

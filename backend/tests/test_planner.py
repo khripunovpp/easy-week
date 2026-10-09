@@ -80,6 +80,58 @@ def test_add_direct_appends_one(monkeypatch):
     assert res["dishes"][-1]["name"] == "Сырники"  # без пожелания — первое
 
 
+class EchoGate(FakeGate):
+    """Отвечает блюдом, названным по пожеланию из промпта (для списка «Добавить блюдо»)."""
+
+    def __init__(self, fail_on: str = ""):
+        super().__init__({})
+        self.fail_on = fail_on
+
+    async def complete_json(self, messages, **kw):
+        wish = messages[-1]["content"].split("(важнее остального): ")[-1].split("\n")[0]
+        self.calls.append((messages, kw))
+        for name in ("Жаркое по-домашнему", "Суп с фрикадельками", "Салат крабовый"):
+            if name.split()[0].lower() in wish.lower():
+                if self.fail_on and self.fail_on in name:
+                    raise planner.AIError("upstream 503")
+                return {"reply": "ок", "dish": _dish(name)}, {}
+        return {"reply": "ок", "dish": _dish("Омлет")}, {}
+
+
+def test_split_dish_list():
+    q = "жаркое по домашнему из свинины, суп с фрикадельками говяжий свинина, салат крабовый"
+    assert planner.split_dish_list(q) == [
+        "жаркое по домашнему из свинины", "суп с фрикадельками говяжий свинина", "салат крабовый"]
+    assert planner.split_dish_list("- сырники\n- омлет") == ["сырники", "омлет"]
+    # Уточнения к одному блюду — не список.
+    assert planner.split_dish_list("что-нибудь лёгкое, без рыбы") == []
+    assert planner.split_dish_list("суп, но не борщ") == []
+    assert planner.split_dish_list("рыбу") == []
+    assert planner.split_dish_list("") == []
+
+
+def test_add_direct_adds_every_dish_from_list(monkeypatch):
+    gate = EchoGate()
+    monkeypatch.setattr(planner, "gate_for", lambda m, task="chat": gate)
+    res = asyncio.run(planner.add_dish_direct(
+        PLAN, "План", "жаркое по домашнему, суп с фрикадельками, салат крабовый"))
+    names = [d["name"] for d in res["dishes"]]
+    assert names == ["Борщ", "Гуляш", "Плов",
+                     "Жаркое по-домашнему", "Суп с фрикадельками", "Салат крабовый"]
+    assert len({d["id"] for d in res["dishes"]}) == 6
+    assert len(gate.calls) == 3 and len(res["changed"]) == 3
+    assert "Не получилось" not in res["reply"]
+
+
+def test_add_direct_list_partial_failure_keeps_added(monkeypatch):
+    gate = EchoGate(fail_on="Суп")
+    monkeypatch.setattr(planner, "gate_for", lambda m, task="chat": gate)
+    res = asyncio.run(planner.add_dish_direct(
+        PLAN, "План", "жаркое по домашнему, суп с фрикадельками, салат крабовый"))
+    assert [d["name"] for d in res["dishes"]][3:] == ["Жаркое по-домашнему", "Салат крабовый"]
+    assert "Не получилось добавить: «суп с фрикадельками»" in res["reply"]
+
+
 def test_pick_one_skips_dishes_already_in_plan():
     got = planner._pick_one([_dish("Борщ"), _dish("Уха")], "", {"борщ"})
     assert got["name"] == "Уха"

@@ -247,3 +247,17 @@ def test_review_of_dish_is_only_suggestion(pfile, monkeypatch):
     _run(monkeypatch, "прошлая солянка очень понравилась", {"likes": ["солянка"]})
     data = prefs.load()
     assert data["likes"] == [] and data["suggested_likes"] == ["солянка"]
+
+
+def test_short_dish_is_grounded(pfile, monkeypatch):
+    # «щи» — 2 буквы: раньше grounded отбрасывал всё короче 3 букв (👎 2026-10-07).
+    _run(monkeypatch, "не люблю щи обычно", {"dislikes": ["щи"]})
+    assert prefs.load()["dislikes"] == ["щи"]
+    assert prefs.grounded(["щи"], "без щей, пожалуйста") == ["щи"]
+    assert prefs.grounded(["щи"], "борщ и щука") == []  # не подстрокой
+
+
+def test_permanent_marker_for_button_wish():
+    assert prefs.has_permanent_marker("макс не любит тыкву вообще")
+    assert prefs.has_permanent_marker("никогда не предлагай печень")
+    assert not prefs.has_permanent_marker("без рыбы")
