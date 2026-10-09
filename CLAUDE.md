@@ -331,7 +331,7 @@ ssh pi5 'cd ~/easy-week && bash deploy/update.sh'
   отдельно от ночных; упал — деплой стоп, осознанно без него — `EW_SKIP_BACKUP=1`) →
   `git pull --ff-only` → бэк (venv+pip) → `python -m app.migrations rehearse` (репетиция миграций
   на копии базы; провал — стоп ДО сборки и рестарта) → фронт (`npm ci && npm run build`) →
-  `systemctl stop` → `migrations apply --live` (своя копия, одна транзакция, сверка, затем sync)
+  `systemctl stop` → `migrations apply --live` (своя копия; новые колонки моделей приложения; шаг одной транзакцией, сверка, затем sync)
   → `systemctl start` ВСЕГДА (trap; сбой миграции — ненулевой код 1/2/3 и `status --live`) →
   `nginx reload`. Изменился сам `update.sh` в pull — перезапускается новой версией (`exec`);
   первый деплой фазы 1 — `git pull --ff-only && bash deploy/update.sh` (скрипт фазы 0 этого не

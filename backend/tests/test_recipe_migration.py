@@ -917,3 +917,19 @@ def test_models_registered_only_in_recipe_metadata():
     assert {"hidden_at", "gen_id", "ctx_uses", "source_used", "model_ref", "kind", "change",
             "parent_id", "content_hash", "meta_hash", "created_at", "created_at_estimated",
             "generated_at"} <= cols
+
+
+def test_apply_adds_new_app_columns_before_sync(db):
+    """Новая колонка модели (PlanRow.shopping_extras), а база — от прошлой версии кода: apply
+    сам добавляет её до шага и sync (они читают planrow через ORM), а не падает «no such column»;
+    повторный apply ничего не добавляет."""
+    import sqlite3
+
+    c = sqlite3.connect(db)
+    c.execute('ALTER TABLE planrow DROP COLUMN "shopping_extras"')
+    c.commit()
+    c.close()
+    res = cli.run_apply(db, backup=False)
+    assert res["columns"] == ["planrow.shopping_extras"] and res["sync"] is not None
+    assert "shopping_extras" in {r[1] for r in q(db, "PRAGMA table_info(planrow)")}
+    assert cli.run_apply(db, backup=False)["columns"] == []

@@ -230,6 +230,36 @@ def open_engine(path: Path, *, readonly: bool = False) -> Engine:
     return eng
 
 
+def ensure_app_columns(session) -> list[str]:
+    """Новые колонки таблиц приложения (SQLModel.metadata), которых ещё нет в базе, —
+    ALTER TABLE ADD COLUMN, как db.init_db на старте сервиса (для SQLite — только nullable/с
+    дефолтом, как все поля моделей). Нужно до шага и sync: они читают строки приложения через
+    ORM (select(PlanRow) тянет все колонки модели), а новый код с новой колонкой стартует
+    позже миграции. Таблицы рецептов (своя MetaData) не трогаем. Возвращает «таблица.колонка»."""
+    from sqlalchemy import inspect
+    from sqlmodel import SQLModel
+
+    from .. import models  # noqa: F401 — регистрирует таблицы приложения
+
+    conn = session.connection()
+    insp = inspect(conn)
+    have_tables = set(insp.get_table_names())
+    added: list[str] = []
+    for name, table in SQLModel.metadata.tables.items():
+        if name not in have_tables:
+            continue  # новые таблицы создаёт init_db на старте (create_all)
+        have = {c["name"] for c in insp.get_columns(name)}
+        for col in table.columns:
+            if col.name in have:
+                continue
+            coltype = col.type.compile(conn.dialect)
+            conn.exec_driver_sql(f'ALTER TABLE "{name}" ADD COLUMN "{col.name}" {coltype}')
+            added.append(f"{name}.{col.name}")
+    if added:
+        logging.getLogger("easy_week.migrations").info("добавлены колонки: %s", ", ".join(added))
+    return added
+
+
 def copy_db(src: Path, dst: Path) -> Path:
     """Консистентная копия базы через online-backup API; источник открыт ТОЛЬКО на чтение."""
     dst.parent.mkdir(parents=True, exist_ok=True)

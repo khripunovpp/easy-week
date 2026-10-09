@@ -42,6 +42,7 @@ from . import (
     MigrationError,
     app_commit,
     copy_db,
+    ensure_app_columns,
     hot_journal_error,
     live_db_path,
     live_db_reason,
@@ -127,6 +128,8 @@ def run_apply(path: Path, *, backup: bool = True, hook=None) -> dict:
             return None
         return recipes_v1.apply_step(s, backup_path=result["backup"], commit=commit, hook=hook)
 
+    # Новые колонки приложения — до шага и sync (они читают строки через ORM). Своя транзакция.
+    result["columns"] = _tx(path, ensure_app_columns, name="app_columns")
     result["step"] = _tx(path, step, name=recipes_v1.STEP)
     try:
         result["sync"] = _tx(path, lambda s: recipes_v1.sync_session(s), name="recipes_sync")
@@ -230,6 +233,8 @@ def run_rehearse(source: Path, work: Path | None = None, *, keep: bool = False) 
 
 
 def _print_apply(res: dict) -> None:
+    if res.get("columns"):
+        print("новые колонки: " + ", ".join(res["columns"]))
     step = res.get("step")
     if step is None:
         print("recipes_v1: уже применён")

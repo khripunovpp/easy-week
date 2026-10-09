@@ -215,7 +215,7 @@ cd ~/easy-week/backend
 ./.venv/bin/python -m app.migrations rehearse             # репетиция на копии (как в update.sh)
 # пишущие команды по живой базе — ТОЛЬКО при остановленном сервисе:
 sudo systemctl stop easy-week-backend
-./.venv/bin/python -m app.migrations apply --live         # шаги, которых ещё нет, + sync
+./.venv/bin/python -m app.migrations apply --live         # новые колонки моделей, шаги, которых ещё нет, + sync
 ./.venv/bin/python -m app.migrations sync --live          # догнать JSON (обычно 0)
 sudo systemctl start easy-week-backend
 ```
