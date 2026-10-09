@@ -25,6 +25,8 @@ from ..schemas import (
     DishVariant,
     PlanSummary,
     RenameRequest,
+    ShoppingChecked,
+    ShoppingCheckedBody,
     ShoppingExtrasBody,
     ShoppingGroup,
     ShoppingItem,
@@ -213,6 +215,37 @@ async def shopping_regenerate(
             status_code=502, detail=f"Не удалось пересобрать список покупок: {exc}"
         ) from exc
     return group_items(items, row.leftovers, row.shopping_extras)
+
+
+# Отметки «куплено» — на сервере, общие для устройств. Читаем и пишем в ПОСЛЕДНЕЙ версии
+# плана: экран со старой версией (до правки в чате на другом устройстве) отмечает туда же.
+_CHECKED_MAX = 1000
+
+
+@router.get("/{plan_id}/shopping-list/checked")
+async def shopping_checked(plan_id: str, session: SessionDep) -> ShoppingChecked:
+    _get_plan(session, plan_id)
+    row = _get_plan(session, planstore.latest_version(session, plan_id))
+    return ShoppingChecked(plan_id=row.id, keys=list(row.shopping_checked or []))
+
+
+@router.put("/{plan_id}/shopping-list/checked")
+async def shopping_checked_update(
+    plan_id: str, req: ShoppingCheckedBody, session: SessionDep
+) -> ShoppingChecked:
+    """Отметить/снять продукты (ключи). Изменения, а не весь список: два устройства в магазине
+    не затирают отметки друг друга (между чтением и записью нет await)."""
+    _get_plan(session, plan_id)
+    row = _get_plan(session, planstore.latest_version(session, plan_id))
+    session.refresh(row, attribute_names=["shopping_checked"])
+    clean = lambda keys: {k.strip()[:80] for k in keys if k and k.strip()}  # noqa: E731
+    remove = clean(req.remove)
+    keys = [k for k in (row.shopping_checked or []) if k not in remove]
+    keys += sorted(clean(req.add) - set(keys) - remove)
+    row.shopping_checked = keys[-_CHECKED_MAX:] or None
+    session.add(row)
+    session.commit()
+    return ShoppingChecked(plan_id=row.id, keys=list(row.shopping_checked or []))
 
 
 def _extras_out(extras: list[dict] | None) -> list[ShoppingItem]:

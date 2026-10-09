@@ -53,6 +53,9 @@ class PlanRow(SQLModel, table=True):
     # разобраны моделью из текста пользователя, в список покупок добавляются к продуктам
     # рецептов. Правка плана в чате переносит их в новую версию.
     shopping_extras: list | None = Field(default=None, sa_column=Column(JSON))
+    # Отметки «куплено» в списке покупок — ключи продуктов (фронт: shared/product-key), общие
+    # для всех устройств семьи. Правка плана в чате переносит их в новую версию.
+    shopping_checked: list | None = Field(default=None, sa_column=Column(JSON))
     # Кэш единого плана готовки: {"variants": {model: {steps, note, provider}},
     # "active_model": str, "sig": str}. Варианты по моделям — для сравнения. Пишется через
     # planstore.patch_cooking (вариант модели вливается в свежепрочитанный кэш).

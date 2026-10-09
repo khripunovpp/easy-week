@@ -561,6 +561,25 @@ export class EasyWeekApi {
     );
   }
 
+  // Отметки «куплено» — на сервере (общие для устройств); planId ответа — последняя версия плана.
+  getShoppingChecked(planId: string): Observable<{ planId: string; keys: string[] }> {
+    return this.http.get<{ planId: string; keys: string[] }>(
+      `${API_BASE}/plans/${planId}/shopping-list/checked`,
+    );
+  }
+
+  // Изменения, а не весь список: два устройства в магазине не затирают отметки друг друга.
+  updateShoppingChecked(
+    planId: string,
+    add: string[],
+    remove: string[],
+  ): Observable<{ planId: string; keys: string[] }> {
+    return this.http.put<{ planId: string; keys: string[] }>(
+      `${API_BASE}/plans/${planId}/shopping-list/checked`,
+      { add, remove },
+    );
+  }
+
   // Свои товары мимо рецептов: текст разбирает модель списка покупок → все свои товары плана.
   addShoppingExtras(planId: string, text: string, recipeModel: RecipeModel | string): Observable<ShoppingListItem[]> {
     return this.http.post<ShoppingListItem[]>(`${API_BASE}/plans/${planId}/shopping-list/extras`, {

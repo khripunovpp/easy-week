@@ -212,6 +212,22 @@ def _carry_forward(
                            plan_id, child_id, exc)
 
 
+def latest_version(session: Session, plan_id: str) -> str:
+    """Последняя версия плана по цепочке parent_id → потомок (самый свежий на каждом шаге)."""
+    seen = {plan_id}
+    cur = plan_id
+    while True:
+        child = session.exec(
+            select(PlanRow.id)
+            .where(PlanRow.parent_id == cur)
+            .order_by(PlanRow.created_at.desc())
+        ).first()
+        if not child or child in seen:  # защита от циклов в битых данных
+            return cur
+        seen.add(child)
+        cur = child
+
+
 def new_row(session: Session, *, dishes: list[dict], **fields) -> PlanRow:
     """Новая строка плана (добавляется в сессию; коммит — вместе с сообщениями у вызывающего).
     С миграцией рецептов строка сразу уходит в базу (flush) и её блюда закрепляются за

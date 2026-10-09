@@ -96,19 +96,8 @@ async def get_current_plan(session: SessionDep) -> dict:
 
 
 def _latest_version(session: Session, plan_id: str) -> str:
-    """Последняя версия плана по цепочке parent_id → потомок (самый свежий на каждом шаге)."""
-    seen = {plan_id}
-    cur = plan_id
-    while True:
-        child = session.exec(
-            select(PlanRow.id)
-            .where(PlanRow.parent_id == cur)
-            .order_by(PlanRow.created_at.desc())
-        ).first()
-        if not child or child in seen:  # защита от циклов в битых данных
-            return cur
-        seen.add(child)
-        cur = child
+    """Последняя версия плана по цепочке правок (planstore.latest_version)."""
+    return planstore.latest_version(session, plan_id)
 
 
 @router.put("/current-plan")
@@ -563,11 +552,11 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
     # иначе рецепт, догенерённый в родителе, пока модель правила план, терялся в новой версии.
     parent_now, _ = planstore.read_dishes(session, parent_id)
     carried = planstore.carry_current(snapshot, result["dishes"], parent_now)
-    # Свои товары покупок (хлеб, йогурт…) к блюдам не привязаны — переезжают в новую версию
-    # как есть, свежими из базы (могли добавить, пока модель правила план).
-    extras_now = session.exec(
-        select(PlanRow.shopping_extras).where(PlanRow.id == parent_id)
-    ).first()
+    # Свои товары покупок (хлеб, йогурт…) и отметки «куплено» к блюдам не привязаны —
+    # переезжают в новую версию как есть, свежими из базы (могли добавить, пока модель правила).
+    extras_now, checked_now = session.exec(
+        select(PlanRow.shopping_extras, PlanRow.shopping_checked).where(PlanRow.id == parent_id)
+    ).one()
     # Правка создаёт НОВУЮ версию плана (копию), исходный план остаётся доступен по ссылке.
     new_plan = planstore.new_row(
         session,
@@ -585,6 +574,7 @@ async def chat_edit(req: ChatRequest, session: SessionDep) -> ChatResponse:
         dishes=[sync_uses(d, new_leftovers) for d in attach_all(carried, index)],
         leftovers=new_leftovers or None,
         shopping_extras=extras_now or None,
+        shopping_checked=checked_now or None,  # отметки «куплено» — тоже в новую версию
     )
     # Исходная версия заменена новой — сразу отменяем её (остаётся доступной по ссылке,
     # в истории/при перезагрузке чата свернётся как «отменён»).

@@ -1,5 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { Component, computed, effect, inject, input, linkedSignal, signal } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, input, linkedSignal, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { DishShopping, EasyWeekApi, PlanSummary, ShoppingGroup, ShoppingListItem } from '../../services/api';
 import { ChatStore } from '../../services/chat-store';
@@ -118,8 +118,15 @@ export class Shopping {
 
   // Отметки «куплено» — ОДНИ на оба режима: множество ключей продуктов (productKey).
   // Отметил лук в «Общем» — он отмечен и во всех блюдах в «По рецептам», и наоборот.
+  // Хранятся на сервере (общие для устройств семьи); localStorage — кэш для мгновенного показа
+  // и офлайна. Тап сразу меняет экран, а на сервер уходит изменением (pending); без сети
+  // изменения копятся и уходят при появлении связи. Отметки с другого устройства подтягиваются
+  // раз в 15 с, пока экран открыт, и при возврате на вкладку.
   private readonly checked = signal<Set<string>>(new Set());
   private activePlanId = '';
+  /** Ключ → отметить (true) / снять (false): ещё не подтверждено сервером. */
+  private pending = new Map<string, boolean>();
+  private flushing = false;
 
   // ---- Режим группировки: «Общий» (по категориям) / «По рецептам» (блюдо → категории) ----
   readonly mode = signal<'all' | 'dish'>(this.loadMode());
@@ -232,6 +239,22 @@ export class Shopping {
       const pid = this.planId();
       this.load(pid);
     });
+    // Отметки с других устройств: раз в 15 с на видимой вкладке и при возврате на неё;
+    // появилась связь — досылаем накопленное.
+    const sync = () => {
+      if (document.visibilityState !== 'visible') return;
+      this.flushChecked();
+      this.refreshChecked();
+    };
+    const timer = setInterval(sync, 15000);
+    const online = () => this.flushChecked();
+    document.addEventListener('visibilitychange', sync);
+    window.addEventListener('online', online);
+    inject(DestroyRef).onDestroy(() => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', sync);
+      window.removeEventListener('online', online);
+    });
   }
 
   private load(inputPlanId: string): void {
@@ -287,6 +310,9 @@ export class Shopping {
     this.activePlanId = planId;
     this.currentPlanId.set(planId);
     this.checked.set(this.loadChecked(planId));
+    this.pending = this.loadPending(planId);
+    this.flushChecked();
+    this.refreshChecked();
     this.shoppingAt.set(null);
     this.shoppingModelKey.set('');
     this.missingRecipes.set(0);
@@ -433,6 +459,7 @@ export class Shopping {
   /** Отметить/снять строки: общий список — по точному ключу; блюдо — вместе с продуктом
    *  общего списка, чтобы отметка была видна в обоих режимах. */
   private setChecked(items: { name: string }[], on: boolean, prefix: string): void {
+    const changed: string[] = [];
     this.checked.update((set) => {
       const next = new Set(set);
       for (const it of items) {
@@ -440,10 +467,58 @@ export class Shopping {
         for (const k of keys) {
           if (!k) continue; // имя без букв/цифр — ключа нет, не храним
           on ? next.add(k) : next.delete(k);
+          changed.push(k);
         }
       }
       return next;
     });
+    this.saveChecked();
+    for (const k of changed) this.pending.set(k, on);
+    this.savePending();
+    this.flushChecked();
+  }
+
+  /** Отправить накопленные отметки на сервер (по одному запросу за раз). Сбой (нет сети) —
+   *  остаются в pending и уйдут при следующей синхронизации. */
+  private flushChecked(): void {
+    const pid = this.activePlanId;
+    if (!pid || this.flushing || !this.pending.size) return;
+    const sent = new Map(this.pending);
+    const add = [...sent].filter(([, on]) => on).map(([k]) => k);
+    const remove = [...sent].filter(([, on]) => !on).map(([k]) => k);
+    this.flushing = true;
+    this.api.updateShoppingChecked(pid, add, remove).subscribe({
+      next: (res) => {
+        this.flushing = false;
+        if (this.activePlanId !== pid) return;
+        // Подтверждённое убираем; если пока летел запрос ключ перетапнули — он остаётся.
+        for (const [k, on] of sent) if (this.pending.get(k) === on) this.pending.delete(k);
+        this.savePending();
+        this.applyServerChecked(res.keys);
+        this.flushChecked();
+      },
+      error: () => {
+        this.flushing = false;
+      },
+    });
+  }
+
+  /** Отметки с сервера (в т.ч. с другого устройства) — поверх них ещё не отправленные свои. */
+  private refreshChecked(): void {
+    const pid = this.activePlanId;
+    if (!pid) return;
+    this.api.getShoppingChecked(pid).subscribe({
+      next: (res) => {
+        if (this.activePlanId !== pid || this.flushing) return; // ответ PUT придёт свежее
+        this.applyServerChecked(res.keys);
+      },
+    });
+  }
+
+  private applyServerChecked(keys: string[]): void {
+    const next = new Set(keys);
+    for (const [k, on] of this.pending) on ? next.add(k) : next.delete(k);
+    this.checked.set(next);
     this.saveChecked();
   }
 
@@ -491,6 +566,36 @@ export class Shopping {
     }
   }
 
+  // Ещё не отправленные изменения отметок (переживают перезагрузку без сети). Отметки,
+  // поставленные до переноса на сервер (только в localStorage), уходят на сервер один раз.
+  private pendingKey(planId: string): string {
+    return `ew-shopping-pending-${planId}`;
+  }
+  private loadPending(planId: string): Map<string, boolean> {
+    const out = new Map<string, boolean>();
+    try {
+      const raw = localStorage.getItem(this.pendingKey(planId));
+      if (raw) for (const [k, on] of JSON.parse(raw) as [string, boolean][]) out.set(k, on);
+      const migrated = `ew-shopping-synced-${planId}`;
+      if (!localStorage.getItem(migrated)) {
+        for (const k of this.loadChecked(planId)) if (!out.has(k)) out.set(k, true);
+        localStorage.setItem(migrated, '1');
+        localStorage.setItem(this.pendingKey(planId), JSON.stringify([...out]));
+      }
+    } catch {
+      /* localStorage недоступен — без офлайн-очереди */
+    }
+    return out;
+  }
+  private savePending(): void {
+    if (!this.activePlanId) return;
+    try {
+      localStorage.setItem(this.pendingKey(this.activePlanId), JSON.stringify([...this.pending]));
+    } catch {
+      /* не критично */
+    }
+  }
+
   private loadChecked(planId: string): Set<string> {
     try {
       const raw = localStorage.getItem(this.storageKey(planId));
@@ -508,9 +613,13 @@ export class Shopping {
 
   private saveChecked(): void {
     if (!this.activePlanId) return;
-    localStorage.setItem(
-      this.storageKey(this.activePlanId),
-      JSON.stringify([...this.checked()]),
-    );
+    try {
+      localStorage.setItem(
+        this.storageKey(this.activePlanId),
+        JSON.stringify([...this.checked()]),
+      );
+    } catch {
+      /* кэш отметок — не критично, источник правды на сервере */
+    }
   }
 }

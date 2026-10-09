@@ -444,6 +444,19 @@ class RecipeItem(CamelModel):
     favorite: bool = False
 
 
+class ShoppingCheckedBody(CamelModel):
+    # Отметки «куплено»: что отметить и что снять (ключи продуктов) — изменения, а не весь
+    # список, чтобы два устройства в магазине не затирали отметки друг друга.
+    add: list[str] = Field(default_factory=list, max_length=500)
+    remove: list[str] = Field(default_factory=list, max_length=500)
+
+
+class ShoppingChecked(CamelModel):
+    # plan_id — версия плана, где лежат отметки (последняя по цепочке правок).
+    plan_id: str
+    keys: list[str]
+
+
 class ShoppingExtrasBody(CamelModel):
     # Свои товары в покупках: список свободным текстом («хлеб, йогурт 2 шт, молоко 1 л»);
     # модель — пусто → дефолт «Список покупок».
