@@ -70,6 +70,7 @@ class DishVariant(CamelModel):
     steps: list[str] = []
     tips: list[str] = []
     note: str = ""
+    desc: str = ""  # описание блюда по этому рецепту ('' у старых вариантов)
     generated_at: str = ""  # когда сгенерирован вариант (ISO UTC)
 
 

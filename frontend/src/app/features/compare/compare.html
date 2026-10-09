@@ -58,6 +58,13 @@
               </tr>
             </thead>
             <tbody>
+              <!-- Описание блюда у каждого варианта своё (пусто у старых вариантов) -->
+              <tr>
+                <td class="d__cmp-h0 d__cmp-stepn">Описание</td>
+                @for (v of vars; track v.model) {
+                  <td class="d__cmp-step" [class.d__cmp-miss]="!v.desc">{{ v.desc || '—' }}</td>
+                }
+              </tr>
               @for (sr of stepRows(); track sr.n) {
                 <tr>
                   <td class="d__cmp-h0 d__cmp-stepn">Шаг {{ sr.n }}</td>

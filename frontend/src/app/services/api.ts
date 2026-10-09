@@ -18,6 +18,7 @@ export interface DishVariant {
   steps: string[];
   tips: string[];
   note: string;
+  desc?: string; // описание блюда по этому рецепту (пусто у старых вариантов)
   generatedAt?: string; // когда сгенерирован вариант (ISO)
 }
 

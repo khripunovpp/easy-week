@@ -240,7 +240,7 @@ def test_desc_in_plan_prompt_and_recipe_header(monkeypatch):
     assert "без подачи, гарниров, закусок" in DEEPSEEK_PLAN_SYSTEM
     dish = {"desc": "Курица, тушённая с оливками и лимоном в духовке.", "tags": ["курица"]}
     user = build_dish_detail_messages("Курица по-провански", 4, dish=dish)[1]["content"]
-    assert "Задумка блюда из плана (рецепт ей соответствует): Курица, тушённая" in user
+    assert "Задумка блюда (рецепт ей соответствует): Курица, тушённая" in user
     gate = FakeGate({"reply": "ок", "title": "Неделя", "dishes": [
         {"name": "Курица по-провански", "emoji": "🍗", "desc": "  Курица   с оливками. " * 30}]})
     monkeypatch.setattr(planner, "gate_for", lambda m, task="chat": gate)

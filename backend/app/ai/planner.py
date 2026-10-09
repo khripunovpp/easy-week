@@ -706,6 +706,7 @@ def _clean_detail(parsed: dict, gate, gen_id: str = "") -> dict:
         "steps": parsed.get("steps") or [],
         "tips": parsed.get("tips") or [],
         "note": _clean_note(parsed.get("note")),
+        "desc": _clip_desc(parsed.get("desc")),  # описание блюда по ЭТОМУ рецепту
         "provider": getattr(gate, "provider", "") or "",
         "model": getattr(gate, "key", "") or "",
         "model_ref": model_ref(gate),

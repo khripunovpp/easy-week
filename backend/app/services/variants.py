@@ -17,6 +17,12 @@
   None — рецепта ещё не было);
 - ctx_uses — остатки плана, под которые писали (dish.uses на момент генерации);
 - gen_id — id вызова модели в AI-логе (ai-*.jsonl), см. ai/observe.
+
+Описание блюда (desc) у варианта своё — модель пишет его вместе с рецептом (↻ «без перца»
+меняет и описание). dish["desc"] — задумка из плана, она не меняется; показываем и кладём
+в промпт описание активного варианта (active_desc), у старых вариантов без него — задумку.
+Плоского зеркала desc в блюде нет: таблицы рецептов (фаза 1) его не хранят — сверка hydrate
+с JSON разошлась бы. В таблицы — вместе с фазой 2.
 """
 
 from datetime import datetime, timezone
@@ -60,6 +66,7 @@ def variant_from_detail(
         "steps": detail.get("steps") or [],
         "tips": detail.get("tips") or [],
         "note": detail.get("note") or "",
+        "desc": (detail.get("desc") or "").strip(),
         "provider": detail.get("provider") or "",
         "generated_at": now_iso(),
         "model_ref": detail.get("model_ref") or "",
@@ -85,6 +92,13 @@ def dish_variants(dish: dict) -> dict:
                 "provider": dish.get("detail_provider") or "",
             }
     return variants
+
+
+def active_desc(dish: dict) -> str:
+    """Описание блюда для показа и промпта: активного варианта рецепта, иначе задумка плана."""
+    variants = dish.get("variants") or {}
+    v = variants.get(dish.get("active_model")) or {}
+    return str(v.get("desc") or dish.get("desc") or "")
 
 
 def apply_variant(dish: dict, model: str, variants: dict) -> dict:

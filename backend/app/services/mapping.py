@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from ..models import PlanRow
 from ..schemas import CookingPlan, Dish, PlanSummary, WeekPlan
+from .variants import active_desc
 
 
 def _utc(dt: datetime | None) -> datetime | None:
@@ -14,9 +15,10 @@ def _utc(dt: datetime | None) -> datetime | None:
 def to_dish(d: dict) -> Dish:
     """Блюдо → схема Dish; список ключей вариантов выводим из dict variants."""
     variants = d.get("variants") or {}
-    return Dish.model_validate(
-        {**d, "active_model": d.get("active_model", ""), "variant_models": list(variants.keys())}
-    )
+    return Dish.model_validate({
+        **d, "active_model": d.get("active_model", ""), "variant_models": list(variants.keys()),
+        "desc": active_desc(d),  # описание выбранного рецепта (у старых — задумка плана)
+    })
 
 
 def to_week_plan(row: PlanRow) -> WeekPlan:
