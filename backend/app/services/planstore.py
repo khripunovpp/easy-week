@@ -106,6 +106,15 @@ def _expire(session: Session, plan_id: str) -> None:
         session.expire(obj)
 
 
+def reread(session: Session, plan_id: str) -> list[dict]:
+    """Текущие блюда плана из БД, без записи; PlanRow этой сессии перечитается при следующем
+    обращении. Для того, кто ждал чужую запись: склеенная догенерация (services/regenerate) —
+    рецепт записал соседний запрос в своей сессии, а row вызывающего загружена до этого."""
+    dishes, _ = read_dishes(session, plan_id)
+    _expire(session, plan_id)
+    return dishes
+
+
 def patch_dishes(
     session: Session,
     plan_id: str,

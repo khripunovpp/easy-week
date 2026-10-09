@@ -19,7 +19,7 @@ from ..ai.gates import gate_for
 from ..ai.planner import generate_cooking_plan, generate_dish_detail, normalize_shopping
 from ..models import PlanRow
 from ..services.mapping import to_week_plan
-from . import planstore
+from . import planstore, singleflight
 from .discussion import discussion_text
 from .history import original_request, reply_mention
 from .shopping import aggregate_ingredients, sync_uses
@@ -36,9 +36,22 @@ async def backfill_all(
     session: Session, row: PlanRow, need_steps: bool = False, model: str = ""
 ) -> list[dict]:
     """Догенерить детали для блюд, у которых их нет, параллельно. Кэш — вариантом рецепта
-    (kind backfill) в блюде плана, как при открытии рецепта.
+    (kind backfill) в блюде плана, как при открытии рецепта. Возвращает свежие блюда плана;
+    row вызывающего перечитается при следующем обращении.
     need_steps=False (покупки: нужны только ингредиенты), True (PDF/готовка: нужны и шаги).
-    model — выбранная модель рецептов (пусто → модель рецептов по умолчанию из настроек)."""
+    model — выбранная модель рецептов (пусто → модель рецептов по умолчанию из настроек).
+
+    Параллельные вызовы склеиваются по блюду (services/singleflight, ключ (plan_id, dish_id)):
+    страница покупок шлёт /shopping-list и /shopping-list/by-dish разом, рядом PDF/готовка —
+    рецепт блюда генерит ОДИН вызов модели и сам его записывает, остальные ждут и читают
+    записанное (раньше — по вызову на запрос, лишние выкидывал fill, записывался случайный).
+    - need_steps в ключе не нужен: деталь всегда полная (ингредиенты + шаги — один промпт),
+      генерация для покупок годится и PDF/готовке;
+    - model в ключе нет: задача догенерации — «у блюда есть рецепт», а не «рецепт модели X»;
+      вызов с другой моделью ждёт идущую генерацию (её рецепт fill и так не перетёр бы).
+      Рецепт конкретной модели — на странице блюда (выбор модели / ↻);
+    - сбой генерации получают все ждущие (блюдо без рецепта, как раньше), следующий вызов
+      пробует заново."""
 
     def lacks(d: dict) -> bool:
         return not d.get("ingredients") or (need_steps and not d.get("steps"))
@@ -47,25 +60,16 @@ async def backfill_all(
     missing = [d for d in dishes if d.get("id") and lacks(d)]
     if not missing:
         return dishes
+    plan_id, leftovers = row.id, row.leftovers
     request = original_request(session, row.conversation_id)  # фон: исходный запрос беседы
-    leftovers = row.leftovers
-    results = await asyncio.gather(
-        *(
-            generate_dish_detail(
-                d.get("name", ""), d.get("servings", 4), model=model, dish=d, request=request,
-                mention=reply_mention(session, row.id, d.get("name", "")), leftovers=leftovers,
-            )
-            for d in missing
-        ),
-        return_exceptions=True,
-    )
-    changes: dict[str, planstore.DishFn] = {}
-    for d, det in zip(missing, results):
-        if not isinstance(det, dict):
-            logger.warning("backfill: «%s» без рецепта: %s", d.get("name"), str(det)[:150])
-            continue
 
-        def fill(cur: dict, d=d, det=det) -> dict | None:
+    async def generate_and_save(d: dict) -> None:
+        det = await generate_dish_detail(
+            d.get("name", ""), d.get("servings", 4), model=model, dish=d, request=request,
+            mention=reply_mention(session, plan_id, d.get("name", "")), leftovers=leftovers,
+        )
+
+        def fill(cur: dict) -> dict | None:
             # Пока генерили, рецепт могли открыть или перегенерить — свежий не перетираем.
             if not lacks(cur):
                 return None
@@ -76,10 +80,25 @@ async def backfill_all(
             new = with_detail(cur, det["model"], {**det, "note": note}, kind="backfill", basis=d)
             return sync_uses(new, leftovers)
 
-        changes[d["id"]] = fill
-    if not changes:
-        return dishes
-    return planstore.patch_dishes(session, row.id, changes)
+        # Пишем сразу, внутри склеенной задачи: ждущие соседи читают уже записанное, а
+        # пришедший после конца генерации видит рецепт в БД и новую не начинает.
+        planstore.patch_dishes(session, plan_id, {d["id"]: fill})
+
+    async def flight(d: dict) -> None:
+        key = ("backfill", plan_id, d["id"])
+        if singleflight.running(key):
+            logger.info("backfill: «%s» уже генерится соседним запросом — ждём его (plan=%s)",
+                        d.get("name"), plan_id)
+        await singleflight.single_flight(key, lambda: generate_and_save(d))
+
+    results = await asyncio.gather(*(flight(d) for d in missing), return_exceptions=True)
+    for d, res in zip(missing, results):
+        if isinstance(res, (planstore.PlanNotFound, planstore.PlanConflict)):
+            raise res  # план удалили / запись не прошла — роутер отдаст 404/409, как раньше
+        if isinstance(res, BaseException):
+            logger.warning("backfill: «%s» без рецепта: %s", d.get("name"), str(res)[:150])
+    # Рецепты могли записать и наш запрос, и соседний (в своей сессии) — читаем из БД.
+    return planstore.reread(session, plan_id)
 
 
 def cook_sig(row: PlanRow) -> str:

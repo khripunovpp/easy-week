@@ -15,13 +15,14 @@ from sqlalchemy import event, inspect, text
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.ai import planner
+from app.ai.base import AIError
 from app.config import settings as config
 from app.models import Conversation, MessageRow, PlanRow
 from app.routers import chat as chat_router
 from app.routers import plans as plans_router
 from app.routers import recipes as recipes_router
 from app.schemas import ChatRequest, DetailRequest, RecipeTextBody, RenameRequest, StatusRequest
-from app.services import planstore, recipebook, regenerate
+from app.services import planstore, recipebook, regenerate, singleflight
 
 ST = {"vacuum": True, "freeze": True, "shelf_life_days": 60, "note": ""}
 ING = [{"name": "говядина", "qty": 500, "unit": "г", "category": "Мясо и птица"}]
@@ -167,10 +168,11 @@ async def _until(cond, limit: int = 50) -> None:
 BEET = [{"name": "свёкла", "qty": 300, "unit": "г", "category": "Овощи"}]
 
 
-def test_shopping_pair_both_see_recipe_generated_by_neighbour(engine, monkeypatch):
-    """Страница покупок «По рецептам» шлёт GET /shopping-list/by-dish и /shopping-list разом:
-    оба догенеривают Борщ, второй к записи находит рецепт уже записанным и не пишет. Его ответ
-    всё равно строится по свежим блюдам — раньше в список не попадала свёкла."""
+def test_shopping_page_requests_generate_recipe_once(engine, monkeypatch):
+    """Прод 2026-10-09: страница покупок прислала /shopping-list и два /shopping-list/by-dish
+    за ~6 с — каждый догенеривал рецепты сам (9 вызовов Haiku на 3 блюда, записался случайный).
+    Теперь Борщ генерит один вызов модели, остальные запросы ждут его и строят ответ по
+    записанному (свёкла есть во всех трёх ответах)."""
     events: list[asyncio.Event] = []
 
     async def gated_detail(name, servings=4, change="", model="", **kw):
@@ -186,19 +188,156 @@ def test_shopping_pair_both_see_recipe_generated_by_neighbour(engine, monkeypatc
     monkeypatch.setattr(plans_router, "normalize_shopping", same)
 
     async def scenario():
-        with Session(engine) as s1, Session(engine) as s2:
+        with Session(engine) as s1, Session(engine) as s2, Session(engine) as s3:
             listing = asyncio.create_task(plans_router.shopping_list("p1", s1))
             await _until(lambda: len(events) == 1)
-            by_dish = asyncio.create_task(plans_router.shopping_by_dish("p1", s2))
-            await _until(lambda: len(events) == 2)
-            events[1].set()  # по рецептам записал первым
-            by = await by_dish
-            events[0].set()  # список: Борщ уже с рецептом — писать нечего
-            return await listing, by
+            by_dish = [asyncio.create_task(plans_router.shopping_by_dish("p1", s))
+                       for s in (s2, s3)]
+            for _ in range(20):  # оба «по рецептам» дошли до склейки и ждут генерацию списка
+                await asyncio.sleep(0)
+            assert len(events) == 1 and not any(t.done() for t in by_dish)
+            events[0].set()
+            return await asyncio.wait_for(asyncio.gather(listing, *by_dish), timeout=5)
 
-    listing, by = asyncio.run(scenario())
+    listing, *by = asyncio.run(scenario())
+    assert len(events) == 1
     assert "Свёкла" in {it.name for g in listing for it in g.items}
-    assert "Свёкла" in {it.name for d in by for it in d.items}
+    for res in by:
+        assert "Свёкла" in {it.name for d in res for it in d.items}
+    assert _version(engine, "p1") == 1
+    assert not singleflight._inflight
+
+
+def _seed_unbaked(engine) -> None:
+    """План p3: у Борща и Плова рецепта нет, у Котлет только ингредиенты (без шагов — как
+    спека пайплайна Cloudflare), у Гуляша рецепт есть."""
+    gulyash, borsch = _dishes()
+    plov = {"id": "plov", "name": "Плов", "emoji": "🍚", "servings": 4, "prep_min": 10,
+            "cook_min": 60, "storage": ST}
+    kotlety = {"id": "kotlety", "name": "Котлеты", "emoji": "🍖", "servings": 4, "prep_min": 10,
+               "cook_min": 20, "storage": ST, "ingredients": ING}
+    with Session(engine) as s:
+        planstore.new_row(s, id="p3", conversation_id="c1", title="План", week_label="1–7",
+                          dishes=[gulyash, borsch, plov, kotlety])
+        s.commit()
+
+
+def test_concurrent_backfills_generate_each_dish_once(engine, monkeypatch):
+    """Два параллельных backfill_all — покупки (без шагов) и PDF/готовка (с шагами): каждое
+    блюдо генерится ОДИН раз. Второй ждёт генерацию первого и читает записанное (деталь всегда
+    с шагами — годится и готовке); Котлетам нужны только шаги — их генерит один второй."""
+    _seed_unbaked(engine)
+    calls: list[str] = []
+    release = {}
+
+    async def gated_detail(name, servings=4, change="", model="", **kw):
+        calls.append(name)
+        await release["ev"].wait()
+        return _detail("deepseek", [f"шаг: {name}"])
+
+    monkeypatch.setattr(regenerate, "generate_dish_detail", gated_detail)
+
+    async def scenario():
+        release["ev"] = asyncio.Event()
+        with Session(engine) as s1, Session(engine) as s2:
+            r1, r2 = s1.get(PlanRow, "p3"), s2.get(PlanRow, "p3")
+            shop = asyncio.create_task(regenerate.backfill_all(s1, r1))
+            cook = asyncio.create_task(regenerate.backfill_all(s2, r2, need_steps=True))
+            await _until(lambda: len(calls) == 3)
+            for _ in range(20):  # больше генераций не начинается
+                await asyncio.sleep(0)
+            assert sorted(calls) == ["Борщ", "Котлеты", "Плов"]
+            release["ev"].set()
+            await asyncio.wait_for(asyncio.gather(shop, cook), timeout=5)
+            # row обоих вызывающих (по ней дальше покупки/PDF/готовка) — со всеми рецептами,
+            # хотя Борщ и Плов записал только первый, а Котлеты — только второй.
+            for row in (r1, r2):
+                assert all(d.get("steps") for d in row.dishes)
+
+    asyncio.run(scenario())
+    assert sorted(calls) == ["Борщ", "Котлеты", "Плов"]
+    for did, name in (("borsch", "Борщ"), ("plov", "Плов"), ("kotlety", "Котлеты")):
+        d = _dish(engine, "p3", did)
+        assert d["steps"] == [f"шаг: {name}"] and d["variants"]["deepseek"]["kind"] == "backfill"
+    assert _version(engine, "p3") == 3  # по записи на блюдо — никто не перезаписал соседа
+    assert not singleflight._inflight
+
+
+def test_backfill_with_other_model_waits_running_generation(engine, monkeypatch):
+    """«Полный план» с выбранной моделью, пока покупки догенеривают Борщ моделью по умолчанию:
+    ключ склейки — блюдо, без модели. Второй ждёт идущую генерацию, а не запускает свою —
+    её рецепт fill всё равно бы не записал (блюдо уже с рецептом). Рецепт другой моделью —
+    на странице блюда."""
+    models: list[str] = []
+    release = {}
+
+    async def gated_detail(name, servings=4, change="", model="", **kw):
+        models.append(model)
+        await release["ev"].wait()
+        return _detail("deepseek", ["борщ"])
+
+    monkeypatch.setattr(regenerate, "generate_dish_detail", gated_detail)
+
+    async def scenario():
+        release["ev"] = asyncio.Event()
+        with Session(engine) as s1, Session(engine) as s2:
+            shop = asyncio.create_task(regenerate.backfill_all(s1, s1.get(PlanRow, "p1")))
+            await _until(lambda: len(models) == 1)
+            full = asyncio.create_task(
+                regenerate.backfill_all(s2, s2.get(PlanRow, "p1"), need_steps=True,
+                                        model="gemini")
+            )
+            for _ in range(20):
+                await asyncio.sleep(0)
+            assert not full.done()
+            release["ev"].set()
+            return await asyncio.wait_for(asyncio.gather(shop, full), timeout=5)
+
+    _, full = asyncio.run(scenario())
+    assert models == [""]
+    assert next(d for d in full if d["id"] == "borsch")["active_model"] == "deepseek"
+    assert _version(engine, "p1") == 1
+
+
+def test_backfill_failure_reaches_all_waiters_and_is_not_stuck(engine, monkeypatch):
+    """Генерация упала: ошибку получают оба ждущих (блюдо без рецепта, наружу не летит, как и
+    раньше), второго вызова модели нет; запись о задаче снята — следующий backfill_all
+    пробует заново и записывает рецепт."""
+    calls: list[str] = []
+    release = {}
+
+    async def failing(name, servings=4, change="", model="", **kw):
+        calls.append(name)
+        await release["ev"].wait()
+        raise AIError("Anthropic: 529 overloaded")
+
+    monkeypatch.setattr(regenerate, "generate_dish_detail", failing)
+
+    async def scenario():
+        release["ev"] = asyncio.Event()
+        with Session(engine) as s1, Session(engine) as s2:
+            first = asyncio.create_task(regenerate.backfill_all(s1, s1.get(PlanRow, "p1")))
+            await _until(lambda: len(calls) == 1)
+            second = asyncio.create_task(regenerate.backfill_all(s2, s2.get(PlanRow, "p1")))
+            for _ in range(20):
+                await asyncio.sleep(0)
+            release["ev"].set()
+            return await asyncio.wait_for(asyncio.gather(first, second), timeout=5)
+
+    for dishes in asyncio.run(scenario()):
+        assert not next(d for d in dishes if d["id"] == "borsch").get("ingredients")
+    assert calls == ["Борщ"] and not singleflight._inflight
+    assert _version(engine, "p1") == 0
+
+    async def ok(name, servings=4, change="", model="", **kw):
+        calls.append(name)
+        return _detail("deepseek", ["борщ"])
+
+    monkeypatch.setattr(regenerate, "generate_dish_detail", ok)
+    with Session(engine) as s:
+        dishes = asyncio.run(regenerate.backfill_all(s, s.get(PlanRow, "p1")))
+    assert calls == ["Борщ", "Борщ"]
+    assert next(d for d in dishes if d["id"] == "borsch")["steps"] == ["борщ"]
     assert _version(engine, "p1") == 1
 
 

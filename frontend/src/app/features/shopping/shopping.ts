@@ -125,20 +125,25 @@ export class Shopping {
     }
   }
 
-  /** Догрузить покупки по блюдам для текущего плана (один раз на план). */
+  /** Догрузить покупки по блюдам для текущего плана (один раз на план). Запрос этого плана
+   *  уже идёт — второй не шлём: пока бэк догенеривает рецепты (до ~30 с), повторное
+   *  «По рецептам» слало ещё один GET (прод 2026-10-09: два by-dish за 6 с). */
   private ensureByDish(force = false): void {
     const pid = this.currentPlanId();
-    if (!pid || (!force && this.byDishPlanId === pid && this.byDish().length)) return;
+    if (!pid) return;
+    const same = this.byDishPlanId === pid;
+    if (same && (this.byDishLoading() || (!force && this.byDish().length))) return;
     this.byDishPlanId = pid;
     this.byDishLoading.set(true);
     this.byDishError.set(false);
     this.api.shoppingByDish(pid).subscribe({
       next: (list) => {
-        if (this.byDishPlanId !== pid) return;
+        if (this.byDishPlanId !== pid) return; // ответ по прошлому плану — не наш
         this.byDish.set(list);
         this.byDishLoading.set(false);
       },
       error: () => {
+        if (this.byDishPlanId !== pid) return;
         this.byDishLoading.set(false);
         this.byDishError.set(true);
       },

@@ -215,6 +215,7 @@ backend/app/services/
   history.py     # «недавно ели или отвергли», отвергнутое в беседе, исходный запрос
   discussion.py  # реплики обсуждения цели: контекст перегенерации и мульти-тёрн
   regenerate.py  # (пере)генерация рецепта / плана готовки / покупок, бэкфилл деталей
+  singleflight.py # склейка одинаковой параллельной работы (генерации) в процессе
   planstore.py   # ЕДИНСТВЕННАЯ запись planrow.dishes/cooking_plan: перечитать + CAS по версии
   recipestore.py # таблицы recipe/recipe_revision: двойная запись из planstore (SAVEPOINT),
                  #   закрепления блюд recipe_id/rev_ids, hydrate/book_entries (сверка, фаза 2)

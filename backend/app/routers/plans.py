@@ -1,4 +1,3 @@
-import asyncio
 from datetime import datetime, timezone
 from typing import Annotated
 
@@ -47,6 +46,7 @@ from ..services.regenerate import (
     shopping_base,
 )
 from ..services.shopping import aggregate_ingredients, group_items, merge_extras, sync_uses
+from ..services.singleflight import single_flight
 from ..services.variants import apply_variant, now_iso, parent_key, variant_from_detail
 from ..services.variants import dish_variants as variants_of  # имя dish_variants занято роутом
 
@@ -190,7 +190,7 @@ async def shopping_regenerate(
     set_ai_context(plan_id=plan_id, endpoint="shopping_list", action="regenerate")
     row = _get_plan(session, plan_id)
     try:
-        items = await _single_flight(
+        items = await single_flight(
             (plan_id, "shopping", "regenerate"),
             lambda: regenerate_shopping(session, row, req.recipe_model),
         )
@@ -284,23 +284,9 @@ async def full_plan(plan_id: str, req: DetailRequest, session: SessionDep) -> We
     return to_week_plan(row)
 
 
-# Склейка одинаковых запросов генерации (single-flight): пока идёт генерация рецепта
-# для (plan_id, dish_id, model), параллельные такие же запросы ждут ТОТ ЖЕ результат —
-# без повторного вызова модели и двойной записи в БД. Процесс один (uvicorn без --workers),
-# поэтому in-process словаря достаточно; очереди/брокер не нужны.
-_inflight: dict[tuple, "asyncio.Future"] = {}
-
-
-async def _single_flight(key: tuple, factory):
-    running = _inflight.get(key)
-    if running is not None:
-        return await running
-    fut = asyncio.ensure_future(factory())
-    _inflight[key] = fut
-    try:
-        return await fut
-    finally:
-        _inflight.pop(key, None)
+# Склейка одинаковых запросов генерации — services/singleflight: пока идёт генерация рецепта
+# для (plan_id, dish_id, action, model), параллельные такие же запросы ждут ТОТ ЖЕ результат —
+# без повторного вызова модели и двойной записи в БД.
 
 
 @router.post("/{plan_id}/dishes/{dish_id}/details")
@@ -319,7 +305,7 @@ async def dish_details(
     set_ai_context(plan_id=plan_id, dish_id=dish_id, endpoint="dish_details", action=action)
     # Пусто → модель рецептов по умолчанию из настроек (ключ склейки — реальная модель).
     key = (plan_id, dish_id, action, gate_for(req.recipe_model, "recipe").key, req.note.strip())
-    return await _single_flight(
+    return await single_flight(
         key, lambda: _resolve_dish_detail(plan_id, dish_id, req, action, session)
     )
 
@@ -432,7 +418,7 @@ async def cooking_plan(
     else:
         target = gate_for(req.recipe_model, "cooking").key  # пусто → дефолт плана готовки
     key = (plan_id, "cooking", action, target)
-    return await _single_flight(
+    return await single_flight(
         key, lambda: _resolve_cooking_plan(plan_id, req, action, target, session)
     )
 
