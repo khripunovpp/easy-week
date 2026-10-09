@@ -32,6 +32,7 @@ from ..schemas import (
     WeekPlan,
 )
 from ..services import planstore
+from ..services import settings as app_settings
 from ..services.export_pdf import build_plan_pdf
 from ..services.history import original_request, reply_mention
 from ..services.mapping import to_cook_plan, to_dish, to_summary, to_week_plan
@@ -141,8 +142,10 @@ async def shopping_list(plan_id: str, session: SessionDep) -> list[ShoppingGroup
     await backfill_all(session, row)  # ингредиенты лениво — догрузить перед агрегацией
     base, sig = shopping_base(row)
 
-    # Один вызов модели на план; дальше — из кэша.
-    if row.shopping_sig == sig and row.shopping_cache:
+    # Один вызов модели на план; дальше — из кэша. Кэш модели, которую сняли с задачи
+    # (OpenRouter путал количества), — пересобрать текущей.
+    cached_ok = not row.shopping_model or app_settings.allowed("shopping", row.shopping_model)
+    if row.shopping_sig == sig and row.shopping_cache and cached_ok:
         return group_items(row.shopping_cache, row.leftovers, row.shopping_extras)
 
     try:

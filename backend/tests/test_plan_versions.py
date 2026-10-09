@@ -77,6 +77,41 @@ def test_shopping_by_dish_groups_per_dish(session):
     ]
 
 
+def test_shopping_cache_of_removed_model_is_rebuilt(session, monkeypatch):
+    """Кэш покупок от модели, которую сняли с задачи (OpenRouter), пересобирается текущей."""
+    from app.services.regenerate import shopping_base
+
+    session.add(Conversation(id="c3"))
+    st = {"method": "vacuum", "shelf_life_days": 60, "note": ""}
+    session.add(PlanRow(
+        id="ps", conversation_id="c3", title="t", week_label="w", dishes=[{
+            "id": "d1", "name": "Суп", "emoji": "🍲", "servings": 4, "prep_min": 10,
+            "cook_min": 20, "storage": st, "steps": ["шаг"],
+            "ingredients": [{"name": "Лук", "qty": 650, "unit": "г", "category": "Овощи"}],
+        }],
+    ))
+    session.commit()
+    row = session.get(PlanRow, "ps")
+    _, sig = shopping_base(row)
+    row.shopping_cache = [{"name": "лук", "qty": 750, "unit": "г", "category": "Овощи"}]
+    row.shopping_sig, row.shopping_model = sig, "openrouter"
+    session.add(row)
+    session.commit()
+
+    calls = []
+
+    async def fake_norm(items, discussion="", model=""):
+        calls.append(items)
+        return [{"name": "лук", "qty": 650, "unit": "г", "category": "Овощи"}]
+
+    monkeypatch.setattr(plans_router, "normalize_shopping", fake_norm)
+    got = asyncio.run(plans_router.shopping_list("ps", session))
+    assert len(calls) == 1 and got[0].items[0].qty == 650
+    assert session.get(PlanRow, "ps").shopping_model != "openrouter"
+    asyncio.run(plans_router.shopping_list("ps", session))
+    assert len(calls) == 1  # дальше — из нового кэша
+
+
 def test_message_after_rejected_plan_builds_new_plan(session, monkeypatch):
     """Последний план беседы отклонён → реплика в /chat/edit собирает НОВЫЙ план, а не правку
     (раньше правка отвечала «меню уже составлено»)."""
