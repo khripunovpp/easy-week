@@ -105,7 +105,7 @@
       } @else {
         <!-- «По рецептам»: блюдо → категории. Отметки у каждого блюда свои. -->
         @if (byDishLoading() && !dishSections().length) {
-          <div class="shop__loading"><ew-cooking /></div>
+          <div class="shop__loading"><ew-cooking [models]="byDishModels()" /></div>
         } @else if (byDishError()) {
           <p class="muted">Не удалось собрать покупки по рецептам. Попробуй ещё раз позже.</p>
         }
@@ -137,7 +137,7 @@
       @if (loading()) {
         <!-- Лоадер снизу, пока пункты догружаются потоком -->
         <div class="shop__loading">
-          <ew-cooking/>
+          <ew-cooking [models]="loadModels()" />
         </div>
       }
     }
@@ -148,7 +148,7 @@
   @if (hasFooter()) {
     <footer class="page__footer page__footer--fixed fade-bottom">
       @if (regenerating()) {
-        <div class="page__footer-status"><ew-cooking /></div>
+        <div class="page__footer-status"><ew-cooking [models]="regenModels()" /></div>
       } @else if (regenError()) {
         <div class="page__footer-status">
           <span class="page__footer-error">{{ regenError() }}</span>

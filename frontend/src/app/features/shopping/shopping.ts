@@ -5,7 +5,7 @@ import { DishShopping, EasyWeekApi, PlanSummary, ShoppingGroup, ShoppingListItem
 import { ChatStore } from '../../services/chat-store';
 import { ModelSettings } from '../../services/model-settings';
 import { MODEL_LABELS, RecipeModel } from '../../services/preferences';
-import { CookingLoader } from '../../shared/cooking-loader';
+import { CookingLoader, LoaderModel } from '../../shared/cooking-loader';
 import { PlanPicker } from '../../shared/plan-picker';
 import { formatGeneratedAt } from '../../shared/format';
 import { aiFailText } from '../../shared/ai-error';
@@ -78,6 +78,28 @@ export class Shopping {
   readonly modelMenuOpen = signal(false);
   // Модели, годные для нормализации покупок (карта задач с сервера).
   readonly allModels = this.modelSettings.modelsForSignal('shopping');
+
+  // ---- Кто сейчас работает (подпись под лоадером) ----
+  /** Блюда текущего плана без рецепта — их сначала допишет модель «Рецепты». */
+  readonly missingRecipes = signal(0);
+  private recipeLine(): LoaderModel[] {
+    const n = this.missingRecipes();
+    if (!n) return [];
+    const ref = this.modelSettings.refFor('recipe', this.modelSettings.models().recipe);
+    return [{ note: `Рецепты (${n})`, model: ref }];
+  }
+  /** Открытие списка: GET нормализует моделью «Список покупок» из настроек. */
+  readonly loadModels = computed<LoaderModel[]>(() => [
+    ...this.recipeLine(),
+    { note: 'Собирает', model: this.optRef(this.defaultShopModel()) },
+  ]);
+  /** «↻»: модель из выпадашки страницы. */
+  readonly regenModels = computed<LoaderModel[]>(() => [
+    ...this.recipeLine(),
+    { note: 'Пересобирает', model: this.optRef(this.shopModel()) },
+  ]);
+  /** «По рецептам»: без нормализации, только недостающие рецепты. */
+  readonly byDishModels = computed<LoaderModel[]>(() => this.recipeLine());
 
   // ---- Свои покупки (мимо рецептов): «Добавить» в футере → окно, модель — та же, что для ↻ ----
   readonly addOpen = signal(false);
@@ -267,6 +289,14 @@ export class Shopping {
     this.checked.set(this.loadChecked(planId));
     this.shoppingAt.set(null);
     this.shoppingModelKey.set('');
+    this.missingRecipes.set(0);
+    // Сколько блюд без рецепта — для подписи лоадера (их допишет модель «Рецепты»).
+    this.api.getPlan(planId).subscribe({
+      next: (p) => {
+        if (this.activePlanId !== planId) return;
+        this.missingRecipes.set(p.dishes.filter((d) => !d.ingredients?.length).length);
+      },
+    });
     this.byDish.set([]);
     this.byDishPlanId = '';
     if (this.mode() === 'dish') queueMicrotask(() => this.ensureByDish());
@@ -282,6 +312,7 @@ export class Shopping {
         this.items.set(items);
         this.saveItems(planId, items);
         this.loading.set(false);
+        this.missingRecipes.set(0); // сервер дописал рецепты перед сборкой
         this.empty.set(items.length === 0);
         // Время сборки хранится в плане — подтягиваем для подписи «собран …».
         this.api.getPlan(planId).subscribe({

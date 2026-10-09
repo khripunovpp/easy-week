@@ -117,8 +117,9 @@ def test_backfill_during_regenerate_keeps_both(engine, monkeypatch):
 
 
 def test_backfill_does_not_overwrite_recipe_opened_meanwhile(engine, monkeypatch):
-    """Пока догенерация ждала модель, Борщ открыли (вариант Gemini) — догенерация его не
-    перетирает: блюду рецепт уже не нужен."""
+    """Пока догенерация ждала модель, у Борща выбрали Gemini (select — явная модель, генерит
+    свой вариант) — догенерация его не перетирает: блюду рецепт уже не нужен. Простое открытие
+    (open) догенерацию ждёт — test_open_waits_for_running_backfill."""
     release = {}
 
     async def slow_detail(name, servings=4, change="", model="", **kw):
@@ -139,7 +140,7 @@ def test_backfill_does_not_overwrite_recipe_opened_meanwhile(engine, monkeypatch
             for _ in range(3):
                 await asyncio.sleep(0)
             await plans_router.dish_details(
-                "p1", "borsch", DetailRequest(recipe_model="gemini", action="open"), s2
+                "p1", "borsch", DetailRequest(recipe_model="gemini", action="select"), s2
             )
             release["ev"].set()
             await backfill
@@ -342,15 +343,17 @@ def test_backfill_failure_reaches_all_waiters_and_is_not_stuck(engine, monkeypat
 
 
 def test_cooking_backfill_sees_recipe_opened_meanwhile(engine, monkeypatch):
-    """План готовки догенеривает Борщ, а его тем временем открыли: в модель готовки идут шаги
-    открытого рецепта, а не блюдо без шагов (кэш готовки по составу держал бы это до ↻)."""
-    release, seen = {}, []
+    """План готовки догенеривает Борщ, а его тем временем открыли (другое устройство):
+    открытие ждёт догенерацию — одна генерация, а не две; в модель готовки идут шаги этого
+    рецепта, а не блюдо без шагов (кэш готовки по составу держал бы это до ↻)."""
+    release, seen, opened = {}, [], []
 
     async def slow_detail(name, servings=4, change="", model="", **kw):
         await release["ev"].wait()
         return _detail("deepseek", ["из догенерации"])
 
     async def open_detail(name, servings=4, change="", model="", **kw):
+        opened.append(name)
         return _detail("gemini", ["открыли"])
 
     async def fake_cook(dishes, model="", **kw):
@@ -369,14 +372,19 @@ def test_cooking_backfill_sees_recipe_opened_meanwhile(engine, monkeypatch):
             )
             for _ in range(6):  # готовка дошла до догенерации и ждёт модель
                 await asyncio.sleep(0)
-            await plans_router.dish_details(
+            opening = asyncio.create_task(plans_router.dish_details(
                 "p1", "borsch", DetailRequest(recipe_model="gemini", action="open"), s2
-            )
+            ))
+            for _ in range(3):
+                await asyncio.sleep(0)
+            assert not opening.done()  # ждёт догенерацию, модель сам не зовёт
             release["ev"].set()
             await cooking
+            return await opening
 
-    asyncio.run(scenario())
-    assert seen == [{"gulyash": ["старый шаг"], "borsch": ["открыли"]}]
+    dish = asyncio.run(scenario())
+    assert opened == [] and dish.steps == ["из догенерации"]
+    assert seen == [{"gulyash": ["старый шаг"], "borsch": ["из догенерации"]}]
 
 
 def test_open_keeps_regenerate_committed_meanwhile(engine, monkeypatch):
@@ -433,17 +441,18 @@ def _seed_leftovers(engine) -> None:
         s.commit()
 
 
-def test_open_while_backfill_same_dish_keeps_both(engine, monkeypatch):
-    """Борщ открывают (Gemini, первая генерация ~20 с), а догенерация для покупок тем временем
-    пишет ему DeepSeek: остаются оба варианта, активен открытый."""
+def test_backfill_waits_for_open_of_same_dish(engine, monkeypatch):
+    """Борщ открывают (Gemini, первая генерация ~20 с), а на другом устройстве открыли покупки:
+    догенерация ждёт открытие и свою генерацию не начинает — один вариант, Gemini."""
     _seed_leftovers(engine)
-    release = {}
+    release, backfilled = {}, []
 
     async def slow_open(name, servings=4, change="", model="", **kw):
         await release["ev"].wait()
         return _detail("gemini", ["открыли"])
 
     async def fast_backfill(name, servings=4, change="", model="", **kw):
+        backfilled.append(name)
         return _detail("deepseek", ["из догенерации"])
 
     monkeypatch.setattr(plans_router, "generate_dish_detail", slow_open)
@@ -457,15 +466,17 @@ def test_open_while_backfill_same_dish_keeps_both(engine, monkeypatch):
             ))
             for _ in range(3):
                 await asyncio.sleep(0)
-            await regenerate.backfill_all(s2, s2.get(PlanRow, "p2"))
-            assert _dish(engine, "p2", "borsch")["uses"] == []  # у DeepSeek порея нет
+            backfill = asyncio.create_task(regenerate.backfill_all(s2, s2.get(PlanRow, "p2")))
+            for _ in range(3):
+                await asyncio.sleep(0)
+            assert not backfill.done()  # ждёт открытие
             release["ev"].set()
             await opening
+            await backfill
 
     asyncio.run(scenario())
     b = _dish(engine, "p2", "borsch")
-    assert set(b["variants"]) == {"gemini", "deepseek"} and b["active_model"] == "gemini"
-    assert b["variants"]["deepseek"]["kind"] == "backfill"
+    assert backfilled == [] and set(b["variants"]) == {"gemini"} and b["active_model"] == "gemini"
     g = b["variants"]["gemini"]
     assert g["parent_id"] is None and g["ctx_uses"] == ["порей"]  # по снимку до модели
 

@@ -1,7 +1,16 @@
-import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { Component, DestroyRef, computed, inject, input, signal } from '@angular/core';
+import { ModelSettings, splitRef } from '../services/model-settings';
+import { MODEL_LABELS, RecipeModel } from '../services/preferences';
 import { COOKING_PHRASES } from './cooking-phrases';
 
-// Кулинарный «лоадер»: кастрюлька с поднимающимся паром + смена фраз.
+/** Кто сейчас работает: «Список собирает» + ключ/ссылка модели («провайдер:id»). */
+export interface LoaderModel {
+  note: string;
+  model: string;
+}
+
+// Кулинарный «лоадер»: кастрюлька с поднимающимся паром + смена фраз. [models] — под фразой
+// строками «Список собирает: Cloudflare · mistral-small-…» — видно, какая модель сейчас работает.
 @Component({
   selector: 'ew-cooking',
   template: `
@@ -19,7 +28,12 @@ import { COOKING_PHRASES } from './cooking-phrases';
           <path d="M19 12.4c1.4 0 2.2.7 2.2 1.7s-.8 1.6-2 1.6" />
         </g>
       </svg>
-      <span class="cook__text">{{ phrase() }}…</span>
+      <span class="cook__body">
+        <span class="cook__text">{{ phrase() }}…</span>
+        @for (m of lines(); track m) {
+          <span class="cook__model">{{ m }}</span>
+        }
+      </span>
     </span>
   `,
   styles: [
@@ -52,8 +66,20 @@ import { COOKING_PHRASES } from './cooking-phrases';
       .cook__steam .s3 {
         animation-delay: 1s;
       }
+      .cook__body {
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+        min-width: 0;
+      }
       .cook__text {
         animation: cook-fade 1.7s ease-in-out infinite;
+      }
+      .cook__model {
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--ink-3);
+        overflow-wrap: anywhere;
       }
       @keyframes cook-steam {
         0% {
@@ -90,6 +116,21 @@ import { COOKING_PHRASES } from './cooking-phrases';
   ],
 })
 export class CookingLoader {
+  private readonly settings = inject(ModelSettings);
+  /** Какие модели сейчас работают (пусто — только фраза). */
+  readonly models = input<LoaderModel[]>([]);
+  readonly lines = computed(() =>
+    this.models()
+      .filter((m) => m.model)
+      .map((m) => {
+        const p = splitRef(m.model)[0];
+        const label = MODEL_LABELS[p as RecipeModel] ?? p;
+        let id = this.settings.modelId(m.model);
+        if (id.startsWith('@cf/')) id = id.split('/').pop() ?? id; // Cloudflare — без «@cf/…/»
+        return `${m.note}: ${label}${id ? ' · ' + id : ''}`;
+      }),
+  );
+
   // случайный старт по пулу — чтобы фразы не повторялись от раза к разу
   private idx = Math.floor(Math.random() * COOKING_PHRASES.length);
   readonly phrase = signal(COOKING_PHRASES[this.idx]);

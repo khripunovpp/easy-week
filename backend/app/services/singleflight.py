@@ -18,6 +18,10 @@ from typing import TypeVar
 T = TypeVar("T")
 
 _inflight: dict[Hashable, asyncio.Future] = {}
+# Порядок регистрации работ — join ждёт только начатых раньше (иначе две работы, ждущие друг
+# друга, повисли бы навсегда).
+_order: dict[Hashable, int] = {}
+_counter = 0
 
 
 def running(key: Hashable) -> bool:
@@ -30,10 +34,33 @@ async def single_flight(key: Hashable, factory: Callable[[], Awaitable[T]]) -> T
     current = _inflight.get(key)
     if current is not None:
         return await asyncio.shield(current)
+    global _counter
     fut = asyncio.ensure_future(factory())
     _inflight[key] = fut
+    _counter += 1
+    _order[key] = _counter
     try:
         return await fut
     finally:
         if _inflight.get(key) is fut:
             del _inflight[key]
+            _order.pop(key, None)
+
+
+async def join(match: Callable[[Hashable], bool], own: Hashable | None = None) -> bool:
+    """Дождаться идущих работ, чей ключ подходит под match, не начиная своей (разные
+    эндпоинты, одна цель: догенерация рецепта для покупок и открытие того же рецепта).
+    own — ключ своей работы (вызов изнутри single_flight): ждём только начатых РАНЬШЕ неё —
+    две работы, ждущие друг друга, не повиснут. Ошибку чужой работы не пробрасываем — ждущий
+    сам решит, делать ли своё. True — ждали."""
+    limit = _order.get(own, float("inf")) if own is not None else float("inf")
+    running = [
+        fut for key, fut in list(_inflight.items())
+        if key != own and match(key) and _order.get(key, 0) < limit
+    ]
+    for fut in running:
+        try:
+            await asyncio.shield(fut)
+        except Exception:  # noqa: BLE001 — сбой соседа: ждущий попробует сам
+            pass
+    return bool(running)

@@ -35,6 +35,7 @@ from sqlmodel import Session, select
 
 from ..models import PlanRow
 from . import recipestore
+from .shopping import sync_uses
 
 logger = logging.getLogger("easy_week.planstore")
 
@@ -149,12 +150,66 @@ def patch_dishes(
             new = recipestore.dual_write(session, plan_id, new)
             session.commit()
             _expire(session, plan_id)
+            if changes:
+                _carry_forward(session, plan_id, current, new, set(changes))
             return new
         logger.warning(
             "план %s: блюда записали параллельно (версия %d) — перечитываем, попытка %d/%d",
             plan_id, version, attempt, _ATTEMPTS,
         )
     raise PlanConflict(f"план {plan_id} одновременно меняется в другом месте")
+
+
+# Поля блюда, которые у версий плана свои: закрепления в таблицах рецептов и остатки (uses
+# считаются по остаткам своей версии). Остальное у нетронутого правкой блюда — одинаковое.
+_OWN_FIELDS = ("recipe_id", "rev_ids", "uses")
+
+
+def _same_dish(a: dict, b: dict) -> bool:
+    def strip(d: dict) -> dict:
+        return {k: v for k, v in d.items() if k not in _OWN_FIELDS}
+
+    return strip(a) == strip(b)
+
+
+def _carry_forward(
+    session: Session, plan_id: str, before: list[dict], after: list[dict], ids: set[str]
+) -> None:
+    """Правка блюда в версии плана, у которой уже есть более новые (правка в чате, часто — с
+    другого устройства: там добавили блюдо, а здесь открыт рецепт старой версии и нажат ↻),
+    переезжает в те новые версии, где это блюдо осталось нетронутым — иначе ↻ «откатывался»:
+    рецепт без болгарского перца жил в отменённой версии, а покупки шли по новой. Блюдо, которое
+    в новой версии уже другое (заменили, правили), не трогаем. Внуки — тем же путём
+    (patch_dishes версии-ребёнка сам несёт правку дальше)."""
+    old = {d.get("id"): d for d in before}
+    new = {d.get("id"): d for d in after}
+    moved = {
+        did: (old[did], new[did]) for did in ids
+        if did in old and did in new and old[did] != new[did]
+    }
+    if not moved:
+        return
+    children = session.exec(
+        select(PlanRow.id, PlanRow.leftovers).where(PlanRow.parent_id == plan_id)
+    ).all()
+    for child_id, child_leftovers in children:
+        def carry(was: dict, now: dict, lo):
+            def fn(cur: dict) -> dict | None:
+                if not _same_dish(cur, was):
+                    return None
+                out = {**now, "uses": cur.get("uses")} if "uses" in cur else dict(now)
+                return sync_uses(out, lo)
+            return fn
+
+        try:
+            patch_dishes(session, child_id, {
+                did: carry(was, now, child_leftovers) for did, (was, now) in moved.items()
+            })
+            logger.info("план %s: правку блюд %s перенесли в новую версию %s",
+                        plan_id, sorted(moved), child_id)
+        except (PlanConflict, PlanNotFound) as exc:
+            logger.warning("план %s: правку блюд в новую версию %s не перенесли: %s",
+                           plan_id, child_id, exc)
 
 
 def new_row(session: Session, *, dishes: list[dict], **fields) -> PlanRow:

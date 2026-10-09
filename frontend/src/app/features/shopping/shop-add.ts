@@ -3,7 +3,7 @@ import { EasyWeekApi, ShoppingListItem } from '../../services/api';
 import { ModelSettings } from '../../services/model-settings';
 import { MODEL_LABELS, RecipeModel } from '../../services/preferences';
 import { aiFailText } from '../../shared/ai-error';
-import { CookingLoader } from '../../shared/cooking-loader';
+import { CookingLoader, LoaderModel } from '../../shared/cooking-loader';
 import { Modal } from '../../shared/modal';
 import { ModelName } from '../../shared/model-name';
 
@@ -65,8 +65,7 @@ import { ModelName } from '../../shared/model-name';
         (input)="onInput($event)"></textarea>
       @if (busy()) {
         <div class="sa__busy">
-          <ew-cooking />
-          <span class="muted">Раскладываю по отделам…</span>
+          <ew-cooking [models]="busyModels()" />
         </div>
       } @else if (error()) {
         <p class="field-error sa__error">{{ error() }}</p>
@@ -178,6 +177,9 @@ export class ShopAdd {
   readonly models = this.modelSettings.modelsForSignal('shopping');
   readonly defaultModel = computed(() => this.modelSettings.models().shopping);
   readonly menuOpen = signal(false);
+  readonly busyModels = computed<LoaderModel[]>(() => [
+    { note: 'Раскладывает', model: this.ref(this.model()) },
+  ]);
 
   label(m: string): string {
     return MODEL_LABELS[m as RecipeModel] ?? m;

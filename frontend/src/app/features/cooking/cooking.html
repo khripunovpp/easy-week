@@ -91,7 +91,7 @@
       <ew-plan-picker [plans]="plans()" [selectedId]="selectedId()" (pick)="onPickPlan($event)" />
     }
     @if (loading()) {
-      <div class="ck-state"><ew-cooking /></div>
+      <div class="ck-state"><ew-cooking [models]="workModels()" /></div>
     } @else if (empty()) {
       <div class="ck-state">
         <span class="ck-emoji">🍳</span>
@@ -188,7 +188,7 @@
   @if (hasFooter()) {
     <footer class="page__footer page__footer--fixed fade-bottom">
       @if (regenerating()) {
-        <div class="page__footer-status"><ew-cooking /></div>
+        <div class="page__footer-status"><ew-cooking [models]="workModels()" /></div>
       } @else if (regenError()) {
         <div class="page__footer-status">
           <span class="page__footer-error">{{ regenError() }}</span>

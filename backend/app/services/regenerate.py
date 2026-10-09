@@ -64,6 +64,20 @@ async def backfill_all(
     request = original_request(session, row.conversation_id)  # фон: исходный запрос беседы
 
     async def generate_and_save(d: dict) -> None:
+        # Рецепт этого блюда уже генерит страница блюда (open/select) — ждём её, а не зовём
+        # модель второй раз; не дописала (сбой) — генерим сами.
+        joined = await singleflight.join(
+            lambda k: isinstance(k, tuple) and len(k) >= 3 and k[0] == plan_id
+            and k[1] == d["id"] and k[2] in ("open", "select"),
+            own=("backfill", plan_id, d["id"]),
+        )
+        if joined:
+            now, _ = planstore.read_dishes(session, plan_id)
+            cur = next((x for x in now if x.get("id") == d["id"]), None)
+            if cur is None or not lacks(cur):
+                logger.info("backfill: «%s» дописала страница блюда — свою генерацию не начинаем",
+                            d.get("name"))
+                return
         det = await generate_dish_detail(
             d.get("name", ""), d.get("servings", 4), model=model, dish=d, request=request,
             mention=reply_mention(session, plan_id, d.get("name", "")), leftovers=leftovers,

@@ -5,6 +5,7 @@ import { Dish, WeekPlan } from '../../models/plan.model';
 import { ChatStore } from '../../services/chat-store';
 import { MODEL_LABELS, RecipeModel } from '../../services/preferences';
 import { ModelSettings } from '../../services/model-settings';
+import { LoaderModel } from '../../shared/cooking-loader';
 import { CookingLoader } from '../../shared/cooking-loader';
 import { dishColorClass } from '../../shared/dish-color';
 import { ingTokens } from '../../shared/ingredient-match';
@@ -59,6 +60,16 @@ export class CookingPlanPage {
   );
 
   private readonly modelSettings = inject(ModelSettings);
+  /** Какая модель сейчас собирает план готовки — подпись под лоадером. */
+  readonly workModels = computed<LoaderModel[]>(() => {
+    const regen = this.regenerating();
+    const key =
+      this.generatingModel() ||
+      this.plan()?.activeModel ||
+      this.modelSettings.models().cooking;
+    const ref = this.modelSettings.refFor('cooking', key.split(':')[0]);
+    return [{ note: regen ? 'Пересобирает' : 'Собирает', model: ref }];
+  });
   // Модели, для которых варианта плана готовки ещё нет (для ⟳). Пусто → ⟳ прячем.
   // Только годные для плана готовки (карта задач с сервера).
   readonly remainingModels = computed<RecipeModel[]>(() => {

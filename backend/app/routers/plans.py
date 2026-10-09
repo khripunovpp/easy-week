@@ -47,6 +47,7 @@ from ..services.regenerate import (
     shopping_base,
 )
 from ..services.shopping import aggregate_ingredients, group_items, merge_extras, sync_uses
+from ..services import singleflight
 from ..services.singleflight import single_flight
 from ..services.variants import apply_variant, now_iso, parent_key, variant_from_detail
 from ..services.variants import dish_variants as variants_of  # имя dish_variants занято роутом
@@ -148,8 +149,21 @@ async def shopping_list(plan_id: str, session: SessionDep) -> list[ShoppingGroup
     if row.shopping_sig == sig and row.shopping_cache and cached_ok:
         return group_items(row.shopping_cache, row.leftovers, row.shopping_extras)
 
-    try:
+    async def normalize_and_cache() -> list[dict]:
         items = await normalize_shopping(base)  # модель — дефолт «Список покупок» из настроек
+        if items:
+            row.shopping_cache = items
+            row.shopping_sig = sig
+            row.shopping_at = datetime.now(timezone.utc)
+            row.shopping_model = gate_for("", "shopping").key  # GET — дефолтом из настроек
+            session.add(row)
+            session.commit()
+        return items
+
+    try:
+        # Один вызов модели на состав: страницу открыли второй раз (или с другого устройства),
+        # пока первая нормализация идёт, — ждём её, а не зовём модель заново (было до 4 разом).
+        items = await single_flight(("shopping", plan_id, sig), normalize_and_cache)
     except Exception as exc:  # noqa: BLE001 — нормализация не критична: отдаём базу
         # Базу под этой подписью НЕ кэшируем — иначе сбой нормализации «застывал» навсегда
         # (кэш совпадает по sig, повторной попытки не было бы).
@@ -157,12 +171,7 @@ async def shopping_list(plan_id: str, session: SessionDep) -> list[ShoppingGroup
         return group_items(base, row.leftovers, row.shopping_extras)
     if not items:
         return group_items(base, row.leftovers, row.shopping_extras)
-    row.shopping_cache = items
-    row.shopping_sig = sig
-    row.shopping_at = datetime.now(timezone.utc)
-    row.shopping_model = gate_for("", "shopping").key  # GET нормализует дефолтом из настроек
-    session.add(row)
-    session.commit()
+    session.refresh(row, attribute_names=["shopping_extras"])  # ждали — свои могли добавить
     return group_items(items, row.leftovers, row.shopping_extras)
 
 
@@ -309,13 +318,21 @@ async def dish_details(
     # Пусто → модель рецептов по умолчанию из настроек (ключ склейки — реальная модель).
     key = (plan_id, dish_id, action, gate_for(req.recipe_model, "recipe").key, req.note.strip())
     return await single_flight(
-        key, lambda: _resolve_dish_detail(plan_id, dish_id, req, action, session)
+        key, lambda: _resolve_dish_detail(plan_id, dish_id, req, action, session, key)
     )
 
 
 async def _resolve_dish_detail(
-    plan_id: str, dish_id: str, req: DetailRequest, action: str, session: SessionDep
+    plan_id: str, dish_id: str, req: DetailRequest, action: str, session: SessionDep,
+    flight: tuple = (),
 ) -> Dish:
+    if action == "open" and await singleflight.join(
+        lambda k: k == ("backfill", plan_id, dish_id), own=flight or None
+    ):
+        # Рецепт этого блюда уже догенеривали для покупок/PDF/готовки — дождались и читаем
+        # записанное (не вторая генерация той же модели; сбой догенерации — сгенерим ниже).
+        logger.info("рецепт %s/%s: дождались догенерации соседнего запроса", plan_id, dish_id)
+        session.expire_all()
     row = _get_plan(session, plan_id)
     dish = next((d for d in (row.dishes or []) if d.get("id") == dish_id), None)
     if dish is None:

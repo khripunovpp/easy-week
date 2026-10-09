@@ -6,6 +6,7 @@ import { EasyWeekApi } from '../../services/api';
 import { ChatStore } from '../../services/chat-store';
 import { MODEL_LABELS, RecipeModel } from '../../services/preferences';
 import { ModelSettings } from '../../services/model-settings';
+import { LoaderModel } from '../../shared/cooking-loader';
 import { CookingLoader } from '../../shared/cooking-loader';
 import { Vote } from '../../shared/vote';
 import { formatGeneratedAt } from '../../shared/format';
@@ -83,6 +84,18 @@ export class DishPage {
   readonly busy = computed(() => this.regenerating() || this.opening());
 
   private readonly modelSettings = inject(ModelSettings);
+  /** Какая модель сейчас пишет рецепт — подпись под лоадером (открытие / выбор / ↻). */
+  readonly workModels = computed<LoaderModel[]>(() => {
+    const regen = this.regenerating();
+    const key =
+      this.generatingModel() ||
+      (regen ? this.dish()?.activeModel : '') ||
+      this.model() ||
+      this.dish()?.activeModel ||
+      this.modelSettings.models().recipe;
+    const ref = this.modelSettings.refFor('recipe', key.split(':')[0]);
+    return [{ note: regen ? 'Пересобирает' : 'Пишет', model: ref }];
+  });
   // Модели, для которых варианта рецепта ещё нет — в выпадашке показываем со стрелкой ↓.
   // Только годные для рецептов (карта задач): дешёвые Cloudflare/OpenRouter не предлагаем;
   // уже сгенерированные ими старые варианты при этом остаются в списке (variantModels).
